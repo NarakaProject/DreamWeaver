@@ -89,6 +89,15 @@ export function buildSystemInstruction(params: Partial<PromptContextParams>): st
     '2. PROSE NARRATION AND ACTIONS can be written naturally or enclosed in asterisks (e.g. *draws blade silently*).',
     '3. IMPORTANT TERMS OR EMPHASIS can be bolded using double asterisks (e.g. **Sunstone Relic**).',
     '4. Maintain character persona and scenario directives consistency at all times.',
+    '',
+    '### HIGH-PRIORITY DIALOGUE & CYOA FORMATTING INSTRUCTIONS:',
+    '1. When acting as Summoned, Summoner, or any NPC, format dialogue cleanly with explicit speaker tags (e.g. [Speaker: Summoned] or [Speaker: Character Name]).',
+    '2. NEVER output inline character name prefixes inside prose or dialogue (e.g. write "What the—" instead of "Rick: What the—").',
+    '3. If outputting CYOA options or next step choices, ALWAYS place them at the very end of your response wrapped inside <cyoa_options> XML tags:',
+    '   <cyoa_options>',
+    '   - 💬 Friendly Inquiry: "What is this place?"',
+    '   - ⚙️ System Command: "/Start"',
+    '   </cyoa_options>',
   ];
 
   // User Persona

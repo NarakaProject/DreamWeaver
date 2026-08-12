@@ -19,13 +19,135 @@ export interface SpeakerSection {
   content: string;
 }
 
+export interface CyoaOption {
+  id: string;
+  label: string;
+  content: string;
+}
+
+export interface CyoaParseResult {
+  cleanText: string;
+  options: CyoaOption[];
+}
+
+/**
+ * Extracts CYOA option blocks from narrative text.
+ * Handles both <cyoa_options> XML tags and bulleted "Choose The Next Step Options:" blocks.
+ */
+export function extractCyoaOptions(rawText: string): CyoaParseResult {
+  if (!rawText) return { cleanText: '', options: [] };
+
+  const options: CyoaOption[] = [];
+  let cleanText = rawText;
+
+  // 1. Check for explicit <cyoa_options>...</cyoa_options> XML tags
+  const xmlMatch = rawText.match(/<cyoa_options>([\s\S]*?)<\/cyoa_options>/i);
+  if (xmlMatch) {
+    const rawOptionsBlock = xmlMatch[1];
+    cleanText = rawText.replace(/<cyoa_options>[\s\S]*?<\/cyoa_options>/gi, '').trim();
+
+    const lines = rawOptionsBlock.split('\n');
+    let optId = 1;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      const lineMatch = trimmed.match(/^(?:[-*•]|\d+\.)?\s*(?:\[([^\]]+)\]|([^:]+)):\s*(.*)$/);
+      if (lineMatch) {
+        const label = (lineMatch[1] || lineMatch[2] || `Option #${optId}`).trim();
+        const content = (lineMatch[3] || label).replace(/^["']|["']$/g, '').trim();
+        options.push({
+          id: `cyoa-${optId++}`,
+          label,
+          content: content || label,
+        });
+      } else if (trimmed.startsWith('-') || trimmed.startsWith('*') || /^\d+\./.test(trimmed)) {
+        const cleanLine = trimmed.replace(/^[-*•]|\d+\.\s*/, '').trim();
+        options.push({
+          id: `cyoa-${optId++}`,
+          label: cleanLine.slice(0, 35),
+          content: cleanLine,
+        });
+      }
+    }
+    return { cleanText, options };
+  }
+
+  // 2. Check for "Choose The Next Step Options:" header
+  const chooseMatch = rawText.match(/(\*?\*?Choose The Next Step Options:?\*?\*?[\s\S]*)$/i);
+  if (chooseMatch) {
+    const rawOptionsBlock = chooseMatch[1];
+    cleanText = rawText.substring(0, chooseMatch.index).trim();
+
+    const lines = rawOptionsBlock.split('\n');
+    let optId = 1;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.toLowerCase().includes('choose the next step options')) continue;
+
+      const lineMatch = trimmed.match(/^(?:[-*•]|\d+\.)?\s*(?:\[([^\]]+)\]|([^:]+)):\s*(.*)$/);
+      if (lineMatch) {
+        const label = (lineMatch[1] || lineMatch[2] || `Option #${optId}`).trim();
+        const content = (lineMatch[3] || label).replace(/^["']|["']$/g, '').trim();
+        options.push({
+          id: `cyoa-${optId++}`,
+          label,
+          content: content || label,
+        });
+      } else if (trimmed.startsWith('-') || trimmed.startsWith('*') || /^\d+\./.test(trimmed)) {
+        const cleanLine = trimmed.replace(/^[-*•]|\d+\.\s*/, '').trim();
+        options.push({
+          id: `cyoa-${optId++}`,
+          label: cleanLine.slice(0, 35),
+          content: cleanLine,
+        });
+      }
+    }
+  }
+
+  return { cleanText, options };
+}
+
+/**
+ * Strips inline character prefixes like "Rick:", "Rick Sanchez:", "Summoned:" from the start of text content.
+ */
+export function stripSpeakerPrefix(content: string, speakerName?: string): string {
+  if (!content) return '';
+  let cleaned = content.trim();
+
+  if (speakerName) {
+    const esc = speakerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`^(?:\\[${esc}\\]|${esc}):\\s*`, 'i');
+    cleaned = cleaned.replace(regex, '').trim();
+  }
+
+  // Strip generic "Name:" or "[Speaker: Name]" prefix at beginning of text block
+  cleaned = cleaned.replace(/^(?:\[(?:Speaker:\s*)?[^\]]+\]|[A-Z][a-zA-Z0-9_\s]{1,20}):\s*/, '').trim();
+
+  return cleaned;
+}
+
+/**
+ * Ensures AI model response turns NEVER get assigned to the User Persona.
+ */
+function sanitizeSpeakerName(speaker: string, defaultSpeaker: string, userPersonaName?: string): string {
+  if (!speaker || speaker.trim().toLowerCase() === 'model') {
+    return defaultSpeaker;
+  }
+  if (userPersonaName && speaker.toLowerCase() === userPersonaName.toLowerCase()) {
+    return defaultSpeaker.toLowerCase() !== userPersonaName.toLowerCase() ? defaultSpeaker : 'Narrator';
+  }
+  return speaker;
+}
+
 /**
  * Splits narrative text into distinct speaker sections if multi-speaker tags are present
- * (e.g. [Speaker: Ignis Emberheart] or [Narrator] or [Aria Shadowstep]).
+ * (e.g. [Speaker: Ignis Emberheart], [Narrator], [Aria Shadowstep], or "Rick:").
  */
 export function splitMultiSpeakerText(
   text: string,
-  defaultSpeaker: string = 'Narrator'
+  defaultSpeaker: string = 'Narrator',
+  userPersonaName?: string
 ): SpeakerSection[] {
   if (!text || !text.trim()) return [];
 
@@ -46,8 +168,8 @@ export function splitMultiSpeakerText(
     const priorText = text.slice(lastIndex, matchIndex).trim();
     if (priorText) {
       sections.push({
-        speaker: currentSpeaker,
-        content: priorText,
+        speaker: sanitizeSpeakerName(currentSpeaker, defaultSpeaker, userPersonaName),
+        content: stripSpeakerPrefix(priorText, currentSpeaker),
       });
     }
 
@@ -59,15 +181,15 @@ export function splitMultiSpeakerText(
   const remainingText = text.slice(lastIndex).trim();
   if (remainingText) {
     sections.push({
-      speaker: currentSpeaker,
-      content: remainingText,
+      speaker: sanitizeSpeakerName(currentSpeaker, defaultSpeaker, userPersonaName),
+      content: stripSpeakerPrefix(remainingText, currentSpeaker),
     });
   }
 
   if (sections.length === 0 && text.trim()) {
     sections.push({
-      speaker: defaultSpeaker,
-      content: text.trim(),
+      speaker: sanitizeSpeakerName(defaultSpeaker, defaultSpeaker, userPersonaName),
+      content: stripSpeakerPrefix(text, defaultSpeaker),
     });
   }
 

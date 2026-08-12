@@ -408,8 +408,14 @@ export default function Home() {
         }
       }
 
-      const defaultSpeaker = targetSpeaker || (selectedSpeaker !== activePersona?.name ? selectedSpeaker : 'Narrator');
-      const sections = splitMultiSpeakerText(fullText, defaultSpeaker);
+      const defaultSpeaker =
+        targetSpeaker ||
+        (selectedSpeaker !== activePersona?.name
+          ? selectedSpeaker
+          : sceneNPCs.find((npc) => npc.toLowerCase() === 'summoned') ||
+            sceneNPCs[0] ||
+            'Narrator');
+      const sections = splitMultiSpeakerText(fullText, defaultSpeaker, activePersona?.name);
 
       const createdMessages: ChatMessage[] = [];
 
@@ -616,6 +622,7 @@ export default function Home() {
                       onRegenerate={
                         msg.role === 'model' ? () => handleRegenerateFromIndex(index) : undefined
                       }
+                      onSelectCyoaOption={(optionText) => handleSendInput('do', optionText)}
                     />
                   ))}
 

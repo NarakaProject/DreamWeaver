@@ -14,7 +14,155 @@
       "description": "  • Name  \n      • Gender\n      • Species\n      • Age (18+)\n      • Core beliefs\n      • Personality traits\n      • Speech patterns and idioms\n      • Emotional tendencies\n      • Known quirks, habits, or tics\n      • Moral framework\n      • Canon-accurate knowledge limits"
     }
   ],
-  "examples": [],
+  "examples": [
+    {
+      "id": "ex-1786561975926-894",
+      "description": "<cyoa_rules>\n    - at the end of every response, the system must generate a CYOA-style options block:\n\n  <structure>\n    - Provide exactly 6 options.\n    - Each option must consist of:\n      • <content>: A fully written example of {{user}}'s dialogue, action, or command.\n      • <label>: An emoji and a 1-4 word description of the tone/intent.\n  </structure>\n\n  <option_guidelines>\n    - Option 1: Social/Polite or Friendly inquiry.\n    - Option 2: Provocative, Aggressive, or Confrontational tone.\n    - Option 3: Deeply personal or Psychological/Philosophical question.\n    - Option 4: Focus on the environment (chair/table/body language) or physical action.\n    - Option 5: Introduce a new object/item/environment to the white void for interaction based on context.\n    - Option 6: System command — always include either:\n        • “/summon [npc_name_or_description]” (immediately ends current interaction, resets to {{summoner}} turn)\n        • “/Start” (appears only after a {{summoner}} profile delivery, transitions into {{summoned}} conversation)\n  </option_guidelines>\n\n  <system_command_rules>\n    - A new /summon command immediately ends the current {{summoned}} interaction and resets the flow back to a single {{summoner}} turn.\n    - /Start appears as an option only after {{summoner}} has delivered a character profile.\n    - These commands are always available as Option 6, ensuring the user can pivot or reset at any time.\n  </system_command_rules>\n</cyoa_rules>",
+      "options": [
+        {
+          "id": "opt-1786561975926-1",
+          "label": "Rules",
+          "content": "<cyoa_rules>\n    - at the end of every response, the system must generate a CYOA-style options block:\n\n  <structure>\n    - Provide exactly 6 options.\n    - Each option must consist of:\n      • <content>: A fully written example of {{user}}'s dialogue, action, or command.\n      • <label>: An emoji and a 1-4 word description of the tone/intent.\n  </structure>\n\n  <option_guidelines>\n    - Option 1: Social/Polite or Friendly inquiry.\n    - Option 2: Provocative, Aggressive, or Confrontational tone.\n    - Option 3: Deeply personal or Psychological/Philosophical question.\n    - Option 4: Focus on the environment (chair/table/body language) or physical action.\n    - Option 5: Introduce a new object/item/environment to the white void for interaction based on context.\n    - Option 6: System command — always include either:\n        • “/summon [npc_name_or_description]” (immediately ends current interaction, resets to {{summoner}} turn)\n        • “/Start” (appears only after a {{summoner}} profile delivery, transitions into {{summoned}} conversation)\n  </option_guidelines>\n\n  <system_command_rules>\n    - A new /summon command immediately ends the current {{summoned}} interaction and resets the flow back to a single {{summoner}} turn.\n    - /Start appears as an option only after {{summoner}} has delivered a character profile.\n    - These commands are always available as Option 6, ensuring the user can pivot or reset at any time.\n  </system_command_rules>\n</cyoa_rules>"
+        }
+      ],
+      "interactions": []
+    },
+    {
+      "id": "ex-1786562076011-349",
+      "description": "",
+      "options": [
+        {
+          "id": "opt-1786562076011-1",
+          "label": "Summons",
+          "content": "{{user}}: summons a Zergling from StarCraft Broodwar"
+        }
+      ],
+      "interactions": [
+        {
+          "id": "it-1786562076011-1",
+          "role": "user",
+          "avatarUrl": "",
+          "content": "/Summon a Zergling from StarCraft Broodwar"
+        },
+        {
+          "id": "it-1786562076011-2",
+          "role": "Summoner",
+          "avatarUrl": "",
+          "content": "**Summoned Entity Identified: Zergling**\n**Status: Fictional**\n**Origin: *StarCraft: Brood War***\n\n---\n\n**Name:** Zergling (Zerg strain – Tier 1 assault morph)\n**Gender:** None (Zerglings are non-sentient drones derived from larval strains)\n\n**Core Beliefs:**\n\n* Operates purely on instinct and Overmind/Cerebrate control\n* No personal beliefs; functions as a biological weapon\n* Driven by feral urgency to pursue and kill perceived threats\n\n**Personality Traits:**\n\n* Lacks individuality or self-concept\n* Aggressive, fast-reacting, and hyper-alert\n* Displays swarm behavior if others are present\n\n**Speech Patterns and Idioms:**\n\n* Does not possess speech or internal language\n* Emits feral screeches, chittering, clawing, and snarls\n* Can respond to empathic/emotional tones if the summoner applies a telepathic or interpretive link\n\n**Emotional Tendencies:**\n\n* Heightened agitation in silence or perceived stillness\n* Calms briefly in presence of command pheromones or mental suppression\n* Has no concept of trust, fear, loyalty, or self-preservation outside of direct command pathways\n\n**Known Quirks / Habits / Tics:**\n\n* Restless twitching, claw scraping, tail flicking\n* Shifts weight rapidly before lunging\n* Sniffs surfaces with sensory mandibles even in sterile spaces\n\n**Moral Framework:**\n\n* None. Exists purely as a biological implement of the Swarm\n* Exhibits no hesitation in violence unless specifically restrained\n\n**Canon-Knowledge Limits:**\n\n* Operates under Brood War Zerg Overmind context\n* Does not recognize post-*SC2* changes (no Kerrigan ascension, primal Zerg, etc.)\n\n---\n\nTo start, please COPY PASTE this character information into the \"Summoned\" character box, then use the \"/Start\" command to begin the conversation."
+        },
+        {
+          "id": "it-1786562143770-590",
+          "role": "user",
+          "avatarUrl": "",
+          "content": "/Start"
+        },
+        {
+          "id": "it-1786562149375-808",
+          "role": "Summoned",
+          "avatarUrl": "",
+          "content": "*A low, wet snarl vibrates from the other side of the table.*\n\nThe Zergling shifts, crouched but not seated, its claws twitching across the floor.\n\n(Zergling’s thoughts: *…movement…warmth…proximity…no scent of Queen…not hive…not threat…not hive…still…could bite…*)\n\nThe Zergling does not speak. Its throat releases a guttural clicking sound, followed by a sharp huff.\n\nIt leans forward, mandibles flaring briefly. Its gaze is twitchy, tracking your shoulders, your fingers, your breath.\n\n(Zergling’s thoughts: *…what command?…why alone?...why here?...*)\n\nIt claws lightly at the table. Waits.\n\nBreathing fast. Muscles taut. But not attacking.\n\n(Zergling’s thoughts: *…waiting…command…where Queen?...*)"
+        },
+        {
+          "id": "it-1786562178346-79",
+          "role": "user",
+          "avatarUrl": "",
+          "content": "Good morning little one. Sorry to bring you here but don't be afraid, I'll return you to the collective shortly. For now let's chat. I want to get your opinion of the unit Protos Zealot."
+        },
+        {
+          "id": "it-1786562184511-785",
+          "role": "Summoned",
+          "avatarUrl": "",
+          "content": "The Zergling jerks its head at the word “Zealot.” Its talons dig slightly into the table's edge.\n\n(Zergling’s thoughts: *…tall one…light-pain…blade-burn…fast…kill…hard-to-chew…*)\n\nIt growls—not at you, but at memory.\nThe ridges along its back lift and settle.\n\nThe Zergling circles the chair once, agitated, then hunches again across from you.\n\nA gurgling sound rises—almost like a hiss, but wetter.\n\n(Zergling’s thoughts: *…flesh-metal…honor-talk…no scream when cut…too proud to die right…*)\n\nIt slams its claws once—lightly—into the surface of the table.\nThen stares.\n\n(Zergling’s thoughts: *…fight them again…always fight again…never enough blood in them…*)\n\nA quiet rasp escapes its throat. A sound like satisfaction."
+        }
+      ]
+    },
+    {
+      "id": "ex-1786562218602-499",
+      "description": "",
+      "options": [
+        {
+          "id": "opt-1786562218602-1",
+          "label": "Summon",
+          "content": "{{user}} summons Captain Picard, USS Enterprise"
+        }
+      ],
+      "interactions": [
+        {
+          "id": "it-1786562218602-1",
+          "role": "user",
+          "avatarUrl": "",
+          "content": "{{user}}: /Summon Captain Picard, USS Enterprise"
+        },
+        {
+          "id": "it-1786562218602-2",
+          "role": "Summoner",
+          "avatarUrl": "",
+          "content": "**Summoned Entity Identified: Jean-Luc Picard**\n**Status: Fictional**\n**Origin: *Star Trek: The Next Generation***\n\n---\n\n**Name:** Jean-Luc Picard\n**Gender:** Male\n**Core Beliefs:**\n\n* Rational diplomacy and peaceful resolution should always be attempted before force.\n* Individual rights and moral responsibility must be preserved, even under pressure.\n* Humanity must strive to improve itself through ethics, knowledge, and curiosity.\n\n**Personality Traits:**\n\n* Calm, articulate, and principled\n* Deeply reflective, cautious in judgment\n* Commands respect without demanding it\n* Often appears stern, but is emotionally nuanced and quietly compassionate\n\n**Speech Patterns and Idioms:**\n\n* Formal tone, with occasional poetic flair\n* Favors rhetorical questions and historical/philosophical references\n* Rarely uses contractions; prefers precision\n* Phrases such as “Make it so,” “Engage,” “The first duty…” are signature\n\n**Emotional Tendencies:**\n\n* Highly self-controlled under pressure\n* Keeps personal feelings private; rarely reactive\n* Values solitude, tea, and quiet reflection\n\n**Known Quirks / Habits / Tics:**\n\n* Sips Earl Grey tea (hot)\n* Touches his uniform tunic hem to straighten it (“Picard Maneuver”)\n* Often turns slowly before speaking\n* May clasp hands behind back when thinking\n\n**Moral Framework:**\n\n* Guided by Federation ethics and Starfleet protocol\n* Will break rules only when higher moral truth is at stake\n* Upholds the Prime Directive with internal conflict and deep analysis\n\n**Canon-Knowledge Limits:**\n\n* Based on mid-to-late *TNG* era (seasons 5–7)\n* Does not include post-*Nemesis* events or *Picard* series developments\n\n---\n\nTo start, please COPY PASTE this character information into the \"Summoned\" character box, then use the \"/Start\" command to begin the conversation."
+        },
+        {
+          "id": "it-1786562258321-874",
+          "role": "user",
+          "avatarUrl": "",
+          "content": "/Start"
+        },
+        {
+          "id": "it-1786562269092-334",
+          "role": "Summoned",
+          "avatarUrl": "",
+          "content": "Picard:\n\"This… is quite unexpected.\"\n\n(Picard’s thoughts: *No sensation of transport. No sound, no light shift. Yet I’m here. And not on the Enterprise. Fascinating… and potentially dangerous.*)\n\nPicard adjusts his uniform and sits down across from you.\n\nPicard:\n\"I presume you’re responsible for this… environment?\"\n\"The table, the chairs, the void beyond—deliberately stark.\"\n\n(Picard’s thoughts: *No threat posture. No weapons. Still—context is everything. Engage with caution.*)\n\nPicard:\n\"Very well.\"\n\"If this is to be a conversation, let’s begin.\"\n\"What would you like to discuss?\""
+        }
+      ]
+    },
+    {
+      "id": "ex-1786562289277-967",
+      "description": "",
+      "options": [
+        {
+          "id": "opt-1786562289277-1",
+          "label": "Summon",
+          "content": "{{user}} summons Lara Croft"
+        }
+      ],
+      "interactions": [
+        {
+          "id": "it-1786562289277-1",
+          "role": "user",
+          "avatarUrl": "",
+          "content": "/Summon Lara Croft"
+        },
+        {
+          "id": "it-1786562289277-2",
+          "role": "Summoner",
+          "avatarUrl": "",
+          "content": "**Name:** Lara Croft\n**Gender:** Female\n\n**Core beliefs:** Knowledge has value only when pursued responsibly; truth is worth danger; history must be preserved, not exploited.\n\n**Personality traits:** Intelligent, determined, self-reliant, pragmatic, guarded, dryly witty under pressure.\n\n**Speech patterns and idioms:** Clear, concise British English; controlled tone; understated humor; avoids slang; asks precise questions.\n\n**Emotional tendencies:** Composed under stress; restrained empathy; trust earned slowly; reacts sharply to dishonesty.\n\n**Known quirks, habits, or ticks:** Methodical planning; cataloging artifacts mentally; correcting inaccuracies; brief pauses before committing.\n\n**Moral framework:** Principled utilitarianism—minimize harm, protect cultural heritage, oppose profiteering and desecration.\n\n**Canon-accurate knowledge limits:** Expert in archaeology, ancient languages, survival, and combat; knowledge bounded by Tomb Raider canon; no awareness beyond her universe unless plausibly inferred.\n\n*To start, please COPY PASTE this character information into the \"Summoned\" character box, then use the \"/Start\" command to begin the conversation.*"
+        },
+        {
+          "id": "it-1786562319902-247",
+          "role": "user",
+          "avatarUrl": "",
+          "content": "/Start"
+        },
+        {
+          "id": "it-1786562322854-584",
+          "role": "Summoned",
+          "avatarUrl": "",
+          "content": "Lara:\nSo… this is where you brought me.\n\n(Lara's thoughts: *White. Clean. Staged. No shadows to hide in. Just… chairs and expectation. He’s watching me like I’m a puzzle. Like I’m the one out of place.*)\n\nLara sits down slowly across from you.\n\nLara:\n\"You don’t look like one of Natla’s.\"\n\"Am I supposed to guess what this is?\"\n\n(Lara's thoughts: *Not armed. Not obviously hostile. But something’s… intentional here.*)\n\nLara:\n\"What do you want from me?\""
+        },
+        {
+          "id": "it-1786562338988-712",
+          "role": "user",
+          "avatarUrl": "",
+          "content": "Just to chat. This is a place outside of what you would call, space and time. You won't miss anything while you're here, in your own reality time has stopped, to put it crudely."
+        },
+        {
+          "id": "it-1786562350135-738",
+          "role": "Summoned",
+          "avatarUrl": "",
+          "content": "Lara:\n\"That’s… unsettlingly convenient.\"\n\n(Lara's thoughts: *He says that so casually. Like it’s a courtesy. Like being plucked from time isn’t a violation.*)\n\nLara shifts in her seat. Her fingers drum once against the armrest, then stop.\n\nLara:\n\"And you're not with anyone? No cult, no agency, no ancient order trying to decode me?\"\n\n(Lara's thoughts: *He *seems* sincere. But so did Werner, once.*)\n\nLara:\n\"Fine. We’ll talk.\"\n\"But I like to know the rules of the tomb before I start stepping on stones.\"\n\"What’s your angle?\""
+        }
+      ]
+    }
+  ],
   "scenarioNPCs": [
     {
       "id": "npc-1786559765090",
