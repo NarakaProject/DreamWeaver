@@ -58,21 +58,26 @@ export async function POST(req: NextRequest) {
       .replace(/\s+/g, ' ')
       .trim();
 
-    // Determine aspect ratio dimensions
+    // Determine aspect ratio dimensions & composition anchors
     const isLandscape = aspect_ratio === 'landscape' || assetKind === 'cover' || assetKind === 'location';
-    const width = isLandscape ? 1280 : 1024;
-    const height = isLandscape ? 720 : 1024;
+    const width = isLandscape ? 1024 : 1024;
+    const height = isLandscape ? 576 : 1024;
     const seed = Math.floor(Math.random() * 1000000);
 
+    const compositionAnchor = isLandscape
+      ? ', wide 16:9 aspect ratio, cinematic widescreen composition'
+      : '';
+    const finalPrompt = `${sanitizedPrompt}${compositionAnchor}`;
+
     const primaryUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
-      sanitizedPrompt
+      finalPrompt
     )}?width=${width}&height=${height}&nologo=true&seed=${seed}`;
 
     const fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
-      sanitizedPrompt
+      finalPrompt
     )}?nologo=true`;
 
-    console.log(`[Pollinations AI] Requesting image asset: "${sanitizedPrompt.slice(0, 80)}..."`);
+    console.log(`[Pollinations AI] Requesting image asset (${width}x${height}): "${finalPrompt.slice(0, 80)}..."`);
 
     let buffer: Buffer;
     let modelUsed = 'pollinations-flux';
@@ -107,7 +112,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       imageUrl,
-      prompt: sanitizedPrompt,
+      prompt: finalPrompt,
       model: modelUsed,
       dimensions: `${width}x${height}`,
     });
