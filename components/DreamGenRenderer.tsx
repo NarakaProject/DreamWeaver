@@ -10,10 +10,42 @@ interface DreamGenRendererProps {
   type?: 'do' | 'say' | 'story_note' | 'continue' | 'narration';
   speaker?: string;
   userPersonaName?: string;
+  knownNPCs?: string[];
   isStreaming?: boolean;
   onRegenerate?: () => void;
   onEdit?: (newContent: string) => void;
   onDelete?: () => void;
+}
+
+/**
+ * Resolves raw or shortened AI speaker names to their full canonical name.
+ * E.g., "Aria" -> "Aria Shadowstep", "Ignis" -> "Ignis Emberheart".
+ */
+export function getCanonicalSpeakerName(
+  speaker: string,
+  userPersonaName: string = 'Valerius',
+  knownNPCs: string[] = []
+): string {
+  if (!speaker) return 'Narrator';
+  const clean = speaker.trim();
+  if (clean.toLowerCase() === 'narrator') return 'Narrator';
+
+  if (clean.toLowerCase() === userPersonaName.toLowerCase()) {
+    return userPersonaName;
+  }
+
+  const matchedNPC = knownNPCs.find(
+    (npc) =>
+      npc.toLowerCase() === clean.toLowerCase() ||
+      npc.toLowerCase().startsWith(clean.toLowerCase())
+  );
+  if (matchedNPC) return matchedNPC;
+
+  if (userPersonaName.toLowerCase().startsWith(clean.toLowerCase())) {
+    return userPersonaName;
+  }
+
+  return clean;
 }
 
 export const DreamGenRenderer = React.memo(function DreamGenRenderer({
@@ -21,7 +53,8 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
   role,
   type,
   speaker,
-  userPersonaName = 'Player Persona',
+  userPersonaName = 'Valerius',
+  knownNPCs = [],
   isStreaming = false,
   onRegenerate,
   onEdit,
@@ -46,11 +79,13 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
     setIsEditing(false);
   };
 
-  // Determine speaker classification
+  // Determine speaker classification & canonical full name
   const isUserTurn = role === 'user';
-  const speakerName = speaker || (isUserTurn ? userPersonaName : 'Narrator');
-  const isNarrator = speakerName.toLowerCase() === 'narrator';
-  const isUserSpeaker = isUserTurn || speakerName.toLowerCase() === userPersonaName.toLowerCase();
+  const rawSpeaker = speaker || (isUserTurn ? userPersonaName : 'Narrator');
+  const canonicalSpeaker = getCanonicalSpeakerName(rawSpeaker, userPersonaName, knownNPCs);
+
+  const isNarrator = canonicalSpeaker.toLowerCase() === 'narrator';
+  const isUserSpeaker = isUserTurn || canonicalSpeaker.toLowerCase() === userPersonaName.toLowerCase();
 
   return (
     <div className="group relative my-6 max-w-3xl mx-auto w-full rounded-xl bg-[#12151e] border border-[#1f2430] p-6 shadow-md transition-colors hover:border-[#2a3142] contain-content space-y-3">
@@ -60,15 +95,10 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
           {isUserSpeaker ? (
             <div className="flex items-center gap-1.5 font-bold text-[#38bdf8]">
               <User className="w-3.5 h-3.5" />
-              <span>{speakerName}</span>
+              <span>{canonicalSpeaker}</span>
               <span className="px-1.5 py-0.5 rounded text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 uppercase">
                 PLAYER
               </span>
-              {type && (
-                <span className="ml-1 text-[10px] text-slate-400 font-mono">
-                  [{type.toUpperCase()}]
-                </span>
-              )}
             </div>
           ) : isNarrator ? (
             <span className="text-slate-500 font-mono italic text-[11px]">
@@ -77,7 +107,7 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
           ) : (
             <div className="flex items-center gap-1.5 font-bold text-amber-300">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>{speakerName}</span>
+              <span>{canonicalSpeaker}</span>
               <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/30 uppercase">
                 NPC
               </span>

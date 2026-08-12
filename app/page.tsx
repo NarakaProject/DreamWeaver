@@ -4,7 +4,7 @@ import React from 'react';
 import { Sidebar, SidebarNavView } from '@/components/Sidebar';
 import { Header } from '@/components/Header';
 import { DreamGenRenderer } from '@/components/DreamGenRenderer';
-import { ControlDock, InputMode } from '@/components/ControlDock';
+import { ControlDock } from '@/components/ControlDock';
 import { SettingsModal } from '@/components/SettingsModal';
 import { MemoryInspector } from '@/components/MemoryInspector';
 import { ScenarioDiscovery } from '@/components/ScenarioDiscovery';
@@ -256,20 +256,20 @@ export default function Home() {
   };
 
   // Send User Action / Dialogue Input
-  const handleSendInput = async (content: string, type: InputMode, speakerOverride?: string) => {
+  const handleSendInput = async (content: string, speakerOverride?: string) => {
     if (!apiKey) {
       setIsSettingsOpen(true);
       return;
     }
     if (!activeSessionId) return;
 
-    const speakerName = speakerOverride || selectedSpeaker || activePersona?.name || 'Player';
+    const speakerName = speakerOverride || selectedSpeaker || activePersona?.name || 'Valerius';
 
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
       content,
-      type,
+      type: 'narration',
       speaker: speakerName,
       timestamp: Date.now(),
     };
@@ -581,7 +581,8 @@ export default function Home() {
                       content={msg.content}
                       type={msg.type}
                       speaker={msg.speaker}
-                      userPersonaName={activePersona?.name || 'You'}
+                      userPersonaName={activePersona?.name || 'Valerius'}
+                      knownNPCs={sceneNPCs}
                       onEdit={(newContent) => handleEditMessage(index, newContent)}
                       onRegenerate={
                         msg.role === 'model' ? () => handleRegenerateFromIndex(index) : undefined
@@ -595,6 +596,8 @@ export default function Home() {
                       role="model"
                       content={streamingContent}
                       speaker={selectedSpeaker !== activePersona?.name ? selectedSpeaker : 'Narrator'}
+                      userPersonaName={activePersona?.name || 'Valerius'}
+                      knownNPCs={sceneNPCs}
                       isStreaming={true}
                     />
                   )}
