@@ -3,6 +3,41 @@ import fs from 'fs';
 import path from 'path';
 import { enhanceImagePrompt, AssetType } from '@/lib/gemini/image-prompt';
 
+async function fetchImageBuffer(url: string, timeoutMs = 30000): Promise<Buffer> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[Pollinations API Error] ${res.status}:`, errText);
+      throw new Error(`Pollinations API (${res.status}): ${errText.slice(0, 150)}`);
+    }
+
+    const arrayBuf = await res.arrayBuffer();
+    const buf = Buffer.from(arrayBuf);
+    if (!buf || buf.length < 100) {
+      throw new Error('Received invalid or truncated image buffer from Pollinations.');
+    }
+    return buf;
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error(`Pollinations request timed out after ${timeoutMs / 1000}s.`);
+    }
+    throw err;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -13,52 +48,48 @@ export async function POST(req: NextRequest) {
     }
 
     const assetKind = (type as AssetType) || 'general';
-    const enhancedPrompt = enhanceImagePrompt(prompt, assetKind);
+    const rawEnhanced = enhanceImagePrompt(prompt, assetKind);
+
+    // Sanitize prompt text (strip newlines, quotes, backslashes, extra spaces)
+    const sanitizedPrompt = rawEnhanced
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/["']/g, '')
+      .replace(/[\\/]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
 
     // Determine aspect ratio dimensions
     const isLandscape = aspect_ratio === 'landscape' || assetKind === 'cover' || assetKind === 'location';
     const width = isLandscape ? 1280 : 1024;
     const height = isLandscape ? 720 : 1024;
+    const seed = Math.floor(Math.random() * 1000000);
 
-    const seed = Date.now() + Math.floor(Math.random() * 10000);
-    const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
-      enhancedPrompt
-    )}?model=flux&width=${width}&height=${height}&nologo=true&seed=${seed}`;
+    const primaryUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
+      sanitizedPrompt
+    )}?width=${width}&height=${height}&nologo=true&seed=${seed}`;
 
-    console.log(`[Pollinations FLUX API] Requesting image asset: "${enhancedPrompt.slice(0, 80)}..."`);
+    const fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
+      sanitizedPrompt
+    )}?nologo=true`;
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 35000);
+    console.log(`[Pollinations AI] Requesting image asset: "${sanitizedPrompt.slice(0, 80)}..."`);
 
-    let res: Response;
+    let buffer: Buffer;
+    let modelUsed = 'pollinations-flux';
+
     try {
-      res = await fetch(pollinationsUrl, {
-        method: 'GET',
-        headers: {
-          'User-Agent': 'DreamWeaver-Engine/1.0',
-        },
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-    } catch (fetchErr: any) {
-      clearTimeout(timeoutId);
-      if (fetchErr.name === 'AbortError') {
-        throw new Error('Pollinations FLUX image generation request timed out after 35 seconds.');
+      buffer = await fetchImageBuffer(primaryUrl, 30000);
+    } catch (primaryErr: any) {
+      console.warn(
+        `[Pollinations Primary URL Failed] ${primaryErr.message}. Retrying with simplified fallback URL...`
+      );
+      try {
+        buffer = await fetchImageBuffer(fallbackUrl, 30000);
+        modelUsed = 'pollinations-fallback';
+      } catch (fallbackErr: any) {
+        console.error('[Pollinations Fallback URL Failed]', fallbackErr.message);
+        throw new Error(`Image generation failed: ${primaryErr.message}`);
       }
-      throw new Error(`Failed to connect to Pollinations FLUX server: ${fetchErr.message}`);
-    }
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error(`[Pollinations FLUX Error] Status ${res.status}:`, errText);
-      throw new Error(`Pollinations FLUX API error (${res.status}): ${errText.slice(0, 150)}`);
-    }
-
-    const arrayBuf = await res.arrayBuffer();
-    const buffer = Buffer.from(arrayBuf);
-
-    if (!buffer || buffer.length < 100) {
-      throw new Error('Received empty or corrupted binary image buffer from Pollinations FLUX API.');
     }
 
     // Ensure /public/uploads/ directory exists
@@ -76,8 +107,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       imageUrl,
-      prompt: enhancedPrompt,
-      model: 'pollinations-flux',
+      prompt: sanitizedPrompt,
+      model: modelUsed,
       dimensions: `${width}x${height}`,
     });
   } catch (err: any) {
