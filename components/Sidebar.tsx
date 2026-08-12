@@ -17,9 +17,22 @@ import {
   BrainCircuit,
   User,
   PlusCircle,
+  Upload,
 } from 'lucide-react';
 
 export type SidebarNavView = 'discovery' | 'play' | 'scenarios' | 'saved_sessions';
+
+export function formatSessionTitle(title: string): string {
+  if (!title) return 'Untitled Session';
+  // Re-format legacy persona-first titles like "[Male / Other] USER (Naraka) (Naruto)" into "Naruto ([Male / Other] USER...)"
+  const bracketMatch = title.match(/^(\[[^\]]+\][^(]+(?:\([^)]+\))?)\s*\(([^)]+)\)$/);
+  if (bracketMatch) {
+    const personaPart = bracketMatch[1].trim();
+    const scenarioPart = bracketMatch[2].trim();
+    return `${scenarioPart} (${personaPart})`;
+  }
+  return title;
+}
 
 interface SidebarProps {
   currentView: SidebarNavView;
@@ -33,6 +46,7 @@ interface SidebarProps {
   onDeleteSession: (sessionId: string) => void;
   onCreateScenario: () => void;
   onOpenWizard?: () => void;
+  onOpenImportModal?: () => void;
   onOpenSettings: () => void;
   onOpenMemory: () => void;
 }
@@ -49,6 +63,7 @@ export function Sidebar({
   onDeleteSession,
   onCreateScenario,
   onOpenWizard,
+  onOpenImportModal,
   onOpenSettings,
   onOpenMemory,
 }: SidebarProps) {
@@ -58,9 +73,14 @@ export function Sidebar({
 
   const filteredSessions = React.useMemo(() => {
     if (!sessionSearch.trim()) return sessions;
-    return sessions.filter((s) =>
-      s.title.toLowerCase().includes(sessionSearch.toLowerCase())
-    );
+    const term = sessionSearch.toLowerCase();
+    return sessions.filter((s) => {
+      const formatted = formatSessionTitle(s.title);
+      return (
+        s.title.toLowerCase().includes(term) ||
+        formatted.toLowerCase().includes(term)
+      );
+    });
   }, [sessions, sessionSearch]);
 
   return (
@@ -188,32 +208,36 @@ export function Sidebar({
               </div>
             )}
             <div className="space-y-1">
-              {filteredSessions.map((s) => (
-                <div
-                  key={s.id}
-                  className={`group flex items-center justify-between p-2 rounded-lg text-xs transition-colors ${
-                    activeSessionId === s.id
-                      ? 'bg-[#221c33] text-purple-300 border border-purple-500/30'
-                      : 'text-slate-300 hover:bg-[#151924]'
-                  }`}
-                >
-                  <button
-                    onClick={() => onSelectSession(s.id)}
-                    className="flex-1 text-left truncate font-medium pr-1"
+              {filteredSessions.map((s) => {
+                const formattedTitle = formatSessionTitle(s.title);
+                return (
+                  <div
+                    key={s.id}
+                    className={`group flex items-center justify-between p-2 rounded-lg text-xs transition-colors ${
+                      activeSessionId === s.id
+                        ? 'bg-[#221c33] text-purple-300 border border-purple-500/30'
+                        : 'text-slate-300 hover:bg-[#151924]'
+                    }`}
                   >
-                    {!collapsed ? s.title : s.title.slice(0, 3)}
-                  </button>
-                  {!collapsed && (
                     <button
-                      onClick={() => onDeleteSession(s.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 transition-opacity"
-                      title="Delete session"
+                      onClick={() => onSelectSession(s.id)}
+                      className="flex-1 text-left truncate font-medium pr-1"
+                      title={formattedTitle}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      {!collapsed ? formattedTitle : formattedTitle.slice(0, 3)}
                     </button>
-                  )}
-                </div>
-              ))}
+                    {!collapsed && (
+                      <button
+                        onClick={() => onDeleteSession(s.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 transition-opacity"
+                        title="Delete session"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -261,6 +285,20 @@ export function Sidebar({
                       <div>
                         <div className="font-bold">AI-Assisted Wizard</div>
                         <div className="text-[10px] text-amber-400/80">Procedural 12-block generator</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setShowCreateDropdown(false);
+                        if (onOpenImportModal) onOpenImportModal();
+                      }}
+                      className="w-full flex items-center gap-2 p-2 rounded-lg text-left text-purple-300 hover:bg-[#1f2638] transition-colors border-t border-[#1f2430] pt-2"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      <div>
+                        <div className="font-bold">Import Scenario / World</div>
+                        <div className="text-[10px] text-purple-400/80">Import World-Gen / DreamGen JSON</div>
                       </div>
                     </button>
                   </div>

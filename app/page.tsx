@@ -11,6 +11,7 @@ import { ScenarioDiscovery } from '@/components/ScenarioDiscovery';
 import { PreStartModal } from '@/components/PreStartModal';
 import { ScenarioBuilder } from '@/components/ScenarioBuilder';
 import { ScenarioWizardModal } from '@/components/ScenarioWizardModal';
+import { ImportScenarioModal } from '@/components/ImportScenarioModal';
 import { RightInspectorPanel } from '@/components/RightInspectorPanel';
 
 import { FullScenario, PersonaTemplate, WorldBuilding } from '@/lib/scenarios/types';
@@ -38,6 +39,7 @@ export default function Home() {
   const [isBuilderOpen, setIsBuilderOpen] = React.useState(false);
   const [builderInitialScenario, setBuilderInitialScenario] = React.useState<FullScenario | null>(null);
   const [isWizardOpen, setIsWizardOpen] = React.useState(false);
+  const [isImportOpen, setIsImportOpen] = React.useState(false);
 
   const [isRightInspectorOpen, setIsRightInspectorOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
@@ -163,24 +165,32 @@ export default function Home() {
   };
 
   // Load Scenarios & Sessions
-  const fetchScenarios = async () => {
+  const fetchScenarios = async (): Promise<FullScenario[]> => {
     try {
       const res = await fetch('/api/scenarios');
       const data = await res.json();
       if (data.scenarios) {
         setScenarios(data.scenarios);
+        return data.scenarios;
       }
     } catch (err) {
       console.error('Failed to load scenarios:', err);
     }
+    return [];
   };
 
-  const fetchSessions = async () => {
+  const fetchSessions = async (allScenarios: FullScenario[] = scenarios) => {
     try {
       const res = await fetch('/api/sessions');
       const data = await res.json();
       if (data.sessions) {
         setSessions(data.sessions);
+
+        // Auto-restore active session on page refresh (F5) if saved in localStorage
+        const savedActiveId = localStorage.getItem('dreamweaver_active_session_id');
+        if (savedActiveId && data.sessions.some((s: DbSession) => s.id === savedActiveId)) {
+          loadSessionMessages(savedActiveId, data.sessions, allScenarios);
+        }
       }
     } catch (err) {
       console.error('Failed to load sessions:', err);
@@ -188,8 +198,9 @@ export default function Home() {
   };
 
   React.useEffect(() => {
-    fetchScenarios();
-    fetchSessions();
+    fetchScenarios().then((scens) => {
+      fetchSessions(scens);
+    });
   }, []);
 
   React.useEffect(() => {
@@ -197,8 +208,13 @@ export default function Home() {
   }, [messages, streamingContent]);
 
   // Load Session Messages from SQLite
-  const loadSessionMessages = async (sessionId: string) => {
+  const loadSessionMessages = async (
+    sessionId: string,
+    existingSessions: DbSession[] = sessions,
+    existingScenarios: FullScenario[] = scenarios
+  ) => {
     setActiveSessionId(sessionId);
+    localStorage.setItem('dreamweaver_active_session_id', sessionId);
     try {
       const res = await fetch(`/api/sessions?sessionId=${sessionId}`);
       const data = await res.json();
@@ -215,9 +231,9 @@ export default function Home() {
         );
       }
 
-      const sessionObj = sessions.find((s) => s.id === sessionId);
+      const sessionObj = existingSessions.find((s) => s.id === sessionId);
       if (sessionObj) {
-        const foundScen = scenarios.find((sc) => sc.meta.id === sessionObj.world_id);
+        const foundScen = existingScenarios.find((sc) => sc.meta.id === sessionObj.world_id);
         if (foundScen) {
           setActiveScenario(foundScen);
           setActiveWorldBuilding(foundScen.worldBuilding);
@@ -251,12 +267,13 @@ export default function Home() {
     const newSessionId = `session-${Date.now()}`;
     const newSession: DbSession = {
       id: newSessionId,
-      title: `${persona.name} (${scenario.meta.title})`,
+      title: `${scenario.meta.title} (${persona.name})`,
       world_id: scenario.meta.id,
       character_id: persona.id,
       created_at: Date.now(),
       updated_at: Date.now(),
     };
+    localStorage.setItem('dreamweaver_active_session_id', newSessionId);
 
     await fetch('/api/sessions', {
       method: 'POST',
@@ -614,6 +631,7 @@ export default function Home() {
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     if (activeSessionId === sessionId) {
       setActiveSessionId(null);
+      localStorage.removeItem('dreamweaver_active_session_id');
       setMessages([]);
       setViewMode('discovery');
     }
@@ -692,6 +710,7 @@ export default function Home() {
         onDeleteSession={handleDeleteSession}
         onCreateScenario={() => handleOpenBuilder()}
         onOpenWizard={() => setIsWizardOpen(true)}
+        onOpenImportModal={() => setIsImportOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenMemory={() => setIsMemoryOpen(true)}
       />
@@ -847,6 +866,20 @@ export default function Home() {
           handleOpenPlayFlow(scenario);
         }}
         onOpenSettings={() => setIsSettingsOpen(true)}
+      />
+
+      <ImportScenarioModal
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onImportSuccess={(scenario) => {
+          fetchScenarios();
+          setActiveScenario(scenario);
+          setActiveWorldBuilding(scenario.worldBuilding);
+          if (scenario.suggestedPersonas.length > 0) {
+            setActivePersona(scenario.suggestedPersonas[0]);
+          }
+          setViewMode('scenarios');
+        }}
       />
 
       <SettingsModal
