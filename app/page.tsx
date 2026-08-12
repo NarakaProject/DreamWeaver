@@ -10,6 +10,7 @@ import { MemoryInspector } from '@/components/MemoryInspector';
 import { ScenarioDiscovery } from '@/components/ScenarioDiscovery';
 import { PreStartModal } from '@/components/PreStartModal';
 import { ScenarioBuilder } from '@/components/ScenarioBuilder';
+import { ScenarioWizardModal } from '@/components/ScenarioWizardModal';
 import { RightInspectorPanel } from '@/components/RightInspectorPanel';
 
 import { FullScenario, PersonaTemplate, WorldBuilding } from '@/lib/scenarios/reader';
@@ -35,6 +36,7 @@ export default function Home() {
 
   const [isBuilderOpen, setIsBuilderOpen] = React.useState(false);
   const [builderInitialScenario, setBuilderInitialScenario] = React.useState<FullScenario | null>(null);
+  const [isWizardOpen, setIsWizardOpen] = React.useState(false);
 
   const [isRightInspectorOpen, setIsRightInspectorOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
@@ -550,6 +552,7 @@ export default function Home() {
         onSelectSession={loadSessionMessages}
         onDeleteSession={handleDeleteSession}
         onCreateScenario={() => handleOpenBuilder()}
+        onOpenWizard={() => setIsWizardOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenMemory={() => setIsMemoryOpen(true)}
       />
@@ -585,6 +588,7 @@ export default function Home() {
             onPlayScenario={handleOpenPlayFlow}
             onEditScenario={handleOpenBuilder}
             onCreateScenario={() => handleOpenBuilder()}
+            onOpenWizard={() => setIsWizardOpen(true)}
           />
         ) : (
           <div className="flex-1 flex overflow-hidden">
@@ -678,6 +682,20 @@ export default function Home() {
         onClose={() => setIsBuilderOpen(false)}
         initialScenario={builderInitialScenario}
         onSaveSuccess={fetchScenarios}
+      />
+
+      <ScenarioWizardModal
+        isOpen={isWizardOpen}
+        onClose={() => setIsWizardOpen(false)}
+        apiKey={apiKey}
+        onExportToBuilder={(scenario) => {
+          setBuilderInitialScenario(scenario);
+          setIsBuilderOpen(true);
+        }}
+        onStartPlay={(scenario) => {
+          handleOpenPlayFlow(scenario);
+        }}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       <SettingsModal

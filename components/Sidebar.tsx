@@ -32,6 +32,7 @@ interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onCreateScenario: () => void;
+  onOpenWizard?: () => void;
   onOpenSettings: () => void;
   onOpenMemory: () => void;
 }
@@ -47,11 +48,13 @@ export function Sidebar({
   onSelectSession,
   onDeleteSession,
   onCreateScenario,
+  onOpenWizard,
   onOpenSettings,
   onOpenMemory,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = React.useState(false);
   const [sessionSearch, setSessionSearch] = React.useState('');
+  const [showCreateDropdown, setShowCreateDropdown] = React.useState(false);
 
   const filteredSessions = React.useMemo(() => {
     if (!sessionSearch.trim()) return sessions;
@@ -219,13 +222,50 @@ export function Sidebar({
         {currentView === 'scenarios' && (
           <div className="space-y-3">
             {!collapsed && (
-              <button
-                onClick={onCreateScenario}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold text-xs transition-all hover:bg-amber-500/30"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>Create New Scenario</span>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowCreateDropdown(!showCreateDropdown)}
+                  className="w-full flex items-center justify-between py-2 px-3 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold text-xs transition-all hover:bg-amber-500/30"
+                >
+                  <div className="flex items-center gap-2">
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    <span>Create New Scenario</span>
+                  </div>
+                  <span className="text-[10px]">▼</span>
+                </button>
+
+                {showCreateDropdown && (
+                  <div className="absolute top-full left-0 mt-1.5 w-full rounded-xl bg-[#141824] border border-[#242b3d] shadow-2xl p-1.5 z-30 space-y-1 text-xs">
+                    <button
+                      onClick={() => {
+                        setShowCreateDropdown(false);
+                        onCreateScenario();
+                      }}
+                      className="w-full flex items-center gap-2 p-2 rounded-lg text-left text-slate-200 hover:bg-[#1f2638] hover:text-white transition-colors"
+                    >
+                      <span>🛠️</span>
+                      <div>
+                        <div className="font-bold">Manual Creation</div>
+                        <div className="text-[10px] text-slate-400">Build 12 blocks manually</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setShowCreateDropdown(false);
+                        if (onOpenWizard) onOpenWizard();
+                      }}
+                      className="w-full flex items-center gap-2 p-2 rounded-lg text-left text-amber-300 hover:bg-[#1f2638] transition-colors"
+                    >
+                      <span>🪄</span>
+                      <div>
+                        <div className="font-bold">AI-Assisted Wizard</div>
+                        <div className="text-[10px] text-amber-400/80">Procedural 12-block generator</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
             <div className="space-y-1">
               {scenarios.map((sc) => (

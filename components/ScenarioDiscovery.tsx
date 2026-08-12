@@ -9,6 +9,7 @@ interface ScenarioDiscoveryProps {
   onPlayScenario: (scenario: FullScenario) => void;
   onEditScenario: (scenario: FullScenario) => void;
   onCreateScenario: () => void;
+  onOpenWizard?: () => void;
 }
 
 export function ScenarioDiscovery({
@@ -16,9 +17,11 @@ export function ScenarioDiscovery({
   onPlayScenario,
   onEditScenario,
   onCreateScenario,
+  onOpenWizard,
 }: ScenarioDiscoveryProps) {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState('All');
+  const [showDropdown, setShowDropdown] = React.useState(false);
 
   const categories = React.useMemo(() => {
     const set = new Set<string>();
@@ -90,14 +93,49 @@ export function ScenarioDiscovery({
           </div>
         </div>
 
-        {/* Create Button */}
-        <button
-          onClick={onCreateScenario}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition-all shadow-md shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Create Scenario</span>
-        </button>
+        {/* Create Button Dropdown */}
+        <div className="relative w-full sm:w-auto shrink-0">
+          <button
+            onClick={() => setShowDropdown(!showDropdown)}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition-all shadow-md"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Scenario</span>
+            <span className="text-[10px]">▼</span>
+          </button>
+
+          {showDropdown && (
+            <div className="absolute right-0 top-full mt-2 w-64 rounded-xl bg-[#141824] border border-[#242b3d] shadow-2xl p-2 z-30 space-y-1 text-xs">
+              <button
+                onClick={() => {
+                  setShowDropdown(false);
+                  onCreateScenario();
+                }}
+                className="w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-slate-200 hover:bg-[#1f2638] hover:text-white transition-colors"
+              >
+                <span className="text-base">🛠️</span>
+                <div>
+                  <div className="font-bold text-white">Manual Creation</div>
+                  <div className="text-[11px] text-slate-400">Build 12 blocks manually in editor</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowDropdown(false);
+                  if (onOpenWizard) onOpenWizard();
+                }}
+                className="w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-amber-300 hover:bg-[#1f2638] transition-colors"
+              >
+                <span className="text-base">🪄</span>
+                <div>
+                  <div className="font-bold text-amber-400">AI-Assisted Wizard</div>
+                  <div className="text-[11px] text-amber-400/80">Procedural 12-block generator & studio</div>
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Scenario Cards Grid */}
