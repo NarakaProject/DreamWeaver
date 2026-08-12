@@ -5,6 +5,18 @@ export async function GET(req: NextRequest) {
   try {
     const db = getDatabase();
     const sessionId = req.nextUrl.searchParams.get('sessionId');
+    const singleId = req.nextUrl.searchParams.get('id');
+
+    // Direct single-session lookup: returns { session, messages } for race-free restoration
+    if (singleId) {
+      const sessions = await db.getSessions();
+      const session = sessions.find((s) => s.id === singleId);
+      if (!session) {
+        return NextResponse.json({ session: null, messages: [] }, { status: 404 });
+      }
+      const messages = await db.getMessages(singleId);
+      return NextResponse.json({ session, messages });
+    }
 
     if (sessionId) {
       const messages = await db.getMessages(sessionId);

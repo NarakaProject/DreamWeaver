@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assembleGeminiPayload, buildSystemInstruction, DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
 import { routeChatStream, AIProvider, DEFAULT_MODELS } from '@/lib/ai/provider-router';
-import { searchMemories } from '@/lib/memory/store';
-import { processBackgroundAutoSummary } from '@/lib/memory/summarizer';
+import { searchMemories, addMemory } from '@/lib/memory/store';
+import { shouldSummarize, summarizeTurnChunk } from '@/lib/memory/summarizer';
 import { getDatabase } from '@/lib/db';
 
 function generateId(prefix: string) {
@@ -57,22 +57,12 @@ export async function POST(req: NextRequest) {
 
     let retrievedMemories = body.retrievedMemories || [];
 
-    // ELTM Context Retrieval
+    // ELTM Context Retrieval: search past memories to enrich the system prompt
     if ((!retrievedMemories || retrievedMemories.length === 0) && sessionId) {
       const lastUserMsg = messages.filter((m: any) => m.role === 'user').pop()?.content || '';
       if (lastUserMsg) {
         retrievedMemories = await searchMemories(sessionId, lastUserMsg, 5);
       }
-    }
-
-    // Trigger non-blocking background auto-summarization if applicable
-    if (sessionId && messages.length > 0) {
-      const formattedTurns = messages.map((m: any, idx: number) => ({
-        speaker: m.speaker || (m.role === 'user' ? characterName || 'Player' : 'Narrator'),
-        content: m.content || '',
-        turnNumber: idx + 1,
-      }));
-      processBackgroundAutoSummary(sessionId, formattedTurns).catch(() => {});
     }
 
     const activeModel = model || DEFAULT_MODELS[provider as AIProvider] || DEFAULT_GEMINI_MODEL;
@@ -168,7 +158,9 @@ export async function POST(req: NextRequest) {
           const db = getDatabase();
           const aiMsgId = generateId('msg');
           const ts = Date.now();
+          const totalTurns = messages.length + 1; // +1 for the AI response just generated
 
+          // ── Persist AI response to DB ─────────────────────────────────────
           await db.saveMessage({
             id: aiMsgId,
             session_id: sessionId,
@@ -181,6 +173,37 @@ export async function POST(req: NextRequest) {
 
           // Update session updated_at
           await db.updateSession(sessionId, { updated_at: ts });
+
+          // ── Server-side ELTM Indexing ─────────────────────────────────────
+          // Index user turn (if provided via payload)
+          if (userMessage?.content) {
+            await addMemory({
+              sessionId,
+              turnNumber: messages.length, // user turn precedes AI response
+              speaker: userMessage.speaker || characterName || 'Player',
+              content: userMessage.content,
+              timestamp: userMessage.timestamp || ts - 1,
+            }).catch(() => {});
+          }
+
+          // Index AI response turn
+          await addMemory({
+            sessionId,
+            turnNumber: totalTurns,
+            speaker: targetSpeaker || 'Narrator',
+            content: fullText.trim(),
+            timestamp: ts,
+          }).catch(() => {});
+
+          // ── Milestone Auto-Summarization ──────────────────────────────────
+          if (shouldSummarize(totalTurns)) {
+            const recentTurns = messages.slice(-15).map((m: any, idx: number) => ({
+              speaker: m.speaker || (m.role === 'user' ? characterName || 'Player' : 'Narrator'),
+              content: m.content || '',
+              turnNumber: Math.max(1, totalTurns - 15 + idx),
+            }));
+            summarizeTurnChunk(sessionId, recentTurns, totalTurns).catch(() => {});
+          }
         }
       } catch (err) {
         console.error('[chat/route] Failed to persist AI response to DB:', err);

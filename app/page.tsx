@@ -186,15 +186,65 @@ export default function Home() {
 
   const fetchSessions = async (allScenarios: FullScenario[] = scenarios) => {
     try {
+      // ── Step 1: Try direct DB-first restoration of active session ──────────
+      // This is race-condition-proof: does not depend on the full sessions list
+      // being populated first. Directly queries the DB by ID.
+      const savedActiveId = localStorage.getItem('dreamweaver_active_session_id');
+      if (savedActiveId) {
+        const directRes = await fetch(`/api/sessions?id=${savedActiveId}`);
+        if (directRes.ok) {
+          const directData = await directRes.json();
+          if (directData.session && directData.messages) {
+            // Restore session metadata + messages in one atomic read
+            const sess = directData.session as DbSession;
+            setSessions((prev) => {
+              if (prev.some((s) => s.id === sess.id)) return prev;
+              return [sess, ...prev];
+            });
+            setActiveSessionId(sess.id);
+            setMessages(
+              directData.messages.map((m: DbMessage) => ({
+                id: m.id,
+                role: m.role,
+                content: m.content,
+                type: m.type,
+                speaker: m.speaker,
+                timestamp: m.timestamp,
+              }))
+            );
+            // Resolve scenario + persona from loaded scenarios
+            const foundScen =
+              allScenarios.find((sc) => sc.meta.id === sess.world_id) || allScenarios[0];
+            if (foundScen) {
+              setActiveScenario(foundScen);
+              setActiveWorldBuilding(foundScen.worldBuilding);
+              const foundPers =
+                foundScen.suggestedPersonas.find((p) => p.id === sess.character_id) ||
+                foundScen.suggestedPersonas[0] || {
+                  id: sess.character_id || 'player',
+                  name: sess.title.match(/\(([^)]+)\)/)?.[1] || 'Player',
+                  personality: 'Protagonist',
+                };
+              setActivePersona(foundPers);
+              setSelectedSpeaker(foundPers.name);
+            }
+            setViewMode('play');
+          }
+        }
+      }
+
+      // ── Step 2: Always load full sessions catalog for sidebar ──────────────
       const res = await fetch('/api/sessions');
       const data = await res.json();
       if (data.sessions) {
         setSessions(data.sessions);
 
-        // Auto-restore active session on page refresh (F5) if saved in localStorage
-        const savedActiveId = localStorage.getItem('dreamweaver_active_session_id');
-        if (savedActiveId && data.sessions.some((s: DbSession) => s.id === savedActiveId)) {
-          loadSessionMessages(savedActiveId, data.sessions, allScenarios);
+        // Fallback: if direct lookup failed (session not in DB), try catalog-based restore
+        if (savedActiveId && !activeSessionId) {
+          const found = data.sessions.find((s: DbSession) => s.id === savedActiveId);
+          if (found) {
+            loadSessionMessages(savedActiveId, data.sessions, allScenarios);
+          }
         }
       }
     } catch (err) {
