@@ -1,36 +1,8 @@
 import path from 'path';
 import fs from 'fs';
 
-export interface DbSession {
-  id: string;
-  title: string;
-  world_id: string;
-  character_id: string;
-  system_instruction?: string;
-  created_at: number;
-  updated_at: number;
-}
-
-export interface DbMessage {
-  id: string;
-  session_id: string;
-  role: 'user' | 'model' | 'system';
-  content: string;
-  type?: 'do' | 'say' | 'story_note' | 'continue' | 'narration';
-  speaker?: string;
-  timestamp: number;
-}
-
-export interface DbMemory {
-  id: string;
-  session_id: string;
-  turn_number: number;
-  speaker?: string;
-  content: string;
-  keywords?: string;
-  is_summary?: number;
-  timestamp: number;
-}
+import type { DbSession, DbMessage, DbMemory } from './types';
+export type { DbSession, DbMessage, DbMemory } from './types';
 
 // Ensure data directory exists
 const dbDir = path.resolve(process.cwd(), 'data');

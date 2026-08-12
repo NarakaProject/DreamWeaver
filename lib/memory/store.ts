@@ -1,6 +1,9 @@
 /**
  * Episodic Long-Term Memory (ELTM) Engine Store
- * Provides fast local keyword search, indexed DB persistence, and memory retrieval.
+ * Provides fast local keyword search, in-memory cache, and browser-safe API-based persistence.
+ * 
+ * IMPORTANT: This file must remain browser-safe (no server-only imports like fs, better-sqlite3, etc.).
+ * All persistence to the database is handled by the /api/memory API route.
  */
 
 export interface MemoryEntry {
@@ -19,17 +22,17 @@ const memoryCache: Map<string, MemoryEntry[]> = new Map();
 
 // Common English stop words to filter out during query tokenization
 const STOP_WORDS = new Set([
-  'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'aren\'t', 'as', 'at',
+  'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', "aren't", 'as', 'at',
   'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by',
-  'can', 'can\'t', 'cannot', 'could', 'couldn\'t', 'did', 'didn\'t', 'do', 'does', 'doesn\'t', 'doing', 'don\'t', 'down', 'during',
-  'each', 'few', 'for', 'from', 'further', 'had', 'hadn\'t', 'has', 'hasn\'t', 'have', 'haven\'t', 'having', 'he', 'he\'d', 'he\'ll', 'he\'s', 'her', 'here', 'here\'s', 'hers', 'herself', 'him', 'himself', 'his', 'how', 'how\'s',
-  'i', 'i\'d', 'i\'ll', 'i\'m', 'i\'ve', 'if', 'in', 'into', 'is', 'isn\'t', 'it', 'it\'s', 'its', 'itself',
-  'let\'s', 'me', 'more', 'most', 'mustn\'t', 'my', 'myself',
+  "can", "can't", 'cannot', 'could', "couldn't", 'did', "didn't", 'do', 'does', "doesn't", 'doing', "don't", 'down', 'during',
+  'each', 'few', 'for', 'from', 'further', 'had', "hadn't", 'has', "hasn't", 'have', "haven't", 'having', 'he', "he'd", "he'll", "he's", 'her', 'here', "here's", 'hers', 'herself', 'him', 'himself', 'his', 'how', "how's",
+  'i', "i'd", "i'll", "i'm", "i've", 'if', 'in', 'into', 'is', "isn't", 'it', "it's", 'its', 'itself',
+  "let's", 'me', 'more', 'most', "mustn't", 'my', 'myself',
   'no', 'nor', 'not', 'of', 'off', 'on', 'once', 'only', 'or', 'other', 'ought', 'our', 'ours', 'ourselves', 'out', 'over', 'own',
-  'same', 'shan\'t', 'she', 'she\'d', 'she\'ll', 'she\'s', 'should', 'shouldn\'t', 'so', 'some', 'such',
-  'than', 'that', 'that\'s', 'the', 'their', 'theirs', 'them', 'themselves', 'then', 'there', 'there\'s', 'these', 'they', 'they\'d', 'they\'ll', 'they\'re', 'they\'ve', 'this', 'those', 'through', 'to', 'too', 'under', 'until', 'up',
-  'very', 'was', 'wasn\'t', 'we', 'we\'d', 'we\'ll', 'we\'re', 'we\'ve', 'were', 'weren\'t', 'what', 'what\'s', 'when', 'when\'s', 'where', 'where\'s', 'which', 'while', 'who', 'who\'s', 'whom', 'why', 'why\'s', 'with', 'won\'t', 'would', 'wouldn\'t',
-  'you', 'you\'d', 'you\'ll', 'you\'re', 'you\'ve', 'your', 'yours', 'yourself', 'yourselves',
+  'same', "shan't", 'she', "she'd", "she'll", "she's", 'should', "shouldn't", 'so', 'some', 'such',
+  'than', 'that', "that's", 'the', 'their', 'theirs', 'them', 'themselves', 'then', 'there', "there's", 'these', 'they', "they'd", "they'll", "they're", "they've", 'this', 'those', 'through', 'to', 'too', 'under', 'until', 'up',
+  'very', 'was', "wasn't", 'we', "we'd", "we'll", "we're", "we've", 'were', "weren't", 'what', "what's", 'when', "when's", 'where', "where's", 'which', 'while', 'who', "who's", 'whom', 'why', "why's", 'with', "won't", 'would', "wouldn't",
+  'you', "you'd", "you'll", "you're", "you've", 'your', 'yours', 'yourself', 'yourselves',
   'remember', 'tell', 'show', 'said', 'say'
 ]);
 
@@ -54,7 +57,8 @@ export function extractKeywords(text: string): string[] {
 }
 
 /**
- * Saves a new memory entry into the local store.
+ * Saves a new memory entry into the local in-memory cache and syncs to the API.
+ * All server-side DB persistence is handled by the /api/memory route.
  */
 export async function addMemory(
   entry: Omit<MemoryEntry, 'id' | 'timestamp' | 'keywords'> & {
@@ -86,23 +90,16 @@ export async function addMemory(
 
   memoryCache.set(entry.sessionId, sessionMemories);
 
-  // Sync to backend DB if running in API route or server context
-  if (typeof window === 'undefined') {
+  // Sync to /api/memory in browser context only
+  if (typeof window !== 'undefined' && !process.env.VITEST) {
     try {
-      const { getDatabase } = require('@/lib/db');
-      const db = getDatabase();
-      await db.saveMemory({
-        id: newEntry.id,
-        session_id: newEntry.sessionId,
-        turn_number: newEntry.turnNumber,
-        speaker: newEntry.speaker,
-        content: newEntry.content,
-        keywords: newEntry.keywords.join(','),
-        is_summary: newEntry.isSummary ? 1 : 0,
-        timestamp: newEntry.timestamp,
+      await fetch('/api/memory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newEntry),
       });
-    } catch {
-      // Ignore server sync failure if db is unavailable
+    } catch (err) {
+      console.error('Failed to sync memory to API:', err);
     }
   }
 
@@ -111,32 +108,24 @@ export async function addMemory(
 
 /**
  * Retrieves all stored memories for a specific session.
+ * In the browser, fetches from /api/memory. In test environments, uses the cache.
  */
 export async function getMemoriesForSession(sessionId: string): Promise<MemoryEntry[]> {
-  if (memoryCache.has(sessionId)) {
+  if (memoryCache.has(sessionId) && memoryCache.get(sessionId)!.length > 0) {
     return memoryCache.get(sessionId) || [];
   }
 
   let memories: MemoryEntry[] = [];
 
-  // If running on server side, fetch from database
-  if (typeof window === 'undefined') {
+  if (typeof window !== 'undefined' && !process.env.VITEST) {
     try {
-      const { getDatabase } = require('@/lib/db');
-      const db = getDatabase();
-      const dbRows = await db.getMemories(sessionId);
-      memories = dbRows.map((row: any) => ({
-        id: row.id,
-        sessionId: row.session_id,
-        turnNumber: row.turn_number,
-        speaker: row.speaker || 'Narrator',
-        content: row.content,
-        keywords: row.keywords ? row.keywords.split(',') : [],
-        isSummary: Boolean(row.is_summary),
-        timestamp: row.timestamp,
-      }));
-    } catch {
-      memories = [];
+      const res = await fetch(`/api/memory?sessionId=${sessionId}`);
+      const data = await res.json();
+      if (data.memories) {
+        memories = data.memories;
+      }
+    } catch (err) {
+      console.error('Failed to fetch memories from API:', err);
     }
   }
 
@@ -205,17 +194,15 @@ export async function searchMemories(
 }
 
 /**
- * Deletes a specific memory entry.
+ * Deletes a specific memory entry from cache and API.
  */
 export async function deleteMemory(sessionId: string, memoryId: string): Promise<void> {
   const sessionMemories = (memoryCache.get(sessionId) || []).filter((m) => m.id !== memoryId);
   memoryCache.set(sessionId, sessionMemories);
 
-  if (typeof window === 'undefined') {
+  if (typeof window !== 'undefined' && !process.env.VITEST) {
     try {
-      const { getDatabase } = require('@/lib/db');
-      const db = getDatabase();
-      await db.deleteMemory(memoryId);
+      await fetch(`/api/memory?id=${memoryId}&sessionId=${sessionId}`, { method: 'DELETE' });
     } catch {
       // Ignore
     }
@@ -223,16 +210,14 @@ export async function deleteMemory(sessionId: string, memoryId: string): Promise
 }
 
 /**
- * Clears all memory entries for a session.
+ * Clears all memory entries for a session from cache and API.
  */
 export async function clearMemories(sessionId: string): Promise<void> {
   memoryCache.delete(sessionId);
 
-  if (typeof window === 'undefined') {
+  if (typeof window !== 'undefined' && !process.env.VITEST) {
     try {
-      const { getDatabase } = require('@/lib/db');
-      const db = getDatabase();
-      await db.clearMemories(sessionId);
+      await fetch(`/api/memory?clearAll=true&sessionId=${sessionId}`, { method: 'DELETE' });
     } catch {
       // Ignore
     }

@@ -17,7 +17,7 @@ import { DocsModal } from '@/components/DocsModal';
 import { RightInspectorPanel } from '@/components/RightInspectorPanel';
 
 import { FullScenario, PersonaTemplate, WorldBuilding } from '@/lib/scenarios/types';
-import { DbSession, DbMessage } from '@/lib/db';
+import { DbSession, DbMessage } from '@/lib/db/types';
 import { ChatMessage, DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
 import { splitMultiSpeakerText } from '@/lib/parser/dreamgen';
 import { AIProvider, PROVIDER_MODEL_PRESETS } from '@/lib/ai/provider-router';
@@ -453,6 +453,14 @@ export default function Home() {
       }),
     });
 
+    addMemory({
+      sessionId: activeSessionId,
+      turnNumber: updatedMessages.length,
+      speaker: userSpeakerName,
+      content: trimmedContent,
+      timestamp: userMsg.timestamp,
+    }).catch(() => {});
+
     const aiTargetSpeaker =
       targetSpeakerOverride && targetSpeakerOverride !== userSpeakerName ? targetSpeakerOverride : undefined;
     triggerStreamingResponse(updatedMessages, activeSessionId, aiTargetSpeaker);
@@ -614,6 +622,18 @@ export default function Home() {
         });
       }
 
+      if (sessionId && createdMessages.length > 0) {
+        createdMessages.forEach((m, idx) => {
+          addMemory({
+            sessionId,
+            turnNumber: history.length + idx + 1,
+            speaker: m.speaker || 'Narrator',
+            content: m.content,
+            timestamp: m.timestamp || Date.now(),
+          }).catch(() => {});
+        });
+      }
+
       setMessages((prev) => [...prev, ...createdMessages]);
       setStreamingContent('');
     } catch (err: any) {
@@ -694,6 +714,28 @@ export default function Home() {
         }),
       });
     }
+  };
+
+  const handleDeleteSingleMessage = async (messageId?: string, msgIndex?: number) => {
+    if (!activeSessionId) return;
+
+    if (messageId) {
+      try {
+        await fetch(`/api/sessions?messageId=${messageId}`, { method: 'DELETE' });
+      } catch (err) {
+        console.error('Failed to delete message:', err);
+      }
+    }
+
+    setMessages((prev) => {
+      if (messageId) {
+        return prev.filter((m) => m.id !== messageId);
+      }
+      if (typeof msgIndex === 'number') {
+        return prev.filter((_, idx) => idx !== msgIndex);
+      }
+      return prev;
+    });
   };
 
   const handleRegenerateFromIndex = (index: number) => {
@@ -819,6 +861,7 @@ export default function Home() {
                       npcAvatars={npcAvatars}
                       isFirstMessage={index === 0}
                       onEdit={(newContent) => handleEditMessage(index, newContent)}
+                      onDelete={() => handleDeleteSingleMessage(msg.id, index)}
                       onRegenerate={
                         msg.role === 'model' ? () => handleRegenerateFromIndex(index) : undefined
                       }
