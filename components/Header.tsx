@@ -19,6 +19,7 @@ interface HeaderProps {
   selectedModel: string;
   onModelChange: (model: string) => void;
   availableModels?: HeaderModelOption[];
+  loadingModels?: boolean;
   hasApiKey: boolean;
   onOpenSettings: () => void;
   onOpenMemory: () => void;
@@ -30,6 +31,7 @@ export function Header({
   selectedModel,
   onModelChange,
   availableModels = [],
+  loadingModels = false,
   hasApiKey,
   onOpenSettings,
   onOpenMemory,
@@ -67,6 +69,7 @@ export function Header({
           selectedModel={selectedModel}
           onModelChange={onModelChange}
           models={modelOptions}
+          loading={loadingModels}
         />
 
         {/* API Key Status Indicator */}

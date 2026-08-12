@@ -3,12 +3,13 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { ModelOption } from '@/lib/ai/models-fetcher';
-import { Cpu, Search, Check, ChevronDown, Sparkles, X } from 'lucide-react';
+import { Cpu, Search, Check, ChevronDown, Sparkles, X, Loader2 } from 'lucide-react';
 
 interface SearchableModelSelectProps {
   selectedModel: string;
   onModelChange: (modelId: string) => void;
   models: ModelOption[];
+  loading?: boolean;
   disabled?: boolean;
   className?: string;
 }
@@ -17,6 +18,7 @@ export function SearchableModelSelect({
   selectedModel,
   onModelChange,
   models = [],
+  loading = false,
   disabled = false,
   className = '',
 }: SearchableModelSelectProps) {
@@ -138,19 +140,31 @@ export function SearchableModelSelect({
         {/* Model Count / Filter Status */}
         <div className="flex items-center justify-between px-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
           <span>Catalog ({filteredModels.length})</span>
-          {models.some((m) => m.isFree) && (
-            <span className="text-emerald-400 flex items-center gap-1">
-              <Sparkles className="w-2.5 h-2.5" />
-              <span>Free Models Available</span>
+          {loading ? (
+            <span className="text-amber-400 flex items-center gap-1 animate-pulse">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Fetching live catalog...</span>
             </span>
+          ) : (
+            models.some((m) => m.isFree) && (
+              <span className="text-emerald-400 flex items-center gap-1">
+                <Sparkles className="w-2.5 h-2.5" />
+                <span>Free Tier Models</span>
+              </span>
+            )
           )}
         </div>
 
         {/* Scrollable Model List */}
         <div className="max-h-72 overflow-y-auto space-y-1 pr-1 scrollbar-thin scrollbar-thumb-slate-700">
-          {filteredModels.length === 0 ? (
+          {loading && models.length === 0 ? (
+            <div className="p-6 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
+              <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
+              <span>Loading live provider catalog...</span>
+            </div>
+          ) : filteredModels.length === 0 ? (
             <div className="p-4 text-center text-xs text-slate-500 italic">
-              No matching models found.
+              No matching models found in catalog.
             </div>
           ) : (
             filteredModels.map((m) => {
@@ -203,7 +217,11 @@ export function SearchableModelSelect({
         title="Select AI Model"
       >
         <div className="flex items-center gap-1.5 truncate">
-          <Cpu className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          {loading ? (
+            <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" />
+          ) : (
+            <Cpu className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          )}
           <span className="truncate">{activeModelObj.displayName || selectedModel}</span>
         </div>
         <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />

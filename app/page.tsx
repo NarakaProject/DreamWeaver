@@ -50,6 +50,7 @@ export default function Home() {
   const [openRouterApiKey, setOpenRouterApiKey] = React.useState<string>('');
   const [selectedModel, setSelectedModel] = React.useState<string>(DEFAULT_GEMINI_MODEL);
   const [availableModels, setAvailableModels] = React.useState<{ id: string; displayName: string }[]>([]);
+  const [loadingModels, setLoadingModels] = React.useState<boolean>(false);
   const [temperature, setTemperature] = React.useState<number>(0.8);
   const [maxTokens, setMaxTokens] = React.useState<number>(2048);
 
@@ -60,7 +61,9 @@ export default function Home() {
         ? availableModels
         : PROVIDER_MODEL_PRESETS.gemini;
     }
-    return PROVIDER_MODEL_PRESETS[provider] || PROVIDER_MODEL_PRESETS.gemini;
+    return availableModels.length > 0
+      ? availableModels
+      : PROVIDER_MODEL_PRESETS[provider] || PROVIDER_MODEL_PRESETS.gemini;
   }, [provider, availableModels]);
 
   // Active Turn Speaker State
@@ -77,6 +80,7 @@ export default function Home() {
     grKey: string = groqApiKey,
     opKey: string = openRouterApiKey
   ) => {
+    setLoadingModels(true);
     try {
       const query = new URLSearchParams({
         provider: prov,
@@ -96,6 +100,8 @@ export default function Home() {
       }
     } catch (err) {
       console.error(`Failed to fetch dynamic models for ${prov}:`, err);
+    } finally {
+      setLoadingModels(false);
     }
   };
 
@@ -709,6 +715,7 @@ export default function Home() {
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
           availableModels={currentProviderModels}
+          loadingModels={loadingModels}
           hasApiKey={!!apiKey || !!groqApiKey || !!openRouterApiKey}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenMemory={() => setIsRightInspectorOpen(!isRightInspectorOpen)}
