@@ -10,7 +10,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'API Key is missing' }, { status: 400 });
     }
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const testModel = model || DEFAULT_GEMINI_MODEL;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${apiKey}`;
 
     const res = await fetch(geminiUrl, {
       method: 'POST',
@@ -48,11 +49,31 @@ export async function POST(req: NextRequest) {
     const data = await res.json();
     const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
+    // Fetch dynamic models list
+    let fetchedModels: any[] = [];
+    try {
+      const modelsRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+      );
+      if (modelsRes.ok) {
+        const mData = await modelsRes.json();
+        fetchedModels = (mData.models || [])
+          .filter((m: any) =>
+            m.supportedGenerationMethods?.includes('generateContent') && m.name?.includes('gemini')
+          )
+          .map((m: any) => ({
+            id: m.name.replace(/^models\//, ''),
+            displayName: m.displayName || m.name.replace(/^models\//, ''),
+          }));
+      }
+    } catch {}
+
     return NextResponse.json({
       success: true,
       reply: reply.trim(),
       latencyMs,
-      model,
+      model: testModel,
+      availableModels: fetchedModels,
     });
   } catch (err: any) {
     const latencyMs = Date.now() - startTime;

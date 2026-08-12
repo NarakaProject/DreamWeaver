@@ -42,11 +42,31 @@ export default function Home() {
 
   const [apiKey, setApiKey] = React.useState<string>('');
   const [selectedModel, setSelectedModel] = React.useState<string>(DEFAULT_GEMINI_MODEL);
+  const [availableModels, setAvailableModels] = React.useState<{ id: string; displayName: string }[]>([]);
 
   const [isStreaming, setIsStreaming] = React.useState<boolean>(false);
   const [streamingContent, setStreamingContent] = React.useState<string>('');
 
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
+  const fetchDynamicModels = async (key: string) => {
+    if (!key) return;
+    try {
+      const res = await fetch(`/api/gemini/models?apiKey=${encodeURIComponent(key)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.models && data.models.length > 0) {
+          setAvailableModels(data.models);
+          // Default to first flash model if selected model is not in list
+          if (!data.models.some((m: any) => m.id === selectedModel)) {
+            setSelectedModel(data.models[0].id);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch dynamic Gemini models:', err);
+    }
+  };
 
   // Load API Key from localStorage
   React.useEffect(() => {
@@ -54,12 +74,15 @@ export default function Home() {
     setApiKey(savedKey);
     if (!savedKey) {
       setIsSettingsOpen(true);
+    } else {
+      fetchDynamicModels(savedKey);
     }
   }, []);
 
   const handleSaveApiKey = (key: string) => {
     setApiKey(key);
     localStorage.setItem('dreamweaver_gemini_key', key);
+    fetchDynamicModels(key);
   };
 
   // Load Scenarios from local API
@@ -451,6 +474,7 @@ export default function Home() {
           character={activePersona}
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
+          availableModels={availableModels}
           hasApiKey={!!apiKey}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenMemory={() => setIsRightInspectorOpen(!isRightInspectorOpen)}
@@ -546,6 +570,7 @@ export default function Home() {
         onClose={() => setIsSettingsOpen(false)}
         apiKey={apiKey}
         onSaveApiKey={handleSaveApiKey}
+        onModelsFetched={setAvailableModels}
       />
 
       <MemoryInspector

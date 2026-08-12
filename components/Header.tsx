@@ -2,30 +2,46 @@
 
 import React from 'react';
 import { WorldData, CharacterCard } from '@/lib/files/reader';
-import { Settings, BrainCircuit, Key, Cpu, Sparkles } from 'lucide-react';
+import { Settings, BrainCircuit, Key, Cpu } from 'lucide-react';
 import { DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
+
+export interface HeaderModelOption {
+  id: string;
+  displayName: string;
+}
 
 interface HeaderProps {
   world: WorldData | null;
   character: CharacterCard | null;
   selectedModel: string;
   onModelChange: (model: string) => void;
+  availableModels?: HeaderModelOption[];
   hasApiKey: boolean;
   onOpenSettings: () => void;
   onOpenMemory: () => void;
 }
+
+const FALLBACK_MODELS: HeaderModelOption[] = [
+  { id: 'gemini-2.5-flash', displayName: 'gemini-2.5-flash (Default)' },
+  { id: 'gemini-2.0-flash', displayName: 'gemini-2.0-flash' },
+  { id: 'gemini-1.5-flash', displayName: 'gemini-1.5-flash' },
+  { id: 'gemini-1.5-pro', displayName: 'gemini-1.5-pro' },
+];
 
 export function Header({
   world,
   character,
   selectedModel,
   onModelChange,
+  availableModels = [],
   hasApiKey,
   onOpenSettings,
   onOpenMemory,
 }: HeaderProps) {
+  const modelOptions = availableModels.length > 0 ? availableModels : FALLBACK_MODELS;
+
   return (
-    <header className="h-16 bg-[#0d0f17]/90 border-b border-[#1a1f2c] px-6 flex items-center justify-between backdrop-blur-md sticky top-0 z-10">
+    <header className="h-16 bg-[#0d0f17] border-b border-[#1a1f2c] px-6 flex items-center justify-between sticky top-0 z-10 contain-content">
       {/* Active Context Overview */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 text-sm font-semibold">
@@ -45,17 +61,19 @@ export function Header({
 
       {/* Right Controls */}
       <div className="flex items-center gap-3">
-        {/* Model Selector */}
+        {/* Dynamic Model Selector */}
         <div className="flex items-center gap-1.5 bg-[#141824] border border-[#242b3d] px-2.5 py-1 rounded-lg text-xs">
-          <Cpu className="w-3.5 h-3.5 text-amber-400" />
+          <Cpu className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           <select
             value={selectedModel}
             onChange={(e) => onModelChange(e.target.value)}
-            className="bg-transparent text-slate-200 focus:outline-none cursor-pointer font-medium"
+            className="bg-transparent text-slate-200 focus:outline-none cursor-pointer font-medium max-w-[200px] truncate"
           >
-            <option value="gemini-2.5-flash" className="bg-[#0d0f17]">gemini-2.5-flash (Default)</option>
-            <option value="gemini-1.5-pro" className="bg-[#0d0f17]">gemini-1.5-pro</option>
-            <option value="gemini-1.5-flash" className="bg-[#0d0f17]">gemini-1.5-flash</option>
+            {modelOptions.map((m) => (
+              <option key={m.id} value={m.id} className="bg-[#0d0f17] text-slate-200">
+                {m.displayName}
+              </option>
+            ))}
           </select>
         </div>
 

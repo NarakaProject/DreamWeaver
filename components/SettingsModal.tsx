@@ -9,15 +9,23 @@ interface SettingsModalProps {
   onClose: () => void;
   apiKey: string;
   onSaveApiKey: (key: string) => void;
+  onModelsFetched?: (models: { id: string; displayName: string }[]) => void;
 }
 
-export function SettingsModal({ isOpen, onClose, apiKey, onSaveApiKey }: SettingsModalProps) {
+export function SettingsModal({
+  isOpen,
+  onClose,
+  apiKey,
+  onSaveApiKey,
+  onModelsFetched,
+}: SettingsModalProps) {
   const [inputKey, setInputKey] = React.useState(apiKey);
   const [testing, setTesting] = React.useState(false);
   const [testResult, setTestResult] = React.useState<{
     success?: boolean;
     error?: string;
     latencyMs?: number;
+    availableModelsCount?: number;
   } | null>(null);
 
   React.useEffect(() => {
@@ -45,7 +53,12 @@ export function SettingsModal({ isOpen, onClose, apiKey, onSaveApiKey }: Setting
         success: data.success,
         error: data.error,
         latencyMs: data.latencyMs,
+        availableModelsCount: data.availableModels?.length || 0,
       });
+
+      if (data.success && data.availableModels && onModelsFetched) {
+        onModelsFetched(data.availableModels);
+      }
     } catch (err: any) {
       setTestResult({
         success: false,
@@ -62,7 +75,7 @@ export function SettingsModal({ isOpen, onClose, apiKey, onSaveApiKey }: Setting
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 contain-content">
       <div className="w-full max-w-md rounded-2xl bg-[#12151e] border border-[#262c3e] p-6 shadow-2xl space-y-6 relative">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#1f2430] pb-4">
@@ -117,7 +130,7 @@ export function SettingsModal({ isOpen, onClose, apiKey, onSaveApiKey }: Setting
             className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-[#1c2233] border border-[#2a344d] hover:bg-[#252d45] text-xs font-semibold text-amber-300 transition-colors disabled:opacity-50"
           >
             <Zap className="w-4 h-4 text-amber-400" />
-            <span>{testing ? 'Testing Connection...' : 'Test Connection'}</span>
+            <span>{testing ? 'Testing & Discovering Models...' : 'Test Connection'}</span>
           </button>
 
           {testResult && (
@@ -136,6 +149,12 @@ export function SettingsModal({ isOpen, onClose, apiKey, onSaveApiKey }: Setting
             </div>
           )}
         </div>
+
+        {testResult && testResult.success && testResult.availableModelsCount ? (
+          <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300">
+            Discovered {testResult.availableModelsCount} dynamic Gemini models supporting generateContent.
+          </div>
+        ) : null}
 
         {testResult && testResult.error && (
           <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
