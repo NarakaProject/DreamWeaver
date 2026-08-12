@@ -11,6 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@huggingface/inference": "^4.13.25",
     "@libsql/client": "^0.17.4",
     "better-sqlite3": "^13.0.3",
     "clsx": "^2.1.1",

@@ -1,49 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { HfInference } from '@huggingface/inference';
 import { enhanceImagePrompt, AssetType } from '@/lib/gemini/image-prompt';
 
-const PRIMARY_MODEL = 'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell';
-const FALLBACK_MODEL = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0';
-
-async function fetchHuggingFaceImage(
-  url: string,
-  apiKey: string,
-  prompt: string,
-  timeoutMs = 30000
-): Promise<Buffer> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey.trim()}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ inputs: prompt }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error(`[HuggingFace API Error] ${url} (${res.status}):`, errText);
-      throw new Error(`HF Model (${res.status}): ${errText.slice(0, 180)}`);
-    }
-
-    const arrayBuf = await res.arrayBuffer();
-    return Buffer.from(arrayBuf);
-  } catch (err: any) {
-    clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
-      throw new Error(`Hugging Face API request timed out after ${timeoutMs / 1000}s.`);
-    }
-    throw err;
-  }
-}
+const PRIMARY_MODEL = 'black-forest-labs/FLUX.1-schnell';
+const FALLBACK_MODEL = 'stabilityai/stable-diffusion-xl-base-1.0';
 
 export async function POST(req: NextRequest) {
   try {
@@ -71,27 +33,38 @@ export async function POST(req: NextRequest) {
 
     const enhancedPrompt = enhanceImagePrompt(prompt, (type as AssetType) || 'general');
 
-    let buffer: Buffer;
-    let modelUsed = 'FLUX.1-schnell';
+    const hf = new HfInference(apiKey.trim());
 
-    // Attempt Primary Model (FLUX.1-schnell) with Fallback to SDXL
+    let imageBlob: Blob;
+    let modelUsed = PRIMARY_MODEL;
+
+    // Attempt Primary Model (FLUX.1-schnell) via HfInference SDK with Fallback to SDXL
     try {
-      buffer = await fetchHuggingFaceImage(PRIMARY_MODEL, apiKey, enhancedPrompt, 30000);
+      imageBlob = (await hf.textToImage({
+        model: PRIMARY_MODEL,
+        inputs: enhancedPrompt,
+      })) as unknown as Blob;
     } catch (primaryErr: any) {
-      console.warn(`[HF Primary Model Failed] ${primaryErr.message}. Retrying with SDXL fallback...`);
+      console.warn(`[HF SDK Primary Model Failed] ${primaryErr.message}. Retrying with SDXL fallback...`);
       try {
-        buffer = await fetchHuggingFaceImage(FALLBACK_MODEL, apiKey, enhancedPrompt, 30000);
-        modelUsed = 'stable-diffusion-xl-base-1.0';
+        imageBlob = (await hf.textToImage({
+          model: FALLBACK_MODEL,
+          inputs: enhancedPrompt,
+        })) as unknown as Blob;
+        modelUsed = FALLBACK_MODEL;
       } catch (fallbackErr: any) {
-        console.error('[HF Fallback Model Failed]', fallbackErr.message);
+        console.error('[HF SDK Fallback Model Failed]', fallbackErr.message);
         throw new Error(
-          `Image generation failed on both FLUX and SDXL models. Error: ${primaryErr.message}`
+          `Image generation failed on both FLUX and SDXL models via SDK. Error: ${primaryErr.message}`
         );
       }
     }
 
+    const arrayBuf = await imageBlob.arrayBuffer();
+    const buffer = Buffer.from(arrayBuf);
+
     if (!buffer || buffer.length < 100) {
-      throw new Error('Received empty or invalid binary image buffer from Hugging Face.');
+      throw new Error('Received empty or invalid binary image buffer from Hugging Face SDK.');
     }
 
     // Ensure /public/uploads/ directory exists
