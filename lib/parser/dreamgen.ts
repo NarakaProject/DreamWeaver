@@ -32,7 +32,7 @@ export interface CyoaParseResult {
 
 /**
  * Extracts CYOA option blocks from narrative text.
- * Handles both <cyoa_options> XML tags and bulleted "Choose The Next Step Options:" blocks.
+ * Robustly strips <cyoa_options>, <cyoaoptions>, <cyoa-options>, opening/unclosed and closing tags completely.
  */
 export function extractCyoaOptions(rawText: string): CyoaParseResult {
   if (!rawText) return { cleanText: '', options: [] };
@@ -40,11 +40,11 @@ export function extractCyoaOptions(rawText: string): CyoaParseResult {
   const options: CyoaOption[] = [];
   let cleanText = rawText;
 
-  // 1. Check for explicit <cyoa_options>...</cyoa_options> XML tags
-  const xmlMatch = rawText.match(/<cyoa_options>([\s\S]*?)<\/cyoa_options>/i);
+  // 1. Match XML tags: <cyoa_options>...</cyoa_options>, <cyoaoptions>...</cyoaoptions>, or unclosed <cyoaoptions>...
+  const xmlMatch = rawText.match(/<cyoa[_-]?options>([\s\S]*?)(?:<\/cyoa[_-]?options>|$)/i);
   if (xmlMatch) {
     const rawOptionsBlock = xmlMatch[1];
-    cleanText = rawText.replace(/<cyoa_options>[\s\S]*?<\/cyoa_options>/gi, '').trim();
+    cleanText = rawText.replace(/<cyoa[_-]?options>[\s\S]*?(?:<\/cyoa[_-]?options>|$)/gi, '').trim();
 
     const lines = rawOptionsBlock.split('\n');
     let optId = 1;
@@ -70,61 +70,63 @@ export function extractCyoaOptions(rawText: string): CyoaParseResult {
         });
       }
     }
-    return { cleanText, options };
-  }
+  } else {
+    // 2. Check for "Choose The Next Step Options:" header
+    const chooseMatch = rawText.match(/(\*?\*?Choose The Next Step Options:?\*?\*?[\s\S]*)$/i);
+    if (chooseMatch) {
+      const rawOptionsBlock = chooseMatch[1];
+      cleanText = rawText.substring(0, chooseMatch.index).trim();
 
-  // 2. Check for "Choose The Next Step Options:" header
-  const chooseMatch = rawText.match(/(\*?\*?Choose The Next Step Options:?\*?\*?[\s\S]*)$/i);
-  if (chooseMatch) {
-    const rawOptionsBlock = chooseMatch[1];
-    cleanText = rawText.substring(0, chooseMatch.index).trim();
+      const lines = rawOptionsBlock.split('\n');
+      let optId = 1;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.toLowerCase().includes('choose the next step options')) continue;
 
-    const lines = rawOptionsBlock.split('\n');
-    let optId = 1;
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.toLowerCase().includes('choose the next step options')) continue;
-
-      const lineMatch = trimmed.match(/^(?:[-*•]|\d+\.)?\s*(?:\[([^\]]+)\]|([^:]+)):\s*(.*)$/);
-      if (lineMatch) {
-        const label = (lineMatch[1] || lineMatch[2] || `Option #${optId}`).trim();
-        const content = (lineMatch[3] || label).replace(/^["']|["']$/g, '').trim();
-        options.push({
-          id: `cyoa-${optId++}`,
-          label,
-          content: content || label,
-        });
-      } else if (trimmed.startsWith('-') || trimmed.startsWith('*') || /^\d+\./.test(trimmed)) {
-        const cleanLine = trimmed.replace(/^[-*•]|\d+\.\s*/, '').trim();
-        options.push({
-          id: `cyoa-${optId++}`,
-          label: cleanLine.slice(0, 35),
-          content: cleanLine,
-        });
+        const lineMatch = trimmed.match(/^(?:[-*•]|\d+\.)?\s*(?:\[([^\]]+)\]|([^:]+)):\s*(.*)$/);
+        if (lineMatch) {
+          const label = (lineMatch[1] || lineMatch[2] || `Option #${optId}`).trim();
+          const content = (lineMatch[3] || label).replace(/^["']|["']$/g, '').trim();
+          options.push({
+            id: `cyoa-${optId++}`,
+            label,
+            content: content || label,
+          });
+        } else if (trimmed.startsWith('-') || trimmed.startsWith('*') || /^\d+\./.test(trimmed)) {
+          const cleanLine = trimmed.replace(/^[-*•]|\d+\.\s*/, '').trim();
+          options.push({
+            id: `cyoa-${optId++}`,
+            label: cleanLine.slice(0, 35),
+            content: cleanLine,
+          });
+        }
       }
     }
   }
+
+  // Strip ALL leftover raw XML tags (e.g. </cyoaoptions>, <cyoaoptions>, etc.) completely from cleanText
+  cleanText = cleanText.replace(/<\/?cyoa[_-]?options>/gi, '').trim();
 
   return { cleanText, options };
 }
 
 /**
- * Strips inline character prefixes like "Rick:", "Rick Sanchez:", "Summoned:" from the start of text content.
+ * Strips character prefixes like "Rick:", "Rick Sanchez:", "Summoned:" across ALL lines/paragraphs.
  */
 export function stripSpeakerPrefix(content: string, speakerName?: string): string {
   if (!content) return '';
-  let cleaned = content.trim();
+  let cleaned = content;
 
-  if (speakerName) {
-    const esc = speakerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`^(?:\\[${esc}\\]|${esc}):\\s*`, 'i');
-    cleaned = cleaned.replace(regex, '').trim();
+  if (speakerName && speakerName.trim()) {
+    const esc = speakerName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?<=^|\\n)\\s*(?:\\[${esc}\\]|${esc}):\\s*`, 'gim');
+    cleaned = cleaned.replace(regex, '');
   }
 
-  // Strip generic "Name:" or "[Speaker: Name]" prefix at beginning of text block
-  cleaned = cleaned.replace(/^(?:\[(?:Speaker:\s*)?[^\]]+\]|[A-Z][a-zA-Z0-9_\s]{1,20}):\s*/, '').trim();
+  // Strip generic "CharacterName:" or "[Speaker: CharacterName]" prefix at the start of ANY line
+  cleaned = cleaned.replace(/(?<=^|\n)\s*(?:\[(?:Speaker:\s*)?[^\]]+\]|[A-Z][a-zA-Z0-9_\s]{1,20}):\s*/gm, '');
 
-  return cleaned;
+  return cleaned.trim();
 }
 
 /**

@@ -277,6 +277,45 @@ export default function Home() {
     }
     if (!activeSessionId) return;
 
+    // Dynamic NPC Display Name Sync on /summon [Name] or /Start
+    const summonMatch = content.match(/\/summon\s+(.+)$/i);
+    let targetNpcName: string | undefined = undefined;
+
+    if (summonMatch) {
+      targetNpcName = summonMatch[1].trim();
+    } else if (content.trim().toLowerCase() === '/start' || content.trim().toLowerCase().startsWith('/start')) {
+      const previousSummonMsg = [...messages].reverse().find((m) => m.content && m.content.toLowerCase().includes('/summon'));
+      if (previousSummonMsg) {
+        const match = previousSummonMsg.content.match(/\/summon\s+(.+)$/i);
+        if (match) targetNpcName = match[1].trim();
+      }
+    }
+
+    if (targetNpcName && activeWorldBuilding) {
+      const updatedNPCs = (activeWorldBuilding.scenarioNPCs || []).map((npc) => {
+        if (npc.name.toLowerCase() === 'summoned' || npc.id.toLowerCase().includes('summoned')) {
+          return { ...npc, name: targetNpcName };
+        }
+        return npc;
+      });
+
+      if (!updatedNPCs.some((n) => n.name.toLowerCase() === targetNpcName.toLowerCase())) {
+        if (updatedNPCs.length > 0 && updatedNPCs[0].name.toLowerCase() === 'summoned') {
+          updatedNPCs[0].name = targetNpcName;
+        } else {
+          updatedNPCs.push({
+            id: `npc-${Date.now()}`,
+            name: targetNpcName,
+            personality: `Summoned character persona for ${targetNpcName}`,
+            firstMessage: '',
+          });
+        }
+      }
+
+      setActiveWorldBuilding((prev) => (prev ? { ...prev, scenarioNPCs: updatedNPCs } : prev));
+      setSelectedSpeaker(targetNpcName);
+    }
+
     const speakerName = speakerOverride || selectedSpeaker || activePersona?.name || 'Valerius';
 
     const userMsg: ChatMessage = {
