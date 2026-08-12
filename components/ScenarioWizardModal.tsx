@@ -85,6 +85,20 @@ export function ScenarioWizardModal({
   // Generated Draft Scenario
   const [scenarioDraft, setScenarioDraft] = React.useState<FullScenario | null>(null);
 
+  // Expanded Cards & Editing State
+  const [expandedCards, setExpandedCards] = React.useState<Record<string, boolean>>({
+    setting: false,
+    plot: false,
+    opening: false,
+    style: false,
+    history: false,
+  });
+  const [editingBlock, setEditingBlock] = React.useState<string | null>(null);
+
+  const toggleExpandCard = (key: string) => {
+    setExpandedCards((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   // Linting State
   const [isLinting, setIsLinting] = React.useState(false);
   const [lintResult, setLintResult] = React.useState<{
@@ -590,9 +604,17 @@ export function ScenarioWizardModal({
               {/* Building Block Cards Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 {/* SETTING CARD */}
-                <div className="p-4 rounded-xl bg-[#141824] border border-[#242b3d] space-y-2">
+                <div className="p-4 rounded-xl bg-[#141824] border border-[#242b3d] space-y-2 flex flex-col justify-between">
                   <div className="flex items-center justify-between font-bold text-amber-400">
-                    <span>Setting & Worldbuilding</span>
+                    <div className="flex items-center gap-2">
+                      <span>Setting & Worldbuilding</span>
+                      <button
+                        onClick={() => setEditingBlock(editingBlock === 'setting' ? null : 'setting')}
+                        className="text-[10px] text-slate-400 hover:text-white transition-colors"
+                      >
+                        {editingBlock === 'setting' ? '[Done]' : '[Edit]'}
+                      </button>
+                    </div>
                     <button
                       onClick={() => handleRunCommand('/GENERATE SETTING')}
                       className="text-[10px] text-cyan-300 hover:underline font-mono"
@@ -600,15 +622,51 @@ export function ScenarioWizardModal({
                       /GENERATE SETTING
                     </button>
                   </div>
-                  <p className="text-slate-300 line-clamp-4 leading-relaxed">
-                    {scenarioDraft.worldBuilding.setting}
-                  </p>
+
+                  {editingBlock === 'setting' ? (
+                    <textarea
+                      value={scenarioDraft.worldBuilding.setting}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setScenarioDraft((prev) =>
+                          prev ? { ...prev, worldBuilding: { ...prev.worldBuilding, setting: val } } : null
+                        );
+                      }}
+                      className="w-full h-36 rounded-lg bg-[#090a0f] border border-amber-500/50 p-2.5 text-xs text-white resize-none font-normal"
+                    />
+                  ) : (
+                    <>
+                      <div
+                        className={`text-slate-300 leading-relaxed overflow-y-auto pr-1 transition-all ${
+                          expandedCards.setting ? 'max-h-96' : 'max-h-36'
+                        }`}
+                      >
+                        {scenarioDraft.worldBuilding.setting}
+                      </div>
+                      <div className="flex justify-end pt-1">
+                        <button
+                          onClick={() => toggleExpandCard('setting')}
+                          className="text-[10px] font-bold text-amber-400 hover:underline"
+                        >
+                          {expandedCards.setting ? 'Collapse ▴' : 'Show Full Text ▾'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* PLOT CARD */}
-                <div className="p-4 rounded-xl bg-[#141824] border border-[#242b3d] space-y-2">
+                <div className="p-4 rounded-xl bg-[#141824] border border-[#242b3d] space-y-2 flex flex-col justify-between">
                   <div className="flex items-center justify-between font-bold text-amber-400">
-                    <span>Plot & Premise</span>
+                    <div className="flex items-center gap-2">
+                      <span>Plot & Premise</span>
+                      <button
+                        onClick={() => setEditingBlock(editingBlock === 'plot' ? null : 'plot')}
+                        className="text-[10px] text-slate-400 hover:text-white transition-colors"
+                      >
+                        {editingBlock === 'plot' ? '[Done]' : '[Edit]'}
+                      </button>
+                    </div>
                     <button
                       onClick={() => handleRunCommand('/GENERATE PLOT')}
                       className="text-[10px] text-cyan-300 hover:underline font-mono"
@@ -616,17 +674,83 @@ export function ScenarioWizardModal({
                       /GENERATE PLOT
                     </button>
                   </div>
-                  <p className="text-slate-300 line-clamp-4 leading-relaxed">
-                    {scenarioDraft.worldBuilding.plot}
-                  </p>
+
+                  {editingBlock === 'plot' ? (
+                    <textarea
+                      value={scenarioDraft.worldBuilding.plot}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setScenarioDraft((prev) =>
+                          prev ? { ...prev, worldBuilding: { ...prev.worldBuilding, plot: val } } : null
+                        );
+                      }}
+                      className="w-full h-36 rounded-lg bg-[#090a0f] border border-amber-500/50 p-2.5 text-xs text-white resize-none font-normal"
+                    />
+                  ) : (
+                    <>
+                      <div
+                        className={`text-slate-300 leading-relaxed overflow-y-auto pr-1 transition-all ${
+                          expandedCards.plot ? 'max-h-96' : 'max-h-36'
+                        }`}
+                      >
+                        {scenarioDraft.worldBuilding.plot}
+                      </div>
+                      <div className="flex justify-end pt-1">
+                        <button
+                          onClick={() => toggleExpandCard('plot')}
+                          className="text-[10px] font-bold text-amber-400 hover:underline"
+                        >
+                          {expandedCards.plot ? 'Collapse ▴' : 'Show Full Text ▾'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* OPENING PROLOGUE CARD */}
-                <div className="p-4 rounded-xl bg-[#141824] border border-[#242b3d] space-y-2 sm:col-span-2">
-                  <div className="font-bold text-amber-400">Opening Narration Prologue</div>
-                  <p className="text-slate-300 line-clamp-3 italic leading-relaxed font-mono">
-                    {scenarioDraft.worldBuilding.openingMessage}
-                  </p>
+                <div className="p-4 rounded-xl bg-[#141824] border border-[#242b3d] space-y-2 sm:col-span-2 flex flex-col justify-between">
+                  <div className="flex items-center justify-between font-bold text-amber-400">
+                    <div className="flex items-center gap-2">
+                      <span>Opening Narration Prologue</span>
+                      <button
+                        onClick={() => setEditingBlock(editingBlock === 'opening' ? null : 'opening')}
+                        className="text-[10px] text-slate-400 hover:text-white transition-colors"
+                      >
+                        {editingBlock === 'opening' ? '[Done]' : '[Edit]'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {editingBlock === 'opening' ? (
+                    <textarea
+                      value={scenarioDraft.worldBuilding.openingMessage}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setScenarioDraft((prev) =>
+                          prev ? { ...prev, worldBuilding: { ...prev.worldBuilding, openingMessage: val } } : null
+                        );
+                      }}
+                      className="w-full h-36 rounded-lg bg-[#090a0f] border border-amber-500/50 p-2.5 text-xs text-white font-mono resize-none font-normal"
+                    />
+                  ) : (
+                    <>
+                      <div
+                        className={`text-slate-300 italic leading-relaxed font-mono overflow-y-auto pr-1 transition-all ${
+                          expandedCards.opening ? 'max-h-96' : 'max-h-36'
+                        }`}
+                      >
+                        {scenarioDraft.worldBuilding.openingMessage}
+                      </div>
+                      <div className="flex justify-end pt-1">
+                        <button
+                          onClick={() => toggleExpandCard('opening')}
+                          className="text-[10px] font-bold text-amber-400 hover:underline"
+                        >
+                          {expandedCards.opening ? 'Collapse ▴' : 'Show Full Text ▾'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* NPCS CARD */}
@@ -640,7 +764,7 @@ export function ScenarioWizardModal({
                       + /GENERATE NPC
                     </button>
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
                     {scenarioDraft.worldBuilding.scenarioNPCs?.map((npc, idx) => (
                       <div key={idx} className="text-slate-300 font-semibold">
                         • {npc.name} ({npc.tagline || 'Companion'})
@@ -660,7 +784,7 @@ export function ScenarioWizardModal({
                       + /GENERATE LOCATION
                     </button>
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
                     {scenarioDraft.worldBuilding.locations?.map((loc, idx) => (
                       <div key={idx} className="text-slate-300 font-semibold">
                         • {loc.name}
