@@ -591,7 +591,7 @@ export default function Home() {
             onOpenWizard={() => setIsWizardOpen(true)}
           />
         ) : (
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex flex-col h-full overflow-hidden relative">
             {/* Reading Viewport */}
             <main className="flex-1 overflow-y-auto px-6 py-8 contain-content overscroll-contain">
               {messages.length === 0 ? (
@@ -638,35 +638,35 @@ export default function Home() {
               )}
             </main>
 
-            {/* In-Game Tabbed Right Panel */}
-            {isRightInspectorOpen && activeWorldBuilding && (
-              <RightInspectorPanel
-                isOpen={isRightInspectorOpen}
-                onClose={() => setIsRightInspectorOpen(false)}
-                worldBuilding={activeWorldBuilding}
-                persona={activePersona}
-                onUpdateWorldBuilding={(wb) => setActiveWorldBuilding(wb)}
-                onUpdatePersona={(p) => setActivePersona(p)}
-              />
-            )}
+            {/* Input Dock (Confined strictly to Center Column) */}
+            <ControlDock
+              userPersonaName={activePersona?.name || 'You'}
+              availableSpeakers={sceneNPCs}
+              selectedSpeaker={selectedSpeaker}
+              onSpeakerChange={setSelectedSpeaker}
+              onSend={handleSendInput}
+              onContinue={handleContinue}
+              onUndo={handleUndo}
+              onFetchSuggestions={handleFetchSuggestions}
+              disabled={isStreaming}
+            />
           </div>
         )}
-
-        {/* Input Dock (Active during Play mode) */}
-        {viewMode === 'play' && (
-          <ControlDock
-            userPersonaName={activePersona?.name || 'You'}
-            availableSpeakers={sceneNPCs}
-            selectedSpeaker={selectedSpeaker}
-            onSpeakerChange={setSelectedSpeaker}
-            onSend={handleSendInput}
-            onContinue={handleContinue}
-            onUndo={handleUndo}
-            onFetchSuggestions={handleFetchSuggestions}
-            disabled={isStreaming}
-          />
-        )}
       </div>
+
+      {/* Full-Height Right Column (Live Story Inspector) */}
+      {viewMode === 'play' && isRightInspectorOpen && activeWorldBuilding && (
+        <div className="w-[380px] lg:w-[420px] h-full border-l border-[#1f2430] bg-[#0d0f17] flex flex-col shrink-0 z-30">
+          <RightInspectorPanel
+            isOpen={isRightInspectorOpen}
+            onClose={() => setIsRightInspectorOpen(false)}
+            worldBuilding={activeWorldBuilding}
+            persona={activePersona}
+            onUpdateWorldBuilding={(wb) => setActiveWorldBuilding(wb)}
+            onUpdatePersona={(p) => setActivePersona(p)}
+          />
+        </div>
+      )}
 
       {/* Modals & Flow Controllers */}
       <PreStartModal

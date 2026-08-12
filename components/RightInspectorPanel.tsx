@@ -80,7 +80,7 @@ export function RightInspectorPanel({
   };
 
   return (
-    <aside className="w-96 bg-[#0d0f17] border-l border-[#1a1f2c] flex flex-col h-full z-20 contain-content overscroll-contain max-w-full overflow-x-hidden">
+    <aside className="w-full h-full bg-[#0d0f17] flex flex-col z-20 contain-content overscroll-contain overflow-x-hidden">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-[#1a1f2c] shrink-0 bg-[#090a0f]">
         <div className="flex items-center gap-2">
