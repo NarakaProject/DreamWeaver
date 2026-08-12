@@ -50,4 +50,13 @@ Rick: "This isn't my dimension."`;
     expect(sections[0].speaker).toBe('Rick Sanchez');
     expect(sections[0].speaker).not.toBe('Naraka');
   });
+
+  it('sanitizes template placeholder names like npc_name_or_description to canonical NPC or Narrator', () => {
+    const sections = splitMultiSpeakerText('Greetings traveler.', 'Koro-sensei', 'Naraka');
+    expect(sections[0].speaker).toBe('Koro-sensei');
+
+    const placeholderSections = splitMultiSpeakerText('[Speaker: npc_name_or_description]: Hello', 'Koro-sensei', 'Naraka');
+    expect(placeholderSections[0].speaker).toBe('Koro-sensei');
+    expect(placeholderSections[0].speaker).not.toBe('npc_name_or_description');
+  });
 });

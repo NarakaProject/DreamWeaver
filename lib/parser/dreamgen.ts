@@ -136,7 +136,21 @@ function sanitizeSpeakerName(speaker: string, defaultSpeaker: string, userPerson
   if (!speaker || speaker.trim().toLowerCase() === 'model') {
     return defaultSpeaker;
   }
-  if (userPersonaName && speaker.toLowerCase() === userPersonaName.toLowerCase()) {
+  const clean = speaker.trim().toLowerCase();
+  if (
+    clean === 'npc_name' ||
+    clean === 'npc_name_or_description' ||
+    clean === 'summoned' ||
+    clean === '{{user}}'
+  ) {
+    return defaultSpeaker &&
+      defaultSpeaker.toLowerCase() !== 'summoned' &&
+      defaultSpeaker.toLowerCase() !== 'npc_name' &&
+      defaultSpeaker.toLowerCase() !== 'npc_name_or_description'
+      ? defaultSpeaker
+      : 'Narrator';
+  }
+  if (userPersonaName && clean === userPersonaName.toLowerCase()) {
     return defaultSpeaker.toLowerCase() !== userPersonaName.toLowerCase() ? defaultSpeaker : 'Narrator';
   }
   return speaker;

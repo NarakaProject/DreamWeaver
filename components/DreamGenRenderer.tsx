@@ -33,6 +33,27 @@ export function getCanonicalSpeakerName(
   const clean = speaker.trim();
   if (clean.toLowerCase() === 'narrator') return 'Narrator';
 
+  // Filter raw prompt placeholders
+  const isPlaceholder =
+    clean.toLowerCase() === 'npc_name' ||
+    clean.toLowerCase() === 'npc_name_or_description' ||
+    clean.toLowerCase() === 'summoned' ||
+    clean.toLowerCase() === '{{user}}' ||
+    clean.toLowerCase() === 'model';
+
+  if (isPlaceholder) {
+    const validNPC = knownNPCs.find(
+      (n) =>
+        n.toLowerCase() !== 'npc_name' &&
+        n.toLowerCase() !== 'npc_name_or_description' &&
+        n.toLowerCase() !== 'summoned' &&
+        n.toLowerCase() !== '{{user}}' &&
+        n.toLowerCase() !== userPersonaName.toLowerCase()
+    );
+    if (validNPC) return validNPC;
+    return 'Narrator';
+  }
+
   if (clean.toLowerCase() === userPersonaName.toLowerCase()) {
     return userPersonaName;
   }

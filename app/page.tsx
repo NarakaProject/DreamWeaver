@@ -270,20 +270,25 @@ export default function Home() {
   };
 
   // Send User Action / Dialogue Input
-  const handleSendInput = async (content: string, speakerOverride?: string) => {
+  const handleSendInput = async (content: string, targetSpeakerOverride?: string) => {
     if (!apiKey) {
       setIsSettingsOpen(true);
       return;
     }
-    if (!activeSessionId) return;
+    if (!activeSessionId || !content || !content.trim()) return;
+
+    const trimmedContent = content.trim();
+    if (trimmedContent.toLowerCase() === 'do' || trimmedContent.toLowerCase() === 'say') {
+      return; // prevent residual single-word type fallbacks
+    }
 
     // Dynamic NPC Display Name Sync on /summon [Name] or /Start
-    const summonMatch = content.match(/\/summon\s+(.+)$/i);
+    const summonMatch = trimmedContent.match(/\/summon\s+(.+)$/i);
     let targetNpcName: string | undefined = undefined;
 
     if (summonMatch) {
       targetNpcName = summonMatch[1].trim();
-    } else if (content.trim().toLowerCase() === '/start' || content.trim().toLowerCase().startsWith('/start')) {
+    } else if (trimmedContent.toLowerCase() === '/start' || trimmedContent.toLowerCase().startsWith('/start')) {
       const previousSummonMsg = [...messages].reverse().find((m) => m.content && m.content.toLowerCase().includes('/summon'));
       if (previousSummonMsg) {
         const match = previousSummonMsg.content.match(/\/summon\s+(.+)$/i);
@@ -293,14 +298,25 @@ export default function Home() {
 
     if (targetNpcName && activeWorldBuilding) {
       const updatedNPCs = (activeWorldBuilding.scenarioNPCs || []).map((npc) => {
-        if (npc.name.toLowerCase() === 'summoned' || npc.id.toLowerCase().includes('summoned')) {
+        if (
+          npc.name.toLowerCase() === 'summoned' ||
+          npc.name.toLowerCase() === 'npc_name' ||
+          npc.name.toLowerCase() === 'npc_name_or_description' ||
+          npc.name.toLowerCase() === '{{user}}' ||
+          npc.id.toLowerCase().includes('summoned')
+        ) {
           return { ...npc, name: targetNpcName };
         }
         return npc;
       });
 
       if (!updatedNPCs.some((n) => n.name.toLowerCase() === targetNpcName.toLowerCase())) {
-        if (updatedNPCs.length > 0 && updatedNPCs[0].name.toLowerCase() === 'summoned') {
+        if (
+          updatedNPCs.length > 0 &&
+          (updatedNPCs[0].name.toLowerCase() === 'summoned' ||
+            updatedNPCs[0].name.toLowerCase() === 'npc_name' ||
+            updatedNPCs[0].name.toLowerCase() === 'npc_name_or_description')
+        ) {
           updatedNPCs[0].name = targetNpcName;
         } else {
           updatedNPCs.push({
@@ -316,13 +332,13 @@ export default function Home() {
       setSelectedSpeaker(targetNpcName);
     }
 
-    // User message MUST strictly be attributed to player persona, NEVER overwriting player identity
-    const userSpeakerName = speakerOverride || activePersona?.name || 'Naraka';
+    // USER MESSAGE SPEAKER MUST STRICTLY REMAIN THE ACTIVE PLAYER PERSONA ONLY
+    const userSpeakerName = activePersona?.name || 'Naraka';
 
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
-      content,
+      content: trimmedContent,
       type: 'narration',
       speaker: userSpeakerName,
       timestamp: Date.now(),
@@ -349,7 +365,9 @@ export default function Home() {
       }),
     });
 
-    triggerStreamingResponse(updatedMessages, activeSessionId, speakerOverride);
+    const aiTargetSpeaker =
+      targetSpeakerOverride && targetSpeakerOverride !== userSpeakerName ? targetSpeakerOverride : undefined;
+    triggerStreamingResponse(updatedMessages, activeSessionId, aiTargetSpeaker);
   };
 
   const handleContinue = (targetSpeaker?: string) => {
@@ -461,7 +479,15 @@ export default function Home() {
 
       for (let i = 0; i < sections.length; i++) {
         const sec = sections[i];
-        if (!sec.content || !sec.content.trim() || sec.speaker === 'npc_name') continue;
+        if (
+          !sec.content ||
+          !sec.content.trim() ||
+          sec.content.trim().toLowerCase() === 'do' ||
+          sec.content.trim().toLowerCase() === 'say' ||
+          sec.speaker === 'npc_name' ||
+          sec.speaker === 'npc_name_or_description' ||
+          sec.speaker === '{{user}}'
+        ) continue;
 
         const aiMsg: ChatMessage = {
           id: `msg-${Date.now()}-${i}`,
@@ -649,7 +675,16 @@ export default function Home() {
               ) : (
                 <div className="max-w-3xl mx-auto space-y-4">
                   {messages
-                    .filter((msg) => msg.content && msg.content.trim() !== '' && msg.speaker !== 'npc_name')
+                    .filter(
+                      (msg) =>
+                        msg.content &&
+                        msg.content.trim() !== '' &&
+                        msg.content.trim().toLowerCase() !== 'do' &&
+                        msg.content.trim().toLowerCase() !== 'say' &&
+                        msg.speaker !== 'npc_name' &&
+                        msg.speaker !== 'npc_name_or_description' &&
+                        msg.speaker !== '{{user}}'
+                    )
                     .map((msg, index) => (
                     <DreamGenRenderer
                       key={msg.id || `msg-${index}`}
