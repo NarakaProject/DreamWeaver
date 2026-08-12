@@ -599,7 +599,7 @@ export default function Home() {
                   <h2 className="text-2xl font-bold text-white">Starting Scenario Session...</h2>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="max-w-3xl mx-auto space-y-4">
                   {messages.map((msg, index) => (
                     <DreamGenRenderer
                       key={msg.id || `msg-${index}`}
