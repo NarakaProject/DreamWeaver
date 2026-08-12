@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { FullScenario } from '@/lib/scenarios/types';
-import { Search, Plus, Play, Edit3, Compass, Sparkles, Tag, Layers } from 'lucide-react';
+import { Search, Plus, Play, Edit3, Compass, Sparkles, Tag, Layers, Upload } from 'lucide-react';
 
 interface ScenarioDiscoveryProps {
   scenarios: FullScenario[];
@@ -10,6 +10,7 @@ interface ScenarioDiscoveryProps {
   onEditScenario: (scenario: FullScenario) => void;
   onCreateScenario: () => void;
   onOpenWizard?: () => void;
+  onOpenImportModal?: () => void;
 }
 
 export function ScenarioDiscovery({
@@ -18,6 +19,7 @@ export function ScenarioDiscovery({
   onEditScenario,
   onCreateScenario,
   onOpenWizard,
+  onOpenImportModal,
 }: ScenarioDiscoveryProps) {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState('All');
@@ -105,7 +107,7 @@ export function ScenarioDiscovery({
           </button>
 
           {showDropdown && (
-            <div className="absolute right-0 top-full mt-2 w-64 rounded-xl bg-[#141824] border border-[#242b3d] shadow-2xl p-2 z-30 space-y-1 text-xs">
+            <div className="absolute right-0 top-full mt-2 w-72 rounded-xl bg-[#141824] border border-[#242b3d] shadow-2xl p-2 z-30 space-y-1 text-xs">
               <button
                 onClick={() => {
                   setShowDropdown(false);
@@ -131,6 +133,20 @@ export function ScenarioDiscovery({
                 <div>
                   <div className="font-bold text-amber-400">AI-Assisted Wizard</div>
                   <div className="text-[11px] text-amber-400/80">Procedural 12-block generator & studio</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowDropdown(false);
+                  if (onOpenImportModal) onOpenImportModal();
+                }}
+                className="w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-purple-300 hover:bg-[#1f2638] transition-colors border-t border-[#1f2430] pt-2"
+              >
+                <Upload className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold text-purple-300">Import Scenario / World</div>
+                  <div className="text-[11px] text-purple-400/80">Import JSON file from World-Gen or DreamGen</div>
                 </div>
               </button>
             </div>

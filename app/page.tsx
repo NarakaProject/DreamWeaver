@@ -748,6 +748,7 @@ export default function Home() {
             onEditScenario={handleOpenBuilder}
             onCreateScenario={() => handleOpenBuilder()}
             onOpenWizard={() => setIsWizardOpen(true)}
+            onOpenImportModal={() => setIsImportOpen(true)}
           />
         ) : (
           <div className="flex-1 flex flex-col h-full overflow-hidden relative">
