@@ -15,6 +15,7 @@ import { RightInspectorPanel } from '@/components/RightInspectorPanel';
 import { FullScenario, PersonaTemplate, WorldBuilding } from '@/lib/scenarios/reader';
 import { DbSession, DbMessage } from '@/lib/db';
 import { ChatMessage, DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
+import { splitMultiSpeakerText } from '@/lib/parser/dreamgen';
 
 export default function Home() {
   const [scenarios, setScenarios] = React.useState<FullScenario[]>([]);
@@ -393,36 +394,44 @@ export default function Home() {
         }
       }
 
-      const aiSpeaker = targetSpeaker || 'Narrator';
+      const defaultSpeaker = targetSpeaker || (selectedSpeaker !== activePersona?.name ? selectedSpeaker : 'Narrator');
+      const sections = splitMultiSpeakerText(fullText, defaultSpeaker);
 
-      const aiMsg: ChatMessage = {
-        id: `msg-${Date.now()}`,
-        role: 'model',
-        content: fullText,
-        speaker: aiSpeaker,
-        timestamp: Date.now(),
-      };
+      const createdMessages: ChatMessage[] = [];
 
-      setMessages((prev) => [...prev, aiMsg]);
+      for (let i = 0; i < sections.length; i++) {
+        const sec = sections[i];
+        const aiMsg: ChatMessage = {
+          id: `msg-${Date.now()}-${i}`,
+          role: 'model',
+          content: sec.content,
+          speaker: sec.speaker,
+          timestamp: Date.now() + i * 10,
+        };
+
+        createdMessages.push(aiMsg);
+
+        // Save AI turn section to SQLite
+        await fetch('/api/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'saveMessage',
+            message: {
+              id: aiMsg.id,
+              session_id: sessionId,
+              role: aiMsg.role,
+              content: aiMsg.content,
+              type: 'narration',
+              speaker: aiMsg.speaker,
+              timestamp: aiMsg.timestamp,
+            },
+          }),
+        });
+      }
+
+      setMessages((prev) => [...prev, ...createdMessages]);
       setStreamingContent('');
-
-      // Save AI turn to SQLite
-      await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'saveMessage',
-          message: {
-            id: aiMsg.id,
-            session_id: sessionId,
-            role: aiMsg.role,
-            content: aiMsg.content,
-            type: 'narration',
-            speaker: aiMsg.speaker,
-            timestamp: aiMsg.timestamp,
-          },
-        }),
-      });
     } catch (err: any) {
       console.error('Streaming error:', err);
       const errorMsg: ChatMessage = {

@@ -46,69 +46,38 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
     setIsEditing(false);
   };
 
-  // Determine attribution header display
-  const displayName =
-    role === 'user'
-      ? speaker || userPersonaName
-      : speaker && speaker.toLowerCase() !== 'narrator'
-      ? speaker
-      : '(narrative)';
+  // Determine speaker classification
+  const isUserTurn = role === 'user';
+  const speakerName = speaker || (isUserTurn ? userPersonaName : 'Narrator');
+  const isNarrator = speakerName.toLowerCase() === 'narrator';
+  const isUserSpeaker = isUserTurn || speakerName.toLowerCase() === userPersonaName.toLowerCase();
 
-  const isNarrator = role === 'model' && (!speaker || speaker.toLowerCase() === 'narrator');
-
-  if (role === 'user') {
-    return (
-      <div className="group relative my-4 flex justify-end contain-content">
-        <div className="max-w-2xl rounded-2xl bg-[#192233] border border-[#2d384e] p-4 text-[#e2e8f0] shadow-md space-y-2">
-          {/* User Persona Attribution Header */}
-          <div className="flex items-center justify-between text-xs font-semibold pb-1 border-b border-[#2a364d]">
-            <div className="flex items-center gap-1.5 text-[#38bdf8]">
+  return (
+    <div className="group relative my-6 max-w-3xl mx-auto w-full rounded-xl bg-[#12151e] border border-[#1f2430] p-6 shadow-md transition-colors hover:border-[#2a3142] contain-content space-y-3">
+      {/* Identity Attribution Header */}
+      <div className="flex items-center justify-between text-xs border-b border-[#1f2430] pb-2.5">
+        <div className="flex items-center gap-2">
+          {isUserSpeaker ? (
+            <div className="flex items-center gap-1.5 font-bold text-[#38bdf8]">
               <User className="w-3.5 h-3.5" />
-              <span>{displayName}</span>
+              <span>{speakerName}</span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 uppercase">
+                PLAYER
+              </span>
               {type && (
                 <span className="ml-1 text-[10px] text-slate-400 font-mono">
                   [{type.toUpperCase()}]
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={handleCopy}
-                className="p-1 text-slate-400 hover:text-white transition-colors"
-                title="Copy input"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              </button>
-              {onDelete && (
-                <button
-                  onClick={onDelete}
-                  className="p-1 text-slate-400 hover:text-red-400 transition-colors"
-                  title="Delete message"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="text-base leading-relaxed">{content}</div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="group relative my-6 max-w-3xl mx-auto rounded-xl bg-[#12151e] border border-[#1f2430] p-6 shadow-md transition-colors hover:border-[#2a3142] contain-content space-y-3">
-      {/* Attribution Header (NPC / Narrator) */}
-      <div className="flex items-center justify-between text-xs border-b border-[#1f2430] pb-2">
-        <div className="flex items-center gap-2">
-          {isNarrator ? (
+          ) : isNarrator ? (
             <span className="text-slate-500 font-mono italic text-[11px]">
               (narrative)
             </span>
           ) : (
             <div className="flex items-center gap-1.5 font-bold text-amber-300">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>{displayName}</span>
+              <span>{speakerName}</span>
               <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/30 uppercase">
                 NPC
               </span>
@@ -116,7 +85,7 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
           )}
         </div>
 
-        {/* Narrative Output Controls */}
+        {/* Action Controls */}
         <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
           {onRegenerate && !isStreaming && (
             <button
@@ -132,7 +101,7 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
             <button
               onClick={() => setIsEditing(!isEditing)}
               className="p-1 text-slate-400 hover:text-slate-200 transition-colors"
-              title="Edit story turn"
+              title="Edit turn"
             >
               <Edit2 className="w-3.5 h-3.5" />
             </button>
@@ -140,7 +109,7 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
           <button
             onClick={handleCopy}
             className="p-1 text-slate-400 hover:text-slate-200 transition-colors"
-            title="Copy full text"
+            title="Copy text"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
@@ -156,6 +125,7 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
         </div>
       </div>
 
+      {/* Editing State vs Full Story Block */}
       {isEditing ? (
         <div className="space-y-3 pt-1">
           <textarea
@@ -179,7 +149,7 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
           </div>
         </div>
       ) : (
-        <div className="dreamgen-prose whitespace-pre-wrap pt-1">
+        <div className="dreamgen-prose whitespace-pre-wrap pt-1 text-left">
           {tokens.map((token) => {
             if (token.type === 'dialogue') {
               return (

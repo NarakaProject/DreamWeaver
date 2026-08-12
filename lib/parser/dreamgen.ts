@@ -14,6 +14,66 @@ export interface TextToken {
   isUnclosed?: boolean;
 }
 
+export interface SpeakerSection {
+  speaker: string;
+  content: string;
+}
+
+/**
+ * Splits narrative text into distinct speaker sections if multi-speaker tags are present
+ * (e.g. [Speaker: Ignis Emberheart] or [Narrator] or [Aria Shadowstep]).
+ */
+export function splitMultiSpeakerText(
+  text: string,
+  defaultSpeaker: string = 'Narrator'
+): SpeakerSection[] {
+  if (!text || !text.trim()) return [];
+
+  // Match speaker tags: [Speaker: Name], [Narrator], or [Name]:
+  const tagRegex = /\[(?:Speaker:\s*)?([^\]]+)\]:?/gi;
+  const sections: SpeakerSection[] = [];
+
+  let lastIndex = 0;
+  let currentSpeaker = defaultSpeaker;
+  let match: RegExpExecArray | null;
+
+  while ((match = tagRegex.exec(text)) !== null) {
+    const matchIndex = match.index;
+    const rawTag = match[0];
+    const extractedSpeaker = match[1].trim();
+
+    // Text before this tag
+    const priorText = text.slice(lastIndex, matchIndex).trim();
+    if (priorText) {
+      sections.push({
+        speaker: currentSpeaker,
+        content: priorText,
+      });
+    }
+
+    currentSpeaker = extractedSpeaker.toLowerCase() === 'narrator' ? 'Narrator' : extractedSpeaker;
+    lastIndex = matchIndex + rawTag.length;
+  }
+
+  // Remaining text after last tag
+  const remainingText = text.slice(lastIndex).trim();
+  if (remainingText) {
+    sections.push({
+      speaker: currentSpeaker,
+      content: remainingText,
+    });
+  }
+
+  if (sections.length === 0 && text.trim()) {
+    sections.push({
+      speaker: defaultSpeaker,
+      content: text.trim(),
+    });
+  }
+
+  return sections;
+}
+
 /**
  * Helper to parse bold (**...**) and explicit italic (*...* or _..._) within a token string.
  */
@@ -25,13 +85,11 @@ export function parseSpans(content: string): TextSpan[] {
   while (i < content.length) {
     // Bold syntax: **text**
     if (content.startsWith('**', i)) {
-      i += 2; // skip opening **
+      i += 2;
       let text = '';
-      let closed = false;
       while (i < content.length) {
         if (content.startsWith('**', i)) {
-          closed = true;
-          i += 2; // skip closing **
+          i += 2;
           break;
         }
         text += content[i];
@@ -46,13 +104,11 @@ export function parseSpans(content: string): TextSpan[] {
     // Explicit Italic syntax: *text* or _text_
     if (content[i] === '*' || content[i] === '_') {
       const delimiter = content[i];
-      i++; // skip opening delimiter
+      i++;
       let text = '';
-      let closed = false;
       while (i < content.length) {
         if (content[i] === delimiter) {
-          closed = true;
-          i++; // skip closing delimiter
+          i++;
           break;
         }
         text += content[i];
@@ -84,11 +140,13 @@ export function parseSpans(content: string): TextSpan[] {
 
 /**
  * Parses raw narrative text into structured tokens for DreamGen rendering.
- * Separates spoken dialogue ("...") from prose/action narration.
- * Dialogue is non-italic warm gold by default; prose/actions are italic soft purple.
+ * Strips any leftover raw speaker tags (e.g. [Speaker: Name]) and separates dialogue ("...") from prose.
  */
-export function parseDreamGenText(text: string): TextToken[] {
-  if (!text) return [];
+export function parseDreamGenText(rawText: string): TextToken[] {
+  if (!rawText) return [];
+
+  // Strip stray raw speaker tags from visible prose
+  const text = rawText.replace(/\[(?:Speaker:\s*)?[^\]]+\]:?/gi, '').trim();
 
   const tokens: TextToken[] = [];
   let index = 0;
@@ -99,7 +157,7 @@ export function parseDreamGenText(text: string): TextToken[] {
 
     // Spoken Dialogue: Double quotes "..." or curly double quotes “...”
     if (char === '"' || char === '“') {
-      index++; // skip initial quote
+      index++;
       let content = '';
       let closed = false;
 
@@ -107,7 +165,7 @@ export function parseDreamGenText(text: string): TextToken[] {
         const c = text[index];
         if (c === '"' || c === '”') {
           closed = true;
-          index++; // skip closing quote
+          index++;
           break;
         }
         content += c;

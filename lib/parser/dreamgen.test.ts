@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseDreamGenText, parseSpans } from './dreamgen';
+import { parseDreamGenText, splitMultiSpeakerText } from './dreamgen';
 
 describe('DreamGen Parser & Typography (lib/parser/dreamgen.ts)', () => {
   it('should parse plain prose narration correctly', () => {
@@ -29,12 +29,10 @@ describe('DreamGen Parser & Typography (lib/parser/dreamgen.ts)', () => {
     const tokens = parseDreamGenText(input);
 
     expect(tokens).toHaveLength(2);
-    // Prose token spans
     expect(tokens[0].type).toBe('prose');
     const proseBoldSpan = tokens[0].spans.find((s) => s.isBold);
     expect(proseBoldSpan?.text).toBe('Sunstone Relic');
 
-    // Dialogue token spans
     expect(tokens[1].type).toBe('dialogue');
     const dialogueBoldSpan = tokens[1].spans.find((s) => s.isBold);
     expect(dialogueBoldSpan?.text).toBe('shadows');
@@ -48,6 +46,32 @@ describe('DreamGen Parser & Typography (lib/parser/dreamgen.ts)', () => {
     expect(tokens[0].type).toBe('dialogue');
     const italicSpan = tokens[0].spans.find((s) => s.isItalic);
     expect(italicSpan?.text).toBe('that');
+  });
+
+  it('should split multi-speaker AI responses into distinct sections', () => {
+    const rawAiText = `[Speaker: Ignis Emberheart] *Ignis grins.* "Let us proceed."
+
+[Narrator] The ancient iron gates swing open with a sharp groan.`;
+
+    const sections = splitMultiSpeakerText(rawAiText, 'Narrator');
+
+    expect(sections).toHaveLength(2);
+    expect(sections[0].speaker).toBe('Ignis Emberheart');
+    expect(sections[0].content).toBe('*Ignis grins.* "Let us proceed."');
+
+    expect(sections[1].speaker).toBe('Narrator');
+    expect(sections[1].content).toBe('The ancient iron gates swing open with a sharp groan.');
+  });
+
+  it('should strip raw speaker tags from parsed tokens', () => {
+    const inputWithTag = '[Speaker: Aria Shadowstep] "Stay low," Aria whispers.';
+    const tokens = parseDreamGenText(inputWithTag);
+
+    expect(tokens).toHaveLength(2);
+    expect(tokens[0].type).toBe('dialogue');
+    expect(tokens[0].content).toBe('Stay low,');
+    expect(tokens[1].type).toBe('prose');
+    expect(tokens[1].content).toBe(' Aria whispers.');
   });
 
   it('should handle unclosed quotes during streaming gracefully', () => {
