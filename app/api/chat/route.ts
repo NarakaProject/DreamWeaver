@@ -15,21 +15,29 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       model = DEFAULT_GEMINI_MODEL,
-      worldLore,
+      narratorDirectives,
+      settingLore,
+      plotHooks,
+      writingStyle,
+      customObjects = [],
+      fewShotExamples = [],
       characterName,
       characterPersonality,
-      characterFirstMessage,
-      scenarioDescription,
+      characterTagline,
       messages = [],
       maxRecentMessages = 30,
     } = body;
 
     const payload = assembleGeminiPayload({
-      worldLore,
+      narratorDirectives,
+      settingLore,
+      plotHooks,
+      writingStyle,
+      customObjects,
+      fewShotExamples,
       characterName,
       characterPersonality,
-      characterFirstMessage,
-      scenarioDescription,
+      characterTagline,
       messages,
       maxRecentMessages,
     });
@@ -61,7 +69,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No response body received from Gemini API' }, { status: 500 });
     }
 
-    // Transform Gemini SSE stream into plain text chunk stream for the client
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
 

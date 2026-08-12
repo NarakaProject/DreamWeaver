@@ -23,10 +23,9 @@ export function MemoryInspector({
   if (!isOpen) return null;
 
   const systemInstructionPreview = buildSystemInstruction({
-    worldLore: world?.loreContent,
+    settingLore: world?.loreContent,
     characterName: character?.name,
     characterPersonality: character?.personality,
-    scenarioDescription: character?.scenarioDescription,
   });
 
   return (

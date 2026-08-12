@@ -14,7 +14,7 @@ interface DreamGenRendererProps {
   onDelete?: () => void;
 }
 
-export function DreamGenRenderer({
+export const DreamGenRenderer = React.memo(function DreamGenRenderer({
   content,
   role,
   type,
@@ -44,8 +44,8 @@ export function DreamGenRenderer({
 
   if (role === 'user') {
     return (
-      <div className="group relative my-4 flex justify-end">
-        <div className="max-w-2xl rounded-2xl bg-[#192233] border border-[#2d384e] p-4 text-[#e2e8f0] shadow-lg">
+      <div className="group relative my-4 flex justify-end contain-content">
+        <div className="max-w-2xl rounded-2xl bg-[#192233] border border-[#2d384e] p-4 text-[#e2e8f0] shadow-md">
           <div className="flex items-center justify-between text-xs font-semibold text-[#38bdf8] mb-1.5 uppercase tracking-wider">
             <span>{type ? `User [${type.toUpperCase()}]` : 'User Action'}</span>
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -74,9 +74,9 @@ export function DreamGenRenderer({
   }
 
   return (
-    <div className="group relative my-6 max-w-3xl mx-auto rounded-xl bg-[#12151e]/80 border border-[#1f2430] p-6 shadow-xl backdrop-blur-sm transition-all hover:border-[#2a3142]">
+    <div className="group relative my-6 max-w-3xl mx-auto rounded-xl bg-[#12151e] border border-[#1f2430] p-6 shadow-md transition-colors hover:border-[#2a3142] contain-content">
       {/* Narrative Output Controls */}
-      <div className="absolute right-3 top-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-[#191d29] px-2.5 py-1 rounded-lg border border-[#262c3e]">
+      <div className="absolute right-3 top-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-[#191d29] px-2.5 py-1 rounded-lg border border-[#262c3e] z-10">
         {onRegenerate && !isStreaming && (
           <button
             onClick={onRegenerate}
@@ -162,4 +162,4 @@ export function DreamGenRenderer({
       )}
     </div>
   );
-}
+});

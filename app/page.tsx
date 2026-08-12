@@ -7,28 +7,44 @@ import { DreamGenRenderer } from '@/components/DreamGenRenderer';
 import { ControlDock, InputMode } from '@/components/ControlDock';
 import { SettingsModal } from '@/components/SettingsModal';
 import { MemoryInspector } from '@/components/MemoryInspector';
-import { WorldData, CharacterCard } from '@/lib/files/reader';
+import { ScenarioDiscovery } from '@/components/ScenarioDiscovery';
+import { PreStartModal } from '@/components/PreStartModal';
+import { ScenarioBuilder } from '@/components/ScenarioBuilder';
+import { RightInspectorPanel } from '@/components/RightInspectorPanel';
+
+import { FullScenario, PersonaTemplate, WorldBuilding } from '@/lib/scenarios/reader';
 import { DbSession, DbMessage } from '@/lib/db';
 import { ChatMessage, DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
-import { Sparkles, MessageSquarePlus, Key } from 'lucide-react';
+import { Key } from 'lucide-react';
 
 export default function Home() {
-  const [worlds, setWorlds] = React.useState<WorldData[]>([]);
-  const [selectedWorld, setSelectedWorld] = React.useState<WorldData | null>(null);
-  const [selectedCharacter, setSelectedCharacter] = React.useState<CharacterCard | null>(null);
+  const [scenarios, setScenarios] = React.useState<FullScenario[]>([]);
+  const [activeScenario, setActiveScenario] = React.useState<FullScenario | null>(null);
+  const [activePersona, setActivePersona] = React.useState<PersonaTemplate | null>(null);
+  const [activeWorldBuilding, setActiveWorldBuilding] = React.useState<WorldBuilding | null>(null);
 
   const [sessions, setSessions] = React.useState<DbSession[]>([]);
   const [activeSessionId, setActiveSessionId] = React.useState<string | null>(null);
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
+
+  const [viewMode, setViewMode] = React.useState<'discovery' | 'play'>('discovery');
+
+  // Modals & Panels State
+  const [isPreStartOpen, setIsPreStartOpen] = React.useState(false);
+  const [preStartScenario, setPreStartScenario] = React.useState<FullScenario | null>(null);
+
+  const [isBuilderOpen, setIsBuilderOpen] = React.useState(false);
+  const [builderInitialScenario, setBuilderInitialScenario] = React.useState<FullScenario | null>(null);
+
+  const [isRightInspectorOpen, setIsRightInspectorOpen] = React.useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+  const [isMemoryOpen, setIsMemoryOpen] = React.useState(false);
 
   const [apiKey, setApiKey] = React.useState<string>('');
   const [selectedModel, setSelectedModel] = React.useState<string>(DEFAULT_GEMINI_MODEL);
 
   const [isStreaming, setIsStreaming] = React.useState<boolean>(false);
   const [streamingContent, setStreamingContent] = React.useState<string>('');
-
-  const [isSettingsOpen, setIsSettingsOpen] = React.useState<boolean>(false);
-  const [isMemoryOpen, setIsMemoryOpen] = React.useState<boolean>(false);
 
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
@@ -46,25 +62,20 @@ export default function Home() {
     localStorage.setItem('dreamweaver_gemini_key', key);
   };
 
-  // Load Worlds and Characters
-  const fetchWorlds = async () => {
+  // Load Scenarios from local API
+  const fetchScenarios = async () => {
     try {
-      const res = await fetch('/api/worlds');
+      const res = await fetch('/api/scenarios');
       const data = await res.json();
-      if (data.worlds && data.worlds.length > 0) {
-        setWorlds(data.worlds);
-        const firstWorld = data.worlds[0];
-        setSelectedWorld(firstWorld);
-        if (firstWorld.characters && firstWorld.characters.length > 0) {
-          setSelectedCharacter(firstWorld.characters[0]);
-        }
+      if (data.scenarios) {
+        setScenarios(data.scenarios);
       }
     } catch (err) {
-      console.error('Failed to load worlds:', err);
+      console.error('Failed to load scenarios:', err);
     }
   };
 
-  // Load Sessions from SQLite
+  // Load SQLite Sessions
   const fetchSessions = async () => {
     try {
       const res = await fetch('/api/sessions');
@@ -78,16 +89,16 @@ export default function Home() {
   };
 
   React.useEffect(() => {
-    fetchWorlds();
+    fetchScenarios();
     fetchSessions();
   }, []);
 
-  // Scroll to bottom when messages update
+  // Scroll to bottom during message streaming
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingContent]);
 
-  // Load messages for an active session
+  // Load Session Messages from SQLite
   const loadSessionMessages = async (sessionId: string) => {
     setActiveSessionId(sessionId);
     try {
@@ -104,21 +115,45 @@ export default function Home() {
           }))
         );
       }
+
+      // Attach scenario if matched
+      const sessionObj = sessions.find((s) => s.id === sessionId);
+      if (sessionObj) {
+        const foundScen = scenarios.find((sc) => sc.meta.id === sessionObj.world_id);
+        if (foundScen) {
+          setActiveScenario(foundScen);
+          setActiveWorldBuilding(foundScen.worldBuilding);
+          const foundPers = foundScen.suggestedPersonas.find(
+            (p) => p.id === sessionObj.character_id
+          );
+          if (foundPers) setActivePersona(foundPers);
+        }
+      }
+
+      setViewMode('play');
     } catch (err) {
       console.error('Failed to load session messages:', err);
     }
   };
 
-  // Start New Story Session
-  const handleNewStory = async () => {
-    if (!selectedWorld || !selectedCharacter) return;
+  // Start Play Flow from Discovery Card
+  const handleOpenPlayFlow = (scenario: FullScenario) => {
+    setPreStartScenario(scenario);
+    setIsPreStartOpen(true);
+  };
+
+  // Confirm Game Start from PreStartModal
+  const handleStartGame = async (scenario: FullScenario, persona: PersonaTemplate) => {
+    setActiveScenario(scenario);
+    setActivePersona(persona);
+    setActiveWorldBuilding(scenario.worldBuilding);
 
     const newSessionId = `session-${Date.now()}`;
     const newSession: DbSession = {
       id: newSessionId,
-      title: `${selectedCharacter.name} - ${new Date().toLocaleDateString()}`,
-      world_id: selectedWorld.id,
-      character_id: selectedCharacter.id,
+      title: `${persona.name} (${scenario.meta.title})`,
+      world_id: scenario.meta.id,
+      character_id: persona.id,
       created_at: Date.now(),
       updated_at: Date.now(),
     };
@@ -130,11 +165,11 @@ export default function Home() {
       body: JSON.stringify({ action: 'saveSession', session: newSession }),
     });
 
-    // Add initial first message from Character Card
+    // Opening initial message
     const initialMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'model',
-      content: selectedCharacter.firstMessage || `*${selectedCharacter.name} looks at you silently.*`,
+      content: persona.firstMessage || `*${persona.name} looks around slowly.*`,
       timestamp: Date.now(),
     };
 
@@ -157,37 +192,23 @@ export default function Home() {
     setSessions((prev) => [newSession, ...prev]);
     setActiveSessionId(newSessionId);
     setMessages([initialMsg]);
+    setViewMode('play');
   };
 
-  // Handle User Input Submission
+  // Edit Scenario Builder
+  const handleOpenBuilder = (scenario?: FullScenario) => {
+    setBuilderInitialScenario(scenario || null);
+    setIsBuilderOpen(true);
+  };
+
+  // Send User Action / Dialogue Input
   const handleSendInput = async (content: string, type: InputMode) => {
     if (!apiKey) {
       setIsSettingsOpen(true);
       return;
     }
+    if (!activeSessionId) return;
 
-    let currentSessionId = activeSessionId;
-    if (!currentSessionId) {
-      if (!selectedWorld || !selectedCharacter) return;
-      currentSessionId = `session-${Date.now()}`;
-      const newSession: DbSession = {
-        id: currentSessionId,
-        title: `${selectedCharacter.name} Story`,
-        world_id: selectedWorld.id,
-        character_id: selectedCharacter.id,
-        created_at: Date.now(),
-        updated_at: Date.now(),
-      };
-      await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'saveSession', session: newSession }),
-      });
-      setSessions((prev) => [newSession, ...prev]);
-      setActiveSessionId(currentSessionId);
-    }
-
-    // Append user message
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
@@ -207,7 +228,7 @@ export default function Home() {
         action: 'saveMessage',
         message: {
           id: userMsg.id,
-          session_id: currentSessionId,
+          session_id: activeSessionId,
           role: userMsg.role,
           content: userMsg.content,
           type: userMsg.type,
@@ -216,11 +237,9 @@ export default function Home() {
       }),
     });
 
-    // Trigger Gemini Stream Generation
-    triggerStreamingResponse(updatedMessages, currentSessionId);
+    triggerStreamingResponse(updatedMessages, activeSessionId);
   };
 
-  // Trigger AI Continuation without user text
   const handleContinue = () => {
     if (!apiKey) {
       setIsSettingsOpen(true);
@@ -231,7 +250,7 @@ export default function Home() {
     triggerStreamingResponse(messages, activeSessionId);
   };
 
-  // Stream Gemini Response
+  // Gemini Stream Generation
   const triggerStreamingResponse = async (history: ChatMessage[], sessionId: string) => {
     setIsStreaming(true);
     setStreamingContent('');
@@ -245,10 +264,15 @@ export default function Home() {
         },
         body: JSON.stringify({
           model: selectedModel,
-          worldLore: selectedWorld?.loreContent,
-          characterName: selectedCharacter?.name,
-          characterPersonality: selectedCharacter?.personality,
-          scenarioDescription: selectedCharacter?.scenarioDescription,
+          narratorDirectives: activeWorldBuilding?.narrator,
+          settingLore: activeWorldBuilding?.setting,
+          plotHooks: activeWorldBuilding?.plot,
+          writingStyle: activeWorldBuilding?.style,
+          customObjects: activeWorldBuilding?.objects || [],
+          fewShotExamples: activeWorldBuilding?.examples || [],
+          characterName: activePersona?.name,
+          characterPersonality: activePersona?.personality,
+          characterTagline: activePersona?.tagline,
           messages: history,
         }),
       });
@@ -272,7 +296,6 @@ export default function Home() {
         }
       }
 
-      // Finalize Model Message
       const aiMsg: ChatMessage = {
         id: `msg-${Date.now()}`,
         role: 'model',
@@ -283,7 +306,7 @@ export default function Home() {
       setMessages((prev) => [...prev, aiMsg]);
       setStreamingContent('');
 
-      // Save AI response to SQLite
+      // Save AI turn to SQLite
       await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -304,7 +327,7 @@ export default function Home() {
       const errorMsg: ChatMessage = {
         id: `err-${Date.now()}`,
         role: 'model',
-        content: `*Story Engine Warning:* ${err.message}`,
+        content: `*Story Engine Error:* ${err.message}`,
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -313,7 +336,6 @@ export default function Home() {
     }
   };
 
-  // Undo Last Message
   const handleUndo = async () => {
     if (messages.length <= 1) return;
     const lastMsg = messages[messages.length - 1];
@@ -323,17 +345,16 @@ export default function Home() {
     }
   };
 
-  // Delete Session
   const handleDeleteSession = async (sessionId: string) => {
     await fetch(`/api/sessions?sessionId=${sessionId}`, { method: 'DELETE' });
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     if (activeSessionId === sessionId) {
       setActiveSessionId(null);
       setMessages([]);
+      setViewMode('discovery');
     }
   };
 
-  // Edit Message Turn
   const handleEditMessage = async (index: number, newContent: string) => {
     const updated = [...messages];
     updated[index].content = newContent;
@@ -359,7 +380,6 @@ export default function Home() {
     }
   };
 
-  // Regenerate Response
   const handleRegenerateFromIndex = (index: number) => {
     const trimmedHistory = messages.slice(0, index);
     setMessages(trimmedHistory);
@@ -368,103 +388,159 @@ export default function Home() {
     }
   };
 
+  // Convert Scenarios for Sidebar legacy compatibility
+  const sidebarWorlds = React.useMemo(() => {
+    return scenarios.map((sc) => ({
+      id: sc.meta.id,
+      name: sc.meta.title,
+      description: sc.meta.description,
+      loreContent: sc.worldBuilding.setting,
+      characters: sc.suggestedPersonas.map((p) => ({
+        id: p.id,
+        name: p.name,
+        tagline: p.tagline,
+        personality: p.personality,
+        firstMessage: p.firstMessage,
+      })),
+    }));
+  }, [scenarios]);
+
   return (
     <div className="flex h-screen bg-[#090a0f] text-[#e2e8f0] overflow-hidden">
-      {/* Sidebar */}
+      {/* Left Sidebar */}
       <Sidebar
-        worlds={worlds}
-        selectedWorld={selectedWorld}
-        selectedCharacter={selectedCharacter}
+        worlds={sidebarWorlds}
+        selectedWorld={
+          activeScenario
+            ? {
+                id: activeScenario.meta.id,
+                name: activeScenario.meta.title,
+                description: activeScenario.meta.description,
+                loreContent: activeWorldBuilding?.setting || '',
+                characters: activeScenario.suggestedPersonas,
+              }
+            : null
+        }
+        selectedCharacter={activePersona}
         sessions={sessions}
         activeSessionId={activeSessionId}
-        onSelectWorld={(w) => {
-          setSelectedWorld(w);
-          if (w.characters && w.characters.length > 0) {
-            setSelectedCharacter(w.characters[0]);
-          }
-        }}
-        onSelectCharacter={(c) => setSelectedCharacter(c)}
+        onSelectWorld={() => setViewMode('discovery')}
+        onSelectCharacter={() => {}}
         onSelectSession={loadSessionMessages}
-        onNewStory={handleNewStory}
+        onNewStory={() => setViewMode('discovery')}
         onDeleteSession={handleDeleteSession}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenMemory={() => setIsMemoryOpen(true)}
       />
 
-      {/* Main Container */}
+      {/* Main Center Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
         {/* Header */}
         <Header
-          world={selectedWorld}
-          character={selectedCharacter}
+          world={
+            activeScenario
+              ? {
+                  id: activeScenario.meta.id,
+                  name: activeScenario.meta.title,
+                  description: activeScenario.meta.description,
+                  loreContent: activeWorldBuilding?.setting || '',
+                  characters: activeScenario.suggestedPersonas,
+                }
+              : null
+          }
+          character={activePersona}
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
           hasApiKey={!!apiKey}
           onOpenSettings={() => setIsSettingsOpen(true)}
-          onOpenMemory={() => setIsMemoryOpen(true)}
+          onOpenMemory={() => setIsRightInspectorOpen(!isRightInspectorOpen)}
         />
 
-        {/* Reading Viewport */}
-        <main className="flex-1 overflow-y-auto px-6 py-8">
-          {messages.length === 0 ? (
-            <div className="max-w-xl mx-auto my-20 text-center space-y-6">
-              <div className="inline-flex p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 mb-2">
-                <Sparkles className="w-10 h-10 animate-pulse" />
-              </div>
-              <h2 className="text-2xl font-bold text-white tracking-wide">Welcome to DreamWeaver</h2>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Select a local World and Character card from the sidebar, then click{' '}
-                <strong className="text-amber-400 font-semibold">"New Story Session"</strong> to begin your privacy-first interactive narrative.
-              </p>
-              {!apiKey && (
-                <div className="pt-2">
-                  <button
-                    onClick={() => setIsSettingsOpen(true)}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs transition-colors shadow-lg"
-                  >
-                    <Key className="w-4 h-4" />
-                    <span>Set Gemini API Key to Start</span>
-                  </button>
+        {/* Dynamic View: Discovery Card Grid vs Active Roleplay Session */}
+        {viewMode === 'discovery' ? (
+          <ScenarioDiscovery
+            scenarios={scenarios}
+            onPlayScenario={handleOpenPlayFlow}
+            onEditScenario={handleOpenBuilder}
+            onCreateScenario={() => handleOpenBuilder()}
+          />
+        ) : (
+          <div className="flex-1 flex overflow-hidden">
+            {/* Reading Viewport */}
+            <main className="flex-1 overflow-y-auto px-6 py-8 contain-content overscroll-contain">
+              {messages.length === 0 ? (
+                <div className="max-w-xl mx-auto my-20 text-center space-y-6">
+                  <h2 className="text-2xl font-bold text-white">Starting Scenario Session...</h2>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {messages.map((msg, index) => (
+                    <DreamGenRenderer
+                      key={msg.id || `msg-${index}`}
+                      role={msg.role}
+                      content={msg.content}
+                      type={msg.type}
+                      onEdit={(newContent) => handleEditMessage(index, newContent)}
+                      onRegenerate={
+                        msg.role === 'model' ? () => handleRegenerateFromIndex(index) : undefined
+                      }
+                    />
+                  ))}
+
+                  {/* Streaming Output */}
+                  {isStreaming && (
+                    <DreamGenRenderer
+                      role="model"
+                      content={streamingContent}
+                      isStreaming={true}
+                    />
+                  )}
+
+                  <div ref={messagesEndRef} />
                 </div>
               )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {messages.map((msg, index) => (
-                <DreamGenRenderer
-                  key={msg.id || `msg-${index}`}
-                  role={msg.role}
-                  content={msg.content}
-                  type={msg.type}
-                  onEdit={(newContent) => handleEditMessage(index, newContent)}
-                  onRegenerate={msg.role === 'model' ? () => handleRegenerateFromIndex(index) : undefined}
-                />
-              ))}
+            </main>
 
-              {/* Live Streaming Response */}
-              {isStreaming && (
-                <DreamGenRenderer
-                  role="model"
-                  content={streamingContent}
-                  isStreaming={true}
-                />
-              )}
+            {/* In-Game Tabbed Right Panel (DreamGen Parity) */}
+            {isRightInspectorOpen && activeWorldBuilding && (
+              <RightInspectorPanel
+                isOpen={isRightInspectorOpen}
+                onClose={() => setIsRightInspectorOpen(false)}
+                worldBuilding={activeWorldBuilding}
+                persona={activePersona}
+                onUpdateWorldBuilding={(wb) => setActiveWorldBuilding(wb)}
+                onUpdatePersona={(p) => setActivePersona(p)}
+              />
+            )}
+          </div>
+        )}
 
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </main>
-
-        {/* Control Dock */}
-        <ControlDock
-          onSend={handleSendInput}
-          onContinue={handleContinue}
-          onUndo={handleUndo}
-          disabled={isStreaming}
-        />
+        {/* Input Dock (Active during Play mode) */}
+        {viewMode === 'play' && (
+          <ControlDock
+            onSend={handleSendInput}
+            onContinue={handleContinue}
+            onUndo={handleUndo}
+            disabled={isStreaming}
+          />
+        )}
       </div>
 
-      {/* Modals & Drawers */}
+      {/* Modals & Flow Controllers */}
+      <PreStartModal
+        isOpen={isPreStartOpen}
+        onClose={() => setIsPreStartOpen(false)}
+        scenario={preStartScenario}
+        onStartGame={handleStartGame}
+      />
+
+      <ScenarioBuilder
+        isOpen={isBuilderOpen}
+        onClose={() => setIsBuilderOpen(false)}
+        initialScenario={builderInitialScenario}
+        onSaveSuccess={fetchScenarios}
+      />
+
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -475,8 +551,18 @@ export default function Home() {
       <MemoryInspector
         isOpen={isMemoryOpen}
         onClose={() => setIsMemoryOpen(false)}
-        world={selectedWorld}
-        character={selectedCharacter}
+        world={
+          activeScenario
+            ? {
+                id: activeScenario.meta.id,
+                name: activeScenario.meta.title,
+                description: activeScenario.meta.description,
+                loreContent: activeWorldBuilding?.setting || '',
+                characters: activeScenario.suggestedPersonas,
+              }
+            : null
+        }
+        character={activePersona}
         messageCount={messages.length}
       />
     </div>

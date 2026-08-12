@@ -1,0 +1,9 @@
+{
+  "id": "eldoria",
+  "title": "Shadows Over Eldoria",
+  "description": "Infiltrate the Obsidian Citadel during a lunar eclipse to reclaim lost rune relics before shadow beasts awaken.",
+  "category": "Dark Fantasy",
+  "tags": ["Infiltration", "Magic", "Stealth", "CYOA"],
+  "mode": "roleplay",
+  "coverImage": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=800&auto=format&fit=crop"
+}

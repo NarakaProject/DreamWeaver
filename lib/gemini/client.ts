@@ -6,12 +6,28 @@ export interface ChatMessage {
   timestamp?: number;
 }
 
+export interface CustomObjectContext {
+  id: string;
+  name: string;
+  description: string;
+  trigger_rule?: string;
+}
+
+export interface PromptExampleContext {
+  user: string;
+  model: string;
+}
+
 export interface PromptContextParams {
-  worldLore?: string;
+  narratorDirectives?: string;
+  settingLore?: string;
+  plotHooks?: string;
+  writingStyle?: string;
+  customObjects?: CustomObjectContext[];
+  fewShotExamples?: PromptExampleContext[];
   characterName?: string;
   characterPersonality?: string;
-  characterFirstMessage?: string;
-  scenarioDescription?: string;
+  characterTagline?: string;
   userInstruction?: string;
   messages: ChatMessage[];
   maxRecentMessages?: number;
@@ -35,7 +51,8 @@ export interface GeminiPayload {
 export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
 
 /**
- * Constructs system instructions integrating World Lore, Character Persona, and DreamGen formatting rules.
+ * Synthesizes Narrator Directives, Setting & Lore, Plot Hooks, CYOA Custom Objects,
+ * Writing Style, Active Persona, and DreamGen Formatting Rules into a single system instruction.
  */
 export function buildSystemInstruction(params: Partial<PromptContextParams>): string {
   const parts: string[] = [
@@ -46,21 +63,51 @@ export function buildSystemInstruction(params: Partial<PromptContextParams>): st
     '1. SPOKEN DIALOGUE MUST be enclosed in double quotes (e.g. "Hold your ground!").',
     '2. ACTIONS, PHYSICAL MOVEMENTS, AND EXPRESSIONS MUST be enclosed in asterisks (e.g. *draws blade silently*).',
     '3. PROSE AND NARRATION must be written outside quotes/asterisks in evocative, engaging text.',
-    '4. Maintain character persona consistency at all times.',
+    '4. Maintain character persona and scenario directives consistency at all times.',
   ];
 
+  // Narrator Directives
+  if (params.narratorDirectives && params.narratorDirectives.trim()) {
+    parts.push(`\n### NARRATOR & GAME MASTER DIRECTIVES:\n${params.narratorDirectives.trim()}`);
+  }
+
+  // Active Persona
   if (params.characterName) {
     parts.push(`\n### ACTIVE CHARACTER PERSONA:\nName: ${params.characterName}`);
-    if (params.characterPersonality) {
-      parts.push(`Personality & Persona: ${params.characterPersonality}`);
+    if (params.characterTagline) {
+      parts.push(`Tagline: ${params.characterTagline}`);
     }
-    if (params.scenarioDescription) {
-      parts.push(`Scenario Setting: ${params.scenarioDescription}`);
+    if (params.characterPersonality) {
+      parts.push(`Personality & Trait: ${params.characterPersonality}`);
     }
   }
 
-  if (params.worldLore && params.worldLore.trim().length > 0) {
-    parts.push(`\n### WORLD LORE & CONTEXT:\n${params.worldLore.trim()}`);
+  // Setting & Lore
+  if (params.settingLore && params.settingLore.trim()) {
+    parts.push(`\n### SETTING & ENVIRONMENTAL CONTEXT:\n${params.settingLore.trim()}`);
+  }
+
+  // Plot Hooks
+  if (params.plotHooks && params.plotHooks.trim()) {
+    parts.push(`\n### ACTIVE PLOT HOOKS & STORYLINE:\n${params.plotHooks.trim()}`);
+  }
+
+  // Writing Style & Perspective
+  if (params.writingStyle && params.writingStyle.trim()) {
+    parts.push(`\n### WRITING STYLE & PERSPECTIVE:\n${params.writingStyle.trim()}`);
+  }
+
+  // CYOA Custom Objects Tracking
+  if (params.customObjects && params.customObjects.length > 0) {
+    const objectList = params.customObjects
+      .map(
+        (obj) =>
+          `- **${obj.name}**: ${obj.description}${
+            obj.trigger_rule ? ` (Rule: ${obj.trigger_rule})` : ''
+          }`
+      )
+      .join('\n');
+    parts.push(`\n### ACTIVE CUSTOM OBJECTS & CYOA MECHANICS:\nTrack the following entities, items, and status rules during narrative generation:\n${objectList}`);
   }
 
   return parts.join('\n');
@@ -102,6 +149,16 @@ export function assembleGeminiPayload(params: PromptContextParams): GeminiPayloa
       parts: [{ text: formattedText }],
     };
   });
+
+  // Prepend Few-shot Examples if present and conversation history is short (< 2 turns)
+  if (params.fewShotExamples && params.fewShotExamples.length > 0 && recentMessages.length <= 1) {
+    const exampleTurns: { role: 'user' | 'model'; parts: { text: string }[] }[] = [];
+    for (const ex of params.fewShotExamples) {
+      exampleTurns.push({ role: 'user', parts: [{ text: ex.user }] });
+      exampleTurns.push({ role: 'model', parts: [{ text: ex.model }] });
+    }
+    contents.unshift(...exampleTurns);
+  }
 
   // Ensure Gemini API contents starts with a 'user' role message if not empty
   if (contents.length > 0 && contents[0].role === 'model') {

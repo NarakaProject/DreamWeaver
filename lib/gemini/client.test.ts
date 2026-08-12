@@ -7,18 +7,33 @@ import {
 } from './client';
 
 describe('Gemini Client & Context Assembly (lib/gemini/client.ts)', () => {
-  it('should construct rich system instruction with world lore & character persona', () => {
+  it('should construct rich system instruction with Narrator, Plot, Setting, Style, and Custom Objects', () => {
     const sysPrompt = buildSystemInstruction({
       characterName: 'Aria Silverblade',
-      characterPersonality: 'Sharp, agile thief with a heart of gold.',
-      worldLore: '# Eldoria World\nA dark realm filled with ancient ruins.',
-      scenarioDescription: 'Trapped in the imperial dungeon.',
+      characterPersonality: 'Sharp, agile thief.',
+      settingLore: 'Obsidian Citadel dungeon.',
+      plotHooks: 'Infiltrate the secret vault to retrieve the Sunstone.',
+      writingStyle: 'Fast-paced cyberpunk dialogue with 2nd person perspective.',
+      narratorDirectives: 'Act as an unforgiving Game Master.',
+      customObjects: [
+        {
+          id: 'sunstone',
+          name: 'Sunstone Relic',
+          description: 'Emits intense heat rune magic.',
+          trigger_rule: 'Draws shadow specters when unshielded.',
+        },
+      ],
     });
 
     expect(sysPrompt).toContain('DreamWeaver');
+    expect(sysPrompt).toContain('NARRATOR & GAME MASTER DIRECTIVES:');
+    expect(sysPrompt).toContain('Act as an unforgiving Game Master');
     expect(sysPrompt).toContain('Aria Silverblade');
-    expect(sysPrompt).toContain('Eldoria World');
-    expect(sysPrompt).toContain('SPOKEN DIALOGUE MUST be enclosed in double quotes');
+    expect(sysPrompt).toContain('ACTIVE PLOT HOOKS & STORYLINE:');
+    expect(sysPrompt).toContain('Infiltrate the secret vault');
+    expect(sysPrompt).toContain('ACTIVE CUSTOM OBJECTS & CYOA MECHANICS:');
+    expect(sysPrompt).toContain('Sunstone Relic');
+    expect(sysPrompt).toContain('Draws shadow specters when unshielded');
   });
 
   it('should default to gemini-2.5-flash model constant', () => {
@@ -62,7 +77,6 @@ describe('Gemini Client & Context Assembly (lib/gemini/client.ts)', () => {
       maxRecentMessages: 10,
     });
 
-    // Should contain last 10 messages
     expect(payload.contents.length).toBeLessThanOrEqual(10);
     const lastContent = payload.contents[payload.contents.length - 1].parts[0].text;
     expect(lastContent).toContain('Turn number 49');
