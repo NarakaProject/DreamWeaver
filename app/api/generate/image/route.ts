@@ -1,70 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { HfInference } from '@huggingface/inference';
 import { enhanceImagePrompt, AssetType } from '@/lib/gemini/image-prompt';
-
-const PRIMARY_MODEL = 'black-forest-labs/FLUX.1-schnell';
-const FALLBACK_MODEL = 'stabilityai/stable-diffusion-xl-base-1.0';
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey =
-      req.headers.get('x-huggingface-api-key') ||
-      process.env.HUGGINGFACE_API_KEY ||
-      process.env.HF_API_KEY;
-
-    if (!apiKey || !apiKey.trim()) {
-      return NextResponse.json(
-        {
-          error:
-            'Hugging Face API key is not configured in .env.local. Please add HUGGINGFACE_API_KEY=hf_xxx to your .env.local file.',
-        },
-        { status: 400 }
-      );
-    }
-
     const body = await req.json();
-    const { prompt, type } = body;
+    const { prompt, type, aspect_ratio } = body;
 
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
       return NextResponse.json({ error: 'Image prompt description is required.' }, { status: 400 });
     }
 
-    const enhancedPrompt = enhanceImagePrompt(prompt, (type as AssetType) || 'general');
+    const assetKind = (type as AssetType) || 'general';
+    const enhancedPrompt = enhanceImagePrompt(prompt, assetKind);
 
-    const hf = new HfInference(apiKey.trim());
+    // Determine aspect ratio dimensions
+    const isLandscape = aspect_ratio === 'landscape' || assetKind === 'cover' || assetKind === 'location';
+    const width = isLandscape ? 1280 : 1024;
+    const height = isLandscape ? 720 : 1024;
 
-    let imageBlob: Blob;
-    let modelUsed = PRIMARY_MODEL;
+    const seed = Date.now() + Math.floor(Math.random() * 10000);
+    const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
+      enhancedPrompt
+    )}?model=flux&width=${width}&height=${height}&nologo=true&seed=${seed}`;
 
-    // Attempt Primary Model (FLUX.1-schnell) via HfInference SDK with Fallback to SDXL
+    console.log(`[Pollinations FLUX API] Requesting image asset: "${enhancedPrompt.slice(0, 80)}..."`);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 35000);
+
+    let res: Response;
     try {
-      imageBlob = (await hf.textToImage({
-        model: PRIMARY_MODEL,
-        inputs: enhancedPrompt,
-      })) as unknown as Blob;
-    } catch (primaryErr: any) {
-      console.warn(`[HF SDK Primary Model Failed] ${primaryErr.message}. Retrying with SDXL fallback...`);
-      try {
-        imageBlob = (await hf.textToImage({
-          model: FALLBACK_MODEL,
-          inputs: enhancedPrompt,
-        })) as unknown as Blob;
-        modelUsed = FALLBACK_MODEL;
-      } catch (fallbackErr: any) {
-        console.error('[HF SDK Fallback Model Failed]', fallbackErr.message);
-        throw new Error(
-          `Image generation failed on both FLUX and SDXL models via SDK. Error: ${primaryErr.message}`
-        );
+      res = await fetch(pollinationsUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'DreamWeaver-Engine/1.0',
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (fetchErr: any) {
+      clearTimeout(timeoutId);
+      if (fetchErr.name === 'AbortError') {
+        throw new Error('Pollinations FLUX image generation request timed out after 35 seconds.');
       }
+      throw new Error(`Failed to connect to Pollinations FLUX server: ${fetchErr.message}`);
     }
 
-    const arrayBuf = await imageBlob.arrayBuffer();
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[Pollinations FLUX Error] Status ${res.status}:`, errText);
+      throw new Error(`Pollinations FLUX API error (${res.status}): ${errText.slice(0, 150)}`);
+    }
+
+    const arrayBuf = await res.arrayBuffer();
     const buffer = Buffer.from(arrayBuf);
 
     if (!buffer || buffer.length < 100) {
-      throw new Error('Received empty or invalid binary image buffer from Hugging Face SDK.');
+      throw new Error('Received empty or corrupted binary image buffer from Pollinations FLUX API.');
     }
 
     // Ensure /public/uploads/ directory exists
@@ -79,7 +73,13 @@ export async function POST(req: NextRequest) {
     fs.writeFileSync(filePath, buffer);
 
     const imageUrl = `/uploads/${filename}`;
-    return NextResponse.json({ success: true, imageUrl, prompt: enhancedPrompt, model: modelUsed });
+    return NextResponse.json({
+      success: true,
+      imageUrl,
+      prompt: enhancedPrompt,
+      model: 'pollinations-flux',
+      dimensions: `${width}x${height}`,
+    });
   } catch (err: any) {
     console.error('Image Generation Route Error:', err);
     return NextResponse.json(
