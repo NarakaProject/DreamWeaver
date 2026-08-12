@@ -2,12 +2,15 @@
 
 import React from 'react';
 import { WorldData, CharacterCard } from '@/lib/files/reader';
-import { Settings, BrainCircuit, Key, Cpu } from 'lucide-react';
-import { DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
+import { Settings, BrainCircuit, Key } from 'lucide-react';
+import { SearchableModelSelect } from '@/components/SearchableModelSelect';
+import { ModelOption } from '@/lib/ai/models-fetcher';
 
 export interface HeaderModelOption {
   id: string;
   displayName: string;
+  provider?: 'gemini' | 'groq' | 'openrouter';
+  isFree?: boolean;
 }
 
 interface HeaderProps {
@@ -21,13 +24,6 @@ interface HeaderProps {
   onOpenMemory: () => void;
 }
 
-const FALLBACK_MODELS: HeaderModelOption[] = [
-  { id: 'gemini-3.6-flash', displayName: 'gemini-3.6-flash (Default)' },
-  { id: 'gemini-2.0-flash', displayName: 'gemini-2.0-flash' },
-  { id: 'gemini-1.5-flash', displayName: 'gemini-1.5-flash' },
-  { id: 'gemini-1.5-pro', displayName: 'gemini-1.5-pro' },
-];
-
 export function Header({
   world,
   character,
@@ -38,7 +34,12 @@ export function Header({
   onOpenSettings,
   onOpenMemory,
 }: HeaderProps) {
-  const modelOptions = availableModels.length > 0 ? availableModels : FALLBACK_MODELS;
+  const modelOptions: ModelOption[] = availableModels.map((m) => ({
+    id: m.id,
+    displayName: m.displayName,
+    provider: m.provider || 'gemini',
+    isFree: m.isFree,
+  }));
 
   return (
     <header className="h-16 bg-[#0d0f17] border-b border-[#1a1f2c] px-6 flex items-center justify-between sticky top-0 z-10 contain-content">
@@ -61,26 +62,17 @@ export function Header({
 
       {/* Right Controls */}
       <div className="flex items-center gap-3">
-        {/* Dynamic Model Selector */}
-        <div className="flex items-center gap-1.5 bg-[#141824] border border-[#242b3d] px-2.5 py-1 rounded-lg text-xs">
-          <Cpu className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <select
-            value={selectedModel}
-            onChange={(e) => onModelChange(e.target.value)}
-            className="bg-transparent text-slate-200 focus:outline-none cursor-pointer font-medium max-w-[200px] truncate"
-          >
-            {modelOptions.map((m) => (
-              <option key={m.id} value={m.id} className="bg-[#0d0f17] text-slate-200">
-                {m.displayName}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Rich Searchable Model Combobox */}
+        <SearchableModelSelect
+          selectedModel={selectedModel}
+          onModelChange={onModelChange}
+          models={modelOptions}
+        />
 
         {/* API Key Status Indicator */}
         <button
           onClick={onOpenSettings}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
             hasApiKey
               ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
               : 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 animate-pulse'
@@ -93,7 +85,7 @@ export function Header({
         {/* Memory Inspector Button */}
         <button
           onClick={onOpenMemory}
-          className="p-2 rounded-lg bg-[#141824] border border-[#242b3d] text-slate-300 hover:text-white hover:border-slate-500 transition-colors"
+          className="p-2 rounded-xl bg-[#141824] border border-[#242b3d] text-slate-300 hover:text-white hover:border-slate-500 transition-colors"
           title="Inspect Context Memory"
         >
           <BrainCircuit className="w-4 h-4 text-emerald-400" />
@@ -102,7 +94,7 @@ export function Header({
         {/* Settings Button */}
         <button
           onClick={onOpenSettings}
-          className="p-2 rounded-lg bg-[#141824] border border-[#242b3d] text-slate-300 hover:text-white hover:border-slate-500 transition-colors"
+          className="p-2 rounded-xl bg-[#141824] border border-[#242b3d] text-slate-300 hover:text-white hover:border-slate-500 transition-colors"
           title="Open API Settings"
         >
           <Settings className="w-4 h-4 text-slate-400" />

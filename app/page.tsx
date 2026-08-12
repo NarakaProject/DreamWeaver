@@ -71,10 +71,20 @@ export default function Home() {
 
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
-  const fetchDynamicModels = async (key: string) => {
-    if (!key) return;
+  const fetchDynamicModels = async (
+    prov: AIProvider = provider,
+    gKey: string = apiKey,
+    grKey: string = groqApiKey,
+    opKey: string = openRouterApiKey
+  ) => {
     try {
-      const res = await fetch(`/api/gemini/models?apiKey=${encodeURIComponent(key)}`);
+      const query = new URLSearchParams({
+        provider: prov,
+        geminiKey: gKey || '',
+        groqKey: grKey || '',
+        openrouterKey: opKey || '',
+      });
+      const res = await fetch(`/api/models?${query.toString()}`);
       if (res.ok) {
         const data = await res.json();
         if (data.models && data.models.length > 0) {
@@ -85,7 +95,7 @@ export default function Home() {
         }
       }
     } catch (err) {
-      console.error('Failed to fetch dynamic Gemini models:', err);
+      console.error(`Failed to fetch dynamic models for ${prov}:`, err);
     }
   };
 
@@ -105,41 +115,35 @@ export default function Home() {
     if (savedTemp) setTemperature(parseFloat(savedTemp));
     if (savedTokens) setMaxTokens(parseInt(savedTokens));
 
-    const presets = PROVIDER_MODEL_PRESETS[savedProvider] || PROVIDER_MODEL_PRESETS.gemini;
-    if (!presets.some((m) => m.id === selectedModel)) {
-      setSelectedModel(presets[0].id);
-    }
+    fetchDynamicModels(savedProvider, savedKey, savedGroqKey, savedOpenRouterKey);
 
     if (!savedKey && !savedGroqKey && !savedOpenRouterKey) {
       setIsSettingsOpen(true);
-    } else if (savedKey) {
-      fetchDynamicModels(savedKey);
     }
   }, []);
 
   const handleSaveProvider = (prov: AIProvider) => {
     setProvider(prov);
     localStorage.setItem('dreamweaver_provider', prov);
-    const presets = PROVIDER_MODEL_PRESETS[prov] || PROVIDER_MODEL_PRESETS.gemini;
-    if (!presets.some((m) => m.id === selectedModel)) {
-      setSelectedModel(presets[0].id);
-    }
+    fetchDynamicModels(prov, apiKey, groqApiKey, openRouterApiKey);
   };
 
   const handleSaveApiKey = (key: string) => {
     setApiKey(key);
     localStorage.setItem('dreamweaver_gemini_key', key);
-    fetchDynamicModels(key);
+    fetchDynamicModels(provider, key, groqApiKey, openRouterApiKey);
   };
 
   const handleSaveGroqApiKey = (key: string) => {
     setGroqApiKey(key);
     localStorage.setItem('dreamweaver_groq_key', key);
+    fetchDynamicModels(provider, apiKey, key, openRouterApiKey);
   };
 
   const handleSaveOpenRouterApiKey = (key: string) => {
     setOpenRouterApiKey(key);
     localStorage.setItem('dreamweaver_openrouter_key', key);
+    fetchDynamicModels(provider, apiKey, groqApiKey, key);
   };
 
   const handleSaveTemperature = (temp: number) => {
