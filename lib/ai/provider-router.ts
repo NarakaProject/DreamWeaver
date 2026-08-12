@@ -22,6 +22,29 @@ export const DEFAULT_MODELS: Record<AIProvider, string> = {
   openrouter: 'meta-llama/llama-3.3-70b-instruct:free',
 };
 
+export interface ProviderModelPreset {
+  id: string;
+  displayName: string;
+}
+
+export const PROVIDER_MODEL_PRESETS: Record<AIProvider, ProviderModelPreset[]> = {
+  gemini: [
+    { id: 'gemini-2.5-flash', displayName: 'gemini-2.5-flash (Default)' },
+    { id: 'gemini-2.5-pro', displayName: 'gemini-2.5-pro' },
+    { id: 'gemini-1.5-flash', displayName: 'gemini-1.5-flash' },
+  ],
+  groq: [
+    { id: 'llama-3.3-70b-versatile', displayName: 'llama-3.3-70b:versatile (Default)' },
+    { id: 'mixtral-8x7b-32768', displayName: 'mixtral-8x7b-32768' },
+    { id: 'qwen-2.5-72b-instruct', displayName: 'qwen-2.5-72b-instruct' },
+  ],
+  openrouter: [
+    { id: 'meta-llama/llama-3.3-70b-instruct:free', displayName: 'llama-3.3-70b:free (Default)' },
+    { id: 'deepseek/deepseek-r1:free', displayName: 'deepseek-r1:free' },
+    { id: 'mistralai/mistral-7b-instruct:free', displayName: 'mistral-7b-instruct:free' },
+  ],
+};
+
 /**
  * Normalizes messages into OpenAI Chat Completion format:
  * [{ role: 'system', content }, { role: 'user', content }, { role: 'assistant', content }]

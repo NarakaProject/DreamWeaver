@@ -17,7 +17,7 @@ import { FullScenario, PersonaTemplate, WorldBuilding } from '@/lib/scenarios/ty
 import { DbSession, DbMessage } from '@/lib/db';
 import { ChatMessage, DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
 import { splitMultiSpeakerText } from '@/lib/parser/dreamgen';
-import { AIProvider } from '@/lib/ai/provider-router';
+import { AIProvider, PROVIDER_MODEL_PRESETS } from '@/lib/ai/provider-router';
 
 export default function Home() {
   const [scenarios, setScenarios] = React.useState<FullScenario[]>([]);
@@ -52,6 +52,16 @@ export default function Home() {
   const [availableModels, setAvailableModels] = React.useState<{ id: string; displayName: string }[]>([]);
   const [temperature, setTemperature] = React.useState<number>(0.8);
   const [maxTokens, setMaxTokens] = React.useState<number>(2048);
+
+  // Dynamic Provider Model Computation
+  const currentProviderModels = React.useMemo(() => {
+    if (provider === 'gemini') {
+      return availableModels.length > 0
+        ? availableModels
+        : PROVIDER_MODEL_PRESETS.gemini;
+    }
+    return PROVIDER_MODEL_PRESETS[provider] || PROVIDER_MODEL_PRESETS.gemini;
+  }, [provider, availableModels]);
 
   // Active Turn Speaker State
   const [selectedSpeaker, setSelectedSpeaker] = React.useState<string>('You');
@@ -95,6 +105,11 @@ export default function Home() {
     if (savedTemp) setTemperature(parseFloat(savedTemp));
     if (savedTokens) setMaxTokens(parseInt(savedTokens));
 
+    const presets = PROVIDER_MODEL_PRESETS[savedProvider] || PROVIDER_MODEL_PRESETS.gemini;
+    if (!presets.some((m) => m.id === selectedModel)) {
+      setSelectedModel(presets[0].id);
+    }
+
     if (!savedKey && !savedGroqKey && !savedOpenRouterKey) {
       setIsSettingsOpen(true);
     } else if (savedKey) {
@@ -105,6 +120,10 @@ export default function Home() {
   const handleSaveProvider = (prov: AIProvider) => {
     setProvider(prov);
     localStorage.setItem('dreamweaver_provider', prov);
+    const presets = PROVIDER_MODEL_PRESETS[prov] || PROVIDER_MODEL_PRESETS.gemini;
+    if (!presets.some((m) => m.id === selectedModel)) {
+      setSelectedModel(presets[0].id);
+    }
   };
 
   const handleSaveApiKey = (key: string) => {
@@ -685,8 +704,8 @@ export default function Home() {
           character={activePersona}
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
-          availableModels={availableModels}
-          hasApiKey={!!apiKey}
+          availableModels={currentProviderModels}
+          hasApiKey={!!apiKey || !!groqApiKey || !!openRouterApiKey}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenMemory={() => setIsRightInspectorOpen(!isRightInspectorOpen)}
         />
