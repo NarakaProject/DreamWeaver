@@ -134,14 +134,13 @@ export function BuildingBlockTooltip({ blockKey }: TooltipProps) {
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="p-0.5 rounded-full text-slate-400 hover:text-amber-400 transition-colors focus:outline-none"
-        title="View Building Block Guidance"
       >
         <HelpCircle className="w-3.5 h-3.5" />
       </button>
 
       {isOpen && (
         <div
-          className="absolute left-6 top-0 z-50 w-72 p-3.5 rounded-xl bg-[#191d29] border border-[#2a3142] shadow-2xl text-xs space-y-2 font-normal text-left"
+          className="absolute right-0 left-auto top-full mt-2 w-80 max-w-[calc(100vw-2rem)] z-50 p-3.5 rounded-xl bg-neutral-900 border border-neutral-700/80 shadow-2xl text-xs space-y-2 font-normal text-left"
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
