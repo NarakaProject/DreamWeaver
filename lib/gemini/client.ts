@@ -46,6 +46,7 @@ export interface PromptContextParams {
   characterAvatar?: string;
   targetSpeaker?: string;
   userInstruction?: string;
+  retrievedMemories?: any[];
   messages: ChatMessage[];
   maxRecentMessages?: number;
 }
@@ -148,6 +149,20 @@ export function buildSystemInstruction(params: Partial<PromptContextParams>): st
   // History & Backstory
   if (params.historyContent && params.historyContent.trim()) {
     parts.push(`\n### RECENT HISTORY & BACKSTORY:\n${params.historyContent.trim()}`);
+  }
+
+  // Episodic Long-Term Memory (ELTM) Context Injection
+  if (params.retrievedMemories && params.retrievedMemories.length > 0) {
+    const memoryList = typeof params.retrievedMemories === 'string'
+      ? params.retrievedMemories
+      : params.retrievedMemories
+          .map((m: any) =>
+            typeof m === 'string'
+              ? `- ${m}`
+              : `- [Turn ${m.turnNumber || '?'}] (${m.speaker || 'Narrator'}): "${m.content}"`
+          )
+          .join('\n');
+    parts.push(`\n### RELEVANT RETRIEVED MEMORIES FROM PAST EVENTS:\n${memoryList}`);
   }
 
   // Scenario Companions & NPCs

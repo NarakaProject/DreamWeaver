@@ -21,6 +21,17 @@ export interface DbMessage {
   timestamp: number;
 }
 
+export interface DbMemory {
+  id: string;
+  session_id: string;
+  turn_number: number;
+  speaker?: string;
+  content: string;
+  keywords?: string;
+  is_summary?: number;
+  timestamp: number;
+}
+
 // Ensure data directory exists
 const dbDir = path.join(process.cwd(), 'data');
 if (!fs.existsSync(dbDir)) {
@@ -36,6 +47,10 @@ interface DbAdapter {
   getMessages(sessionId: string): Promise<DbMessage[]>;
   saveMessage(message: DbMessage): Promise<void>;
   deleteMessage(id: string): Promise<void>;
+  getMemories(sessionId: string): Promise<DbMemory[]>;
+  saveMemory(memory: DbMemory): Promise<void>;
+  deleteMemory(id: string): Promise<void>;
+  clearMemories(sessionId: string): Promise<void>;
 }
 
 class BetterSqliteAdapter implements DbAdapter {
@@ -68,6 +83,7 @@ class BetterSqliteAdapter implements DbAdapter {
   }
 
   async deleteSession(id: string): Promise<void> {
+    this.db.prepare('DELETE FROM memories WHERE session_id = ?').run(id);
     this.db.prepare('DELETE FROM messages WHERE session_id = ?').run(id);
     this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
   }
@@ -102,6 +118,40 @@ class BetterSqliteAdapter implements DbAdapter {
 
   async deleteMessage(id: string): Promise<void> {
     this.db.prepare('DELETE FROM messages WHERE id = ?').run(id);
+  }
+
+  async getMemories(sessionId: string): Promise<DbMemory[]> {
+    const stmt = this.db.prepare('SELECT * FROM memories WHERE session_id = ? ORDER BY turn_number ASC, timestamp ASC');
+    return stmt.all(sessionId);
+  }
+
+  async saveMemory(memory: DbMemory): Promise<void> {
+    const stmt = this.db.prepare(`
+      INSERT INTO memories (id, session_id, turn_number, speaker, content, keywords, is_summary, timestamp)
+      VALUES (@id, @session_id, @turn_number, @speaker, @content, @keywords, @is_summary, @timestamp)
+      ON CONFLICT(id) DO UPDATE SET
+        content = excluded.content,
+        keywords = excluded.keywords,
+        timestamp = excluded.timestamp
+    `);
+    stmt.run({
+      id: memory.id,
+      session_id: memory.session_id,
+      turn_number: memory.turn_number,
+      speaker: memory.speaker || null,
+      content: memory.content,
+      keywords: memory.keywords || null,
+      is_summary: memory.is_summary || 0,
+      timestamp: memory.timestamp,
+    });
+  }
+
+  async deleteMemory(id: string): Promise<void> {
+    this.db.prepare('DELETE FROM memories WHERE id = ?').run(id);
+  }
+
+  async clearMemories(sessionId: string): Promise<void> {
+    this.db.prepare('DELETE FROM memories WHERE session_id = ?').run(sessionId);
   }
 }
 
@@ -150,6 +200,7 @@ class LibSqlAdapter implements DbAdapter {
   }
 
   async deleteSession(id: string): Promise<void> {
+    await this.client.execute({ sql: 'DELETE FROM memories WHERE session_id = ?', args: [id] });
     await this.client.execute({ sql: 'DELETE FROM messages WHERE session_id = ?', args: [id] });
     await this.client.execute({ sql: 'DELETE FROM sessions WHERE id = ?', args: [id] });
   }
@@ -194,6 +245,49 @@ class LibSqlAdapter implements DbAdapter {
   async deleteMessage(id: string): Promise<void> {
     await this.client.execute({ sql: 'DELETE FROM messages WHERE id = ?', args: [id] });
   }
+
+  async getMemories(sessionId: string): Promise<DbMemory[]> {
+    const res = await this.client.execute({
+      sql: 'SELECT * FROM memories WHERE session_id = ? ORDER BY turn_number ASC, timestamp ASC',
+      args: [sessionId],
+    });
+    return res.rows.map((row: any) => ({
+      id: String(row.id),
+      session_id: String(row.session_id),
+      turn_number: Number(row.turn_number),
+      speaker: row.speaker ? String(row.speaker) : undefined,
+      content: String(row.content),
+      keywords: row.keywords ? String(row.keywords) : undefined,
+      is_summary: row.is_summary ? Number(row.is_summary) : 0,
+      timestamp: Number(row.timestamp),
+    }));
+  }
+
+  async saveMemory(memory: DbMemory): Promise<void> {
+    await this.client.execute({
+      sql: `INSERT INTO memories (id, session_id, turn_number, speaker, content, keywords, is_summary, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET content = excluded.content, keywords = excluded.keywords, timestamp = excluded.timestamp`,
+      args: [
+        memory.id,
+        memory.session_id,
+        memory.turn_number,
+        memory.speaker || null,
+        memory.content,
+        memory.keywords || null,
+        memory.is_summary || 0,
+        memory.timestamp,
+      ],
+    });
+  }
+
+  async deleteMemory(id: string): Promise<void> {
+    await this.client.execute({ sql: 'DELETE FROM memories WHERE id = ?', args: [id] });
+  }
+
+  async clearMemories(sessionId: string): Promise<void> {
+    await this.client.execute({ sql: 'DELETE FROM memories WHERE session_id = ?', args: [sessionId] });
+  }
 }
 
 let dbInstance: DbAdapter;
@@ -228,6 +322,18 @@ export function getDatabase(): DbAdapter {
       content TEXT NOT NULL,
       type TEXT,
       speaker TEXT,
+      timestamp INTEGER NOT NULL,
+      FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS memories (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      turn_number INTEGER NOT NULL,
+      speaker TEXT,
+      content TEXT NOT NULL,
+      keywords TEXT,
+      is_summary INTEGER DEFAULT 0,
       timestamp INTEGER NOT NULL,
       FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
     );

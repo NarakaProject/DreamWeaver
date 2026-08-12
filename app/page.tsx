@@ -21,6 +21,7 @@ import { DbSession, DbMessage } from '@/lib/db';
 import { ChatMessage, DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
 import { splitMultiSpeakerText } from '@/lib/parser/dreamgen';
 import { AIProvider, PROVIDER_MODEL_PRESETS } from '@/lib/ai/provider-router';
+import { addMemory } from '@/lib/memory/store';
 
 export default function Home() {
   const [scenarios, setScenarios] = React.useState<FullScenario[]>([]);
@@ -233,6 +234,16 @@ export default function Home() {
             timestamp: m.timestamp,
           }))
         );
+
+        data.messages.forEach((m: DbMessage, idx: number) => {
+          addMemory({
+            sessionId,
+            turnNumber: idx + 1,
+            speaker: m.speaker || (m.role === 'user' ? 'Player' : 'Narrator'),
+            content: m.content,
+            timestamp: m.timestamp,
+          }).catch(() => {});
+        });
       }
 
       const sessionObj = existingSessions.find((s) => s.id === sessionId);
@@ -955,6 +966,7 @@ export default function Home() {
         }
         character={activePersona}
         messageCount={messages.length}
+        activeSessionId={activeSessionId}
       />
     </div>
   );
