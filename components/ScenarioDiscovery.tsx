@@ -2,12 +2,13 @@
 
 import React from 'react';
 import { FullScenario } from '@/lib/scenarios/types';
-import { Search, Plus, Play, Edit3, Compass, Sparkles, Tag, Layers, Upload } from 'lucide-react';
+import { Search, Plus, Play, Edit3, Compass, Sparkles, Tag, Layers, Upload, Trash2 } from 'lucide-react';
 
 interface ScenarioDiscoveryProps {
   scenarios: FullScenario[];
   onPlayScenario: (scenario: FullScenario) => void;
   onEditScenario: (scenario: FullScenario) => void;
+  onDeleteScenario?: (scenario: FullScenario) => void;
   onCreateScenario: () => void;
   onOpenWizard?: () => void;
   onOpenImportModal?: () => void;
@@ -17,6 +18,7 @@ export function ScenarioDiscovery({
   scenarios,
   onPlayScenario,
   onEditScenario,
+  onDeleteScenario,
   onCreateScenario,
   onOpenWizard,
   onOpenImportModal,
@@ -196,13 +198,24 @@ export function ScenarioDiscovery({
                   )}
                 </div>
 
-                <button
-                  onClick={() => onEditScenario(scenario)}
-                  className="absolute top-3 right-3 p-2 rounded-lg bg-black/80 text-slate-300 hover:text-white border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Edit Scenario"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                </button>
+                <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => onEditScenario(scenario)}
+                    className="p-2 rounded-lg bg-black/80 text-slate-300 hover:text-white border border-slate-700 transition-colors"
+                    title="Edit Scenario"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                  {onDeleteScenario && (
+                    <button
+                      onClick={() => onDeleteScenario(scenario)}
+                      className="p-2 rounded-lg bg-black/80 text-rose-400 hover:text-rose-300 border border-slate-700 transition-colors"
+                      title="Delete Scenario"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Content Body */}

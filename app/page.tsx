@@ -12,6 +12,7 @@ import { PreStartModal } from '@/components/PreStartModal';
 import { ScenarioBuilder } from '@/components/ScenarioBuilder';
 import { ScenarioWizardModal } from '@/components/ScenarioWizardModal';
 import { ImportScenarioModal } from '@/components/ImportScenarioModal';
+import { DeleteScenarioModal } from '@/components/DeleteScenarioModal';
 import { RightInspectorPanel } from '@/components/RightInspectorPanel';
 
 import { FullScenario, PersonaTemplate, WorldBuilding } from '@/lib/scenarios/types';
@@ -40,6 +41,7 @@ export default function Home() {
   const [builderInitialScenario, setBuilderInitialScenario] = React.useState<FullScenario | null>(null);
   const [isWizardOpen, setIsWizardOpen] = React.useState(false);
   const [isImportOpen, setIsImportOpen] = React.useState(false);
+  const [deletingScenario, setDeletingScenario] = React.useState<FullScenario | null>(null);
 
   const [isRightInspectorOpen, setIsRightInspectorOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
@@ -637,6 +639,20 @@ export default function Home() {
     }
   };
 
+  const handleConfirmDeleteScenario = async (scenarioId: string) => {
+    try {
+      await fetch(`/api/scenarios?id=${scenarioId}`, { method: 'DELETE' });
+      await fetchScenarios();
+      if (activeScenario?.meta.id === scenarioId) {
+        setActiveScenario(null);
+        setActiveWorldBuilding(null);
+        setActivePersona(null);
+      }
+    } catch (err) {
+      console.error('Failed to delete scenario:', err);
+    }
+  };
+
   const handleEditMessage = async (index: number, newContent: string) => {
     const updated = [...messages];
     updated[index].content = newContent;
@@ -746,6 +762,7 @@ export default function Home() {
             scenarios={scenarios}
             onPlayScenario={handleOpenPlayFlow}
             onEditScenario={handleOpenBuilder}
+            onDeleteScenario={(sc) => setDeletingScenario(sc)}
             onCreateScenario={() => handleOpenBuilder()}
             onOpenWizard={() => setIsWizardOpen(true)}
             onOpenImportModal={() => setIsImportOpen(true)}
@@ -853,6 +870,10 @@ export default function Home() {
         onClose={() => setIsBuilderOpen(false)}
         initialScenario={builderInitialScenario}
         onSaveSuccess={fetchScenarios}
+        onDeleteScenario={(scId) => {
+          const sc = scenarios.find((s) => s.meta.id === scId);
+          if (sc) setDeletingScenario(sc);
+        }}
       />
 
       <ScenarioWizardModal
@@ -881,6 +902,13 @@ export default function Home() {
           }
           setViewMode('scenarios');
         }}
+      />
+
+      <DeleteScenarioModal
+        isOpen={!!deletingScenario}
+        onClose={() => setDeletingScenario(null)}
+        scenario={deletingScenario}
+        onConfirmDelete={handleConfirmDeleteScenario}
       />
 
       <SettingsModal

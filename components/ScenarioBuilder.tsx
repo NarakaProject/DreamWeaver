@@ -12,6 +12,7 @@ interface ScenarioBuilderProps {
   onClose: () => void;
   initialScenario?: FullScenario | null;
   onSaveSuccess?: () => void;
+  onDeleteScenario?: (scenarioId: string) => void;
 }
 
 export function ScenarioBuilder({
@@ -19,6 +20,7 @@ export function ScenarioBuilder({
   onClose,
   initialScenario,
   onSaveSuccess,
+  onDeleteScenario,
 }: ScenarioBuilderProps) {
   const [activeTab, setActiveTab] = React.useState<
     'meta' | 'narrative' | 'personas' | 'npcs' | 'locations' | 'objects' | 'examples' | 'notes'
@@ -816,7 +818,22 @@ export function ScenarioBuilder({
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-[#1f2430] bg-[#0d0f17]">
-          <div className="text-xs text-slate-400">All 12 Building Blocks validated</div>
+          <div className="flex items-center gap-3">
+            {initialScenario && onDeleteScenario && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onDeleteScenario(initialScenario.meta.id);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 text-xs font-semibold transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Scenario</span>
+              </button>
+            )}
+            <div className="text-xs text-slate-400">All 12 Building Blocks validated</div>
+          </div>
           <div className="flex gap-3">
             <button
               onClick={onClose}
