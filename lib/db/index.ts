@@ -15,6 +15,7 @@ interface DbAdapter {
   exec(sql: string): Promise<void> | void;
   getSessions(): Promise<DbSession[]>;
   saveSession(session: DbSession): Promise<void>;
+  updateSession(id: string, fields: Partial<DbSession>): Promise<void>;
   deleteSession(id: string): Promise<void>;
   getMessages(sessionId: string): Promise<DbMessage[]>;
   saveMessage(message: DbMessage): Promise<void>;
@@ -32,6 +33,7 @@ class BetterSqliteAdapter implements DbAdapter {
     const Database = require('better-sqlite3');
     this.db = new Database(file);
     this.db.pragma('journal_mode = WAL');
+    this.db.pragma('synchronous = NORMAL');
   }
 
   exec(sql: string): void {
@@ -62,7 +64,16 @@ class BetterSqliteAdapter implements DbAdapter {
 
   async getMessages(sessionId: string): Promise<DbMessage[]> {
     const stmt = this.db.prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp ASC');
-    return stmt.all();
+    return stmt.all(sessionId);
+  }
+
+  async updateSession(id: string, fields: Partial<DbSession>): Promise<void> {
+    if (fields.updated_at !== undefined) {
+      this.db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(fields.updated_at, id);
+    }
+    if (fields.title !== undefined) {
+      this.db.prepare('UPDATE sessions SET title = ? WHERE id = ?').run(fields.title, id);
+    }
   }
 
   async saveMessage(message: DbMessage): Promise<void> {
@@ -176,6 +187,15 @@ class LibSqlAdapter implements DbAdapter {
     await this.client.execute({ sql: 'DELETE FROM memories WHERE session_id = ?', args: [id] });
     await this.client.execute({ sql: 'DELETE FROM messages WHERE session_id = ?', args: [id] });
     await this.client.execute({ sql: 'DELETE FROM sessions WHERE id = ?', args: [id] });
+  }
+
+  async updateSession(id: string, fields: Partial<DbSession>): Promise<void> {
+    if (fields.updated_at !== undefined) {
+      await this.client.execute({ sql: 'UPDATE sessions SET updated_at = ? WHERE id = ?', args: [fields.updated_at, id] });
+    }
+    if (fields.title !== undefined) {
+      await this.client.execute({ sql: 'UPDATE sessions SET title = ? WHERE id = ?', args: [fields.title, id] });
+    }
   }
 
   async getMessages(sessionId: string): Promise<DbMessage[]> {

@@ -3,6 +3,11 @@ import { assembleGeminiPayload, buildSystemInstruction, DEFAULT_GEMINI_MODEL } f
 import { routeChatStream, AIProvider, DEFAULT_MODELS } from '@/lib/ai/provider-router';
 import { searchMemories } from '@/lib/memory/store';
 import { processBackgroundAutoSummary } from '@/lib/memory/summarizer';
+import { getDatabase } from '@/lib/db';
+
+function generateId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,6 +20,7 @@ export async function POST(req: NextRequest) {
       provider = (req.headers.get('x-provider') as AIProvider) || 'gemini',
       model,
       sessionId,
+      userMessage,        // { id, content, speaker, timestamp } — the user turn to persist server-side
       narratorDirectives,
       settingLore,
       plotHooks,
@@ -30,6 +36,24 @@ export async function POST(req: NextRequest) {
       temperature = 0.8,
       maxOutputTokens = 2048,
     } = body;
+
+    // ─── 1. Persist user message server-side BEFORE streaming ────────────────
+    if (sessionId && userMessage?.id && userMessage?.content) {
+      try {
+        const db = getDatabase();
+        await db.saveMessage({
+          id: userMessage.id,
+          session_id: sessionId,
+          role: 'user',
+          content: userMessage.content,
+          type: 'narration',
+          speaker: userMessage.speaker || characterName || 'Player',
+          timestamp: userMessage.timestamp || Date.now(),
+        });
+      } catch (err) {
+        console.error('[chat/route] Failed to persist user message:', err);
+      }
+    }
 
     let retrievedMemories = body.retrievedMemories || [];
 
@@ -53,7 +77,6 @@ export async function POST(req: NextRequest) {
 
     const activeModel = model || DEFAULT_MODELS[provider as AIProvider] || DEFAULT_GEMINI_MODEL;
 
-    // Check if at least one key is present
     const keys = {
       geminiKey: geminiKey || undefined,
       groqKey,
@@ -107,7 +130,8 @@ export async function POST(req: NextRequest) {
       content: m.content || '',
     }));
 
-    return await routeChatStream(
+    // ─── 2. Stream the AI response, accumulate full text, then persist ───────
+    const upstreamResponse = await routeChatStream(
       {
         provider: provider as AIProvider,
         model: activeModel,
@@ -119,6 +143,54 @@ export async function POST(req: NextRequest) {
       },
       payload
     );
+
+    if (!upstreamResponse.body || !sessionId) {
+      return upstreamResponse;
+    }
+
+    // Tee the stream: pipe to client AND accumulate for server-side write
+    const [streamForClient, streamForCapture] = upstreamResponse.body.tee();
+
+    // Background: read accumulated text and persist to DB after stream ends
+    (async () => {
+      try {
+        const reader = streamForCapture.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          fullText += decoder.decode(value, { stream: true });
+        }
+        fullText += decoder.decode(); // flush
+
+        if (fullText.trim() && sessionId) {
+          const db = getDatabase();
+          const aiMsgId = generateId('msg');
+          const ts = Date.now();
+
+          await db.saveMessage({
+            id: aiMsgId,
+            session_id: sessionId,
+            role: 'model',
+            content: fullText.trim(),
+            type: 'narration',
+            speaker: targetSpeaker || 'Narrator',
+            timestamp: ts,
+          });
+
+          // Update session updated_at
+          await db.updateSession(sessionId, { updated_at: ts });
+        }
+      } catch (err) {
+        console.error('[chat/route] Failed to persist AI response to DB:', err);
+      }
+    })();
+
+    return new Response(streamForClient, {
+      headers: upstreamResponse.headers,
+      status: upstreamResponse.status,
+    });
   } catch (err: any) {
     console.error('Chat API Error:', err);
     return NextResponse.json(

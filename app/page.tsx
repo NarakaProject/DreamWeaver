@@ -435,24 +435,8 @@ export default function Home() {
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
 
-    // Save message to SQLite
-    fetch('/api/sessions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'saveMessage',
-        message: {
-          id: userMsg.id,
-          session_id: activeSessionId,
-          role: userMsg.role,
-          content: userMsg.content,
-          type: userMsg.type,
-          speaker: userMsg.speaker,
-          timestamp: userMsg.timestamp,
-        },
-      }),
-    });
-
+    // NOTE: User message persistence is handled server-side inside /api/chat/route.ts
+    // via the userMessage payload to guarantee atomic writes before the stream starts.
     addMemory({
       sessionId: activeSessionId,
       turnNumber: updatedMessages.length,
@@ -463,7 +447,7 @@ export default function Home() {
 
     const aiTargetSpeaker =
       targetSpeakerOverride && targetSpeakerOverride !== userSpeakerName ? targetSpeakerOverride : undefined;
-    triggerStreamingResponse(updatedMessages, activeSessionId, aiTargetSpeaker);
+    triggerStreamingResponse(updatedMessages, activeSessionId, aiTargetSpeaker, userMsg);
   };
 
   const handleContinue = (targetSpeaker?: string) => {
@@ -517,7 +501,8 @@ export default function Home() {
   const triggerStreamingResponse = async (
     history: ChatMessage[],
     sessionId: string,
-    targetSpeaker?: string
+    targetSpeaker?: string,
+    pendingUserMessage?: ChatMessage
   ) => {
     setIsStreaming(true);
     setStreamingContent('');
@@ -535,6 +520,13 @@ export default function Home() {
         body: JSON.stringify({
           provider,
           model: selectedModel,
+          sessionId,
+          userMessage: pendingUserMessage ? {
+            id: pendingUserMessage.id,
+            content: pendingUserMessage.content,
+            speaker: pendingUserMessage.speaker,
+            timestamp: pendingUserMessage.timestamp,
+          } : undefined,
           narratorDirectives: activeWorldBuilding?.narrator,
           settingLore: activeWorldBuilding?.setting,
           plotHooks: activeWorldBuilding?.plot,
@@ -602,24 +594,7 @@ export default function Home() {
         };
 
         createdMessages.push(aiMsg);
-
-        // Save AI turn section to SQLite
-        await fetch('/api/sessions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'saveMessage',
-            message: {
-              id: aiMsg.id,
-              session_id: sessionId,
-              role: aiMsg.role,
-              content: aiMsg.content,
-              type: 'narration',
-              speaker: aiMsg.speaker,
-              timestamp: aiMsg.timestamp,
-            },
-          }),
-        });
+        // NOTE: AI message persistence is handled server-side in /api/chat/route.ts via stream tee.
       }
 
       if (sessionId && createdMessages.length > 0) {
