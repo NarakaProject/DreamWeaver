@@ -340,6 +340,8 @@ export function ScenarioBuilder({
                 <ImagePickerWithPreview
                   value={coverImage}
                   onChange={setCoverImage}
+                  assetType="cover"
+                  contextHint={`${title || 'Fantasy scenario cover art'} - ${description || category}`}
                   placeholder="https://... or click Upload File"
                 />
               </div>
@@ -505,6 +507,8 @@ export function ScenarioBuilder({
                   <ImagePickerWithPreview
                     label="Persona Avatar Portrait"
                     value={p.avatar || ''}
+                    assetType="avatar"
+                    contextHint={`${p.name || 'Hero protagonist'} ${p.tagline || ''}, ${p.personality || ''}`}
                     onChange={(url) => {
                       const updated = [...personas];
                       updated[idx].avatar = url;
@@ -597,6 +601,8 @@ export function ScenarioBuilder({
                   <ImagePickerWithPreview
                     label="NPC Avatar Portrait"
                     value={npc.avatar || ''}
+                    assetType="avatar"
+                    contextHint={`${npc.name || 'NPC Companion'} ${npc.tagline || ''}, ${npc.personality || ''}`}
                     onChange={(url) => {
                       const updated = [...scenarioNPCs];
                       updated[idx].avatar = url;

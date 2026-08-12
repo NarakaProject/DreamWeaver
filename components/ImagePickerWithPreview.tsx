@@ -3,6 +3,7 @@
 import React from 'react';
 import { Upload, X, Image as ImageIcon, AlertCircle, Loader2, Sparkles, Wand2 } from 'lucide-react';
 import { AssetType } from '@/lib/gemini/image-prompt';
+import { GenerateImageModal } from './GenerateImageModal';
 
 interface ImagePickerWithPreviewProps {
   label?: string;
@@ -11,6 +12,7 @@ interface ImagePickerWithPreviewProps {
   placeholder?: string;
   assetType?: AssetType;
   promptHint?: string;
+  contextHint?: string;
 }
 
 export function ImagePickerWithPreview({
@@ -20,9 +22,11 @@ export function ImagePickerWithPreview({
   placeholder = 'https://... or /uploads/image.png',
   assetType = 'general',
   promptHint = '',
+  contextHint = '',
 }: ImagePickerWithPreviewProps) {
   const [uploading, setUploading] = React.useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = React.useState(false);
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [imgError, setImgError] = React.useState(false);
   const [uploadError, setUploadError] = React.useState('');
 
@@ -65,16 +69,8 @@ export function ImagePickerWithPreview({
     }
   };
 
-  // Handle AI Image Generation via FLUX API Route
-  const handleGenerateAIImage = async () => {
-    const defaultPrompt = promptHint || label || '';
-    const userPrompt = window.prompt(
-      'Describe the image asset to generate with FLUX.1-schnell AI:',
-      defaultPrompt
-    );
-
-    if (!userPrompt || !userPrompt.trim()) return;
-
+  // Handle FLUX AI Generation Submission
+  const handleModalGenerate = async (promptText: string, stylePreset: string, aspectRatio: string) => {
     setIsGeneratingAI(true);
     setUploadError('');
 
@@ -83,7 +79,7 @@ export function ImagePickerWithPreview({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: userPrompt.trim(),
+          prompt: promptText.trim(),
           type: assetType,
         }),
       });
@@ -101,6 +97,8 @@ export function ImagePickerWithPreview({
       setIsGeneratingAI(false);
     }
   };
+
+  const initialPromptText = contextHint || promptHint || label || '';
 
   return (
     <div className="space-y-2 text-xs">
@@ -180,10 +178,10 @@ export function ImagePickerWithPreview({
               <span>{uploading ? 'Uploading...' : 'Upload'}</span>
             </button>
 
-            {/* ✨ Auto-Generate AI Image Button (FLUX Engine) */}
+            {/* ✨ Auto-Generate AI Image Button (Opens Custom Modal) */}
             <button
               type="button"
-              onClick={handleGenerateAIImage}
+              onClick={() => setIsModalOpen(true)}
               disabled={uploading || isGeneratingAI}
               className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-purple-500/20 border border-purple-500/40 hover:bg-purple-500/30 text-purple-300 font-semibold text-xs transition-colors shrink-0 disabled:opacity-50"
               title="Generate asset with Hugging Face FLUX AI model"
@@ -200,6 +198,16 @@ export function ImagePickerWithPreview({
           {uploadError && <p className="text-[11px] text-rose-400 font-medium">{uploadError}</p>}
         </div>
       </div>
+
+      {/* Custom In-App FLUX Image Generation Modal */}
+      <GenerateImageModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        initialPrompt={initialPromptText}
+        assetType={assetType}
+        onGenerate={handleModalGenerate}
+        isGenerating={isGeneratingAI}
+      />
     </div>
   );
 }

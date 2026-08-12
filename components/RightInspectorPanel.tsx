@@ -261,6 +261,8 @@ export function RightInspectorPanel({
               <ImagePickerWithPreview
                 label="Persona Avatar"
                 value={persona.avatar || ''}
+                assetType="avatar"
+                contextHint={`${persona.name || 'Protagonist'} ${persona.tagline || ''}, ${persona.personality || ''}`}
                 onChange={(url) => onUpdatePersona({ ...persona, avatar: url })}
                 placeholder="https://... or upload avatar"
               />
@@ -341,6 +343,8 @@ export function RightInspectorPanel({
                   <ImagePickerWithPreview
                     label="NPC Avatar"
                     value={npc.avatar || ''}
+                    assetType="avatar"
+                    contextHint={`${npc.name || 'NPC Companion'} ${npc.tagline || ''}, ${npc.personality || ''}`}
                     onChange={(url) => {
                       const updated = [...(worldBuilding.scenarioNPCs || [])];
                       updated[idx].avatar = url;
@@ -674,6 +678,8 @@ export function RightInspectorPanel({
               <ImagePickerWithPreview
                 label="Cover Image"
                 value={worldBuilding.images?.coverImage || ''}
+                assetType="cover"
+                contextHint={`${worldBuilding.setting || 'Fantasy world story background'}`}
                 onChange={(url) =>
                   onUpdateWorldBuilding({
                     ...worldBuilding,
@@ -685,6 +691,8 @@ export function RightInspectorPanel({
               <ImagePickerWithPreview
                 label="Background Image"
                 value={worldBuilding.images?.backgroundImage || ''}
+                assetType="location"
+                contextHint={`${worldBuilding.setting || 'Fantasy environmental background'}`}
                 onChange={(url) =>
                   onUpdateWorldBuilding({
                     ...worldBuilding,
