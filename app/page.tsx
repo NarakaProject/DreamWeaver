@@ -701,7 +701,6 @@ export default function Home() {
                       onRegenerate={
                         msg.role === 'model' ? () => handleRegenerateFromIndex(index) : undefined
                       }
-                      onSelectCyoaOption={(optionText) => handleSendInput('do', optionText)}
                     />
                   ))}
 

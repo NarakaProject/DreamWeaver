@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { parseDreamGenText, extractCyoaOptions, CyoaOption } from '@/lib/parser/dreamgen';
-import { Copy, RefreshCw, Trash2, Edit2, Check, User, Sparkles, Compass } from 'lucide-react';
+import { parseDreamGenText, extractCyoaOptions } from '@/lib/parser/dreamgen';
+import { Copy, RefreshCw, Trash2, Edit2, Check, User, Sparkles } from 'lucide-react';
 
 interface DreamGenRendererProps {
   content: string;
@@ -18,7 +18,6 @@ interface DreamGenRendererProps {
   onRegenerate?: () => void;
   onEdit?: (newContent: string) => void;
   onDelete?: () => void;
-  onSelectCyoaOption?: (optionText: string) => void;
 }
 
 /**
@@ -86,14 +85,13 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
   onRegenerate,
   onEdit,
   onDelete,
-  onSelectCyoaOption,
 }: DreamGenRendererProps) {
   const [copied, setCopied] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [editText, setEditText] = React.useState(content);
 
-  // Extract clean narrative text & interactive CYOA option choices
-  const { cleanText, options: cyoaOptions } = React.useMemo(
+  // Extract clean narrative text (strips stray XML tags if any)
+  const { cleanText } = React.useMemo(
     () => extractCyoaOptions(content),
     [content]
   );
@@ -266,32 +264,6 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
           {isStreaming && (
             <span className="inline-block w-2.5 h-4 ml-1 bg-amber-400 animate-pulse-glow rounded-xs align-middle" />
           )}
-        </div>
-      )}
-
-      {/* Interactive Extracted CYOA Option Pills */}
-      {!isEditing && cyoaOptions.length > 0 && (
-        <div className="pt-3 border-t border-[#1f2430]/70 space-y-2">
-          <div className="flex items-center gap-1.5 text-[11px] font-bold text-cyan-400 uppercase tracking-wider">
-            <Compass className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Choose The Next Step</span>
-          </div>
-
-          <div className="flex flex-wrap gap-2 pt-1">
-            {cyoaOptions.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => onSelectCyoaOption && onSelectCyoaOption(opt.content)}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#181d2a] hover:bg-[#202738] border border-[#2a3142] hover:border-cyan-500/50 text-xs font-semibold text-cyan-200 hover:text-white transition-all shadow-sm active:scale-95 text-left"
-              >
-                <span className="font-bold text-cyan-400">{opt.label}:</span>
-                <span className="text-slate-300 font-mono text-[11px]">
-                  {opt.content !== opt.label ? opt.content : ''}
-                </span>
-              </button>
-            ))}
-          </div>
         </div>
       )}
     </div>

@@ -31,83 +31,19 @@ export interface CyoaParseResult {
 }
 
 /**
- * Extracts CYOA option blocks from narrative text.
- * Robustly strips <cyoa_options>, <cyoaoptions>, <cyoa-options>, opening/unclosed and closing tags completely.
+ * Sanitizes narrative text by stripping any stray XML tags (<cyoa_options>, </cyoa_options>, etc.).
+ * Returns clean narrative text.
  */
 export function extractCyoaOptions(rawText: string): CyoaParseResult {
   if (!rawText) return { cleanText: '', options: [] };
 
-  const options: CyoaOption[] = [];
-  let cleanText = rawText;
+  // Strip any lingering or legacy XML option tags completely
+  let cleanText = rawText
+    .replace(/<cyoa[_-]?options>[\s\S]*?(?:<\/cyoa[_-]?options>|$)/gi, '')
+    .replace(/<\/?cyoa[_-]?options>/gi, '')
+    .trim();
 
-  // 1. Match XML tags: <cyoa_options>...</cyoa_options>, <cyoaoptions>...</cyoaoptions>, or unclosed <cyoaoptions>...
-  const xmlMatch = rawText.match(/<cyoa[_-]?options>([\s\S]*?)(?:<\/cyoa[_-]?options>|$)/i);
-  if (xmlMatch) {
-    const rawOptionsBlock = xmlMatch[1];
-    cleanText = rawText.replace(/<cyoa[_-]?options>[\s\S]*?(?:<\/cyoa[_-]?options>|$)/gi, '').trim();
-
-    const lines = rawOptionsBlock.split('\n');
-    let optId = 1;
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      const lineMatch = trimmed.match(/^(?:[-*•]|\d+\.)?\s*(?:\[([^\]]+)\]|([^:]+)):\s*(.*)$/);
-      if (lineMatch) {
-        const label = (lineMatch[1] || lineMatch[2] || `Option #${optId}`).trim();
-        const content = (lineMatch[3] || label).replace(/^["']|["']$/g, '').trim();
-        options.push({
-          id: `cyoa-${optId++}`,
-          label,
-          content: content || label,
-        });
-      } else if (trimmed.startsWith('-') || trimmed.startsWith('*') || /^\d+\./.test(trimmed)) {
-        const cleanLine = trimmed.replace(/^[-*•]|\d+\.\s*/, '').trim();
-        options.push({
-          id: `cyoa-${optId++}`,
-          label: cleanLine.slice(0, 35),
-          content: cleanLine,
-        });
-      }
-    }
-  } else {
-    // 2. Check for "Choose The Next Step Options:" header
-    const chooseMatch = rawText.match(/(\*?\*?Choose The Next Step Options:?\*?\*?[\s\S]*)$/i);
-    if (chooseMatch) {
-      const rawOptionsBlock = chooseMatch[1];
-      cleanText = rawText.substring(0, chooseMatch.index).trim();
-
-      const lines = rawOptionsBlock.split('\n');
-      let optId = 1;
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.toLowerCase().includes('choose the next step options')) continue;
-
-        const lineMatch = trimmed.match(/^(?:[-*•]|\d+\.)?\s*(?:\[([^\]]+)\]|([^:]+)):\s*(.*)$/);
-        if (lineMatch) {
-          const label = (lineMatch[1] || lineMatch[2] || `Option #${optId}`).trim();
-          const content = (lineMatch[3] || label).replace(/^["']|["']$/g, '').trim();
-          options.push({
-            id: `cyoa-${optId++}`,
-            label,
-            content: content || label,
-          });
-        } else if (trimmed.startsWith('-') || trimmed.startsWith('*') || /^\d+\./.test(trimmed)) {
-          const cleanLine = trimmed.replace(/^[-*•]|\d+\.\s*/, '').trim();
-          options.push({
-            id: `cyoa-${optId++}`,
-            label: cleanLine.slice(0, 35),
-            content: cleanLine,
-          });
-        }
-      }
-    }
-  }
-
-  // Strip ALL leftover raw XML tags (e.g. </cyoaoptions>, <cyoaoptions>, etc.) completely from cleanText
-  cleanText = cleanText.replace(/<\/?cyoa[_-]?options>/gi, '').trim();
-
-  return { cleanText, options };
+  return { cleanText, options: [] };
 }
 
 /**
