@@ -141,19 +141,38 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
           {tokens.map((token) => {
             if (token.type === 'dialogue') {
               return (
-                <span key={token.id} className="dreamgen-dialogue mx-0.5">
-                  "{token.content}"
+                <span key={token.id} className="dreamgen-dialogue not-italic text-[#fbbf24]">
+                  "
+                  {token.spans.map((span, sIdx) => (
+                    <span
+                      key={sIdx}
+                      className={`${span.isBold ? 'font-bold' : ''} ${
+                        span.isItalic ? 'italic' : ''
+                      }`}
+                    >
+                      {span.text}
+                    </span>
+                  ))}
+                  "
                 </span>
               );
             }
-            if (token.type === 'action') {
-              return (
-                <span key={token.id} className="dreamgen-action">
-                  *{token.content}*
-                </span>
-              );
-            }
-            return <span key={token.id}>{token.content}</span>;
+
+            // Prose / Action token: Soft Purple & Italic by default
+            return (
+              <span key={token.id} className="dreamgen-prose italic text-[#c084fc]">
+                {token.spans.map((span, sIdx) => (
+                  <span
+                    key={sIdx}
+                    className={`${span.isBold ? 'font-bold' : ''} ${
+                      span.isItalic ? 'italic' : ''
+                    }`}
+                  >
+                    {span.text}
+                  </span>
+                ))}
+              </span>
+            );
           })}
           {isStreaming && (
             <span className="inline-block w-2.5 h-4 ml-1 bg-amber-400 animate-pulse-glow rounded-xs align-middle" />

@@ -61,8 +61,8 @@ export function buildSystemInstruction(params: Partial<PromptContextParams>): st
     '',
     '### ERGONOMICS & FORMATTING RULES:',
     '1. SPOKEN DIALOGUE MUST be enclosed in double quotes (e.g. "Hold your ground!").',
-    '2. ACTIONS, PHYSICAL MOVEMENTS, AND EXPRESSIONS MUST be enclosed in asterisks (e.g. *draws blade silently*).',
-    '3. PROSE AND NARRATION must be written outside quotes/asterisks in evocative, engaging text.',
+    '2. PROSE NARRATION AND ACTIONS can be written naturally or enclosed in asterisks (e.g. *draws blade silently*).',
+    '3. IMPORTANT TERMS OR EMPHASIS can be bolded using double asterisks (e.g. **Sunstone Relic**).',
     '4. Maintain character persona and scenario directives consistency at all times.',
   ];
 

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { parseDreamGenText } from './dreamgen';
+import { parseDreamGenText, parseSpans } from './dreamgen';
 
-describe('DreamGen Parser (lib/parser/dreamgen.ts)', () => {
-  it('should parse plain prose correctly', () => {
+describe('DreamGen Parser & Typography (lib/parser/dreamgen.ts)', () => {
+  it('should parse plain prose narration correctly', () => {
     const input = 'The wind whispered softly through the ancient pines.';
     const tokens = parseDreamGenText(input);
 
@@ -24,29 +24,30 @@ describe('DreamGen Parser (lib/parser/dreamgen.ts)', () => {
     expect(tokens[1].content).toBe(' she whispered.');
   });
 
-  it('should extract action text wrapped in asterisks', () => {
-    const input = '*draws sword slowly* Stand your ground!';
+  it('should parse bold syntax inside prose and dialogue', () => {
+    const input = 'She held the **Sunstone Relic**. "Watch out for **shadows**!"';
     const tokens = parseDreamGenText(input);
 
     expect(tokens).toHaveLength(2);
-    expect(tokens[0].type).toBe('action');
-    expect(tokens[0].content).toBe('draws sword slowly');
-    expect(tokens[0].isUnclosed).toBe(false);
+    // Prose token spans
+    expect(tokens[0].type).toBe('prose');
+    const proseBoldSpan = tokens[0].spans.find((s) => s.isBold);
+    expect(proseBoldSpan?.text).toBe('Sunstone Relic');
 
-    expect(tokens[1].type).toBe('prose');
-    expect(tokens[1].content).toBe(' Stand your ground!');
+    // Dialogue token spans
+    expect(tokens[1].type).toBe('dialogue');
+    const dialogueBoldSpan = tokens[1].spans.find((s) => s.isBold);
+    expect(dialogueBoldSpan?.text).toBe('shadows');
   });
 
-  it('should parse mixed dialogue, actions, and prose seamlessly', () => {
-    const input = 'Aria looked back. *smiles gently* "Are you ready?" she asked.';
+  it('should parse explicit italic inside dialogue', () => {
+    const input = '"Did you hear *that* noise?" Aria asked.';
     const tokens = parseDreamGenText(input);
 
-    expect(tokens).toHaveLength(5);
-    expect(tokens[0]).toMatchObject({ type: 'prose', content: 'Aria looked back. ' });
-    expect(tokens[1]).toMatchObject({ type: 'action', content: 'smiles gently' });
-    expect(tokens[2]).toMatchObject({ type: 'prose', content: ' ' });
-    expect(tokens[3]).toMatchObject({ type: 'dialogue', content: 'Are you ready?' });
-    expect(tokens[4]).toMatchObject({ type: 'prose', content: ' she asked.' });
+    expect(tokens).toHaveLength(2);
+    expect(tokens[0].type).toBe('dialogue');
+    const italicSpan = tokens[0].spans.find((s) => s.isItalic);
+    expect(italicSpan?.text).toBe('that');
   });
 
   it('should handle unclosed quotes during streaming gracefully', () => {

@@ -11,10 +11,7 @@
     --text-muted: #94a3b8;
     
     --dialogue-amber: #fbbf24;
-    --dialogue-bg: rgba(251, 191, 36, 0.08);
-    --action-purple: #c084fc;
-    --accent-gold: #f59e0b;
-    --accent-cyan: #38bdf8;
+    --prose-purple: #c084fc;
   }
 
   body {
@@ -53,25 +50,24 @@
   background: #3b435b;
 }
 
-/* DreamGen Narrative Formatting */
+/* DreamGen Typography & Narrative Styling */
+
+/* Spoken Dialogue ("..."): Warm Gold / Amber, Non-italic, Pure text color (no background highlight or borders) */
 .dreamgen-dialogue {
   color: #fbbf24;
-  background-color: rgba(251, 191, 36, 0.09);
-  border-radius: 4px;
-  padding: 0.1rem 0.35rem;
-  font-weight: 500;
-  border-left: 2px solid rgba(251, 191, 36, 0.4);
+  font-style: normal;
+  font-weight: 400;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
 }
 
-.dreamgen-action {
+/* Prose Narration & Actions: Soft Purple / Lavender, Italic by default */
+.dreamgen-prose {
   color: #c084fc;
   font-style: italic;
   font-weight: 400;
-  padding: 0 0.15rem;
-}
-
-.dreamgen-prose {
-  color: #e2e8f0;
   line-height: 1.8;
   font-size: 1.05rem;
 }
