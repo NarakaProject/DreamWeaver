@@ -3,7 +3,8 @@
 import React from 'react';
 import { FullScenario, CustomObject, LocationItem, PromptExample, PersonaTemplate } from '@/lib/scenarios/reader';
 import { BuildingBlockTooltip } from './BuildingBlockTooltip';
-import { X, Plus, Trash2, Save, Sparkles, BookOpen, Layers, User, MapPin, Package, FileText, Image as ImageIcon } from 'lucide-react';
+import { ImagePickerWithPreview } from './ImagePickerWithPreview';
+import { X, Plus, Trash2, Save, Sparkles, BookOpen, Layers, User, MapPin, Package, FileText } from 'lucide-react';
 
 interface ScenarioBuilderProps {
   isOpen: boolean;
@@ -90,7 +91,7 @@ export function ScenarioBuilder({
           name: 'Valerius',
           tagline: 'The Shadow Infiltrator',
           personality: 'Perceptive rogue specializing in shadow magic.',
-          avatar: '',
+          avatar: '/assets/avatars/valerius.png',
           firstMessage: '',
         },
       ]);
@@ -100,7 +101,7 @@ export function ScenarioBuilder({
           name: 'Aria Shadowstep',
           tagline: 'Master Scout of the Silverveil Guild',
           personality: 'Quick-witted scout companion.',
-          avatar: '',
+          avatar: '/assets/avatars/aria.png',
           firstMessage: '"Keep your voice down," Aria whispers.',
         },
       ]);
@@ -350,16 +351,14 @@ export function ScenarioBuilder({
               </div>
 
               <div className="space-y-1.5 pt-2">
-                <label className="font-semibold text-slate-300">
-                  Cover Art Image URL
+                <div className="flex items-center">
+                  <span className="font-semibold text-slate-300">Cover Art Image</span>
                   <BuildingBlockTooltip blockKey="images" />
-                </label>
-                <input
-                  type="text"
+                </div>
+                <ImagePickerWithPreview
                   value={coverImage}
-                  onChange={(e) => setCoverImage(e.target.value)}
-                  placeholder="https://... or /assets/cover.jpg"
-                  className="w-full rounded-xl bg-[#090a0f] border border-[#262c3e] px-4 py-2 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500"
+                  onChange={setCoverImage}
+                  placeholder="https://... or click Upload File"
                 />
               </div>
             </div>
@@ -369,7 +368,7 @@ export function ScenarioBuilder({
           {activeTab === 'narrative' && (
             <div className="space-y-4 text-xs">
               <div className="space-y-1.5">
-                <label className="font-bold text-amber-400">
+                <label className="font-bold text-amber-400 flex items-center">
                   Setting & Worldbuilding
                   <BuildingBlockTooltip blockKey="setting" />
                 </label>
@@ -382,7 +381,7 @@ export function ScenarioBuilder({
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-bold text-amber-400">
+                <label className="font-bold text-amber-400 flex items-center">
                   Plot & Scene Premise
                   <BuildingBlockTooltip blockKey="plot" />
                 </label>
@@ -396,7 +395,7 @@ export function ScenarioBuilder({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="font-bold text-amber-400">
+                  <label className="font-bold text-amber-400 flex items-center">
                     Style & Perspective
                     <BuildingBlockTooltip blockKey="style" />
                   </label>
@@ -409,7 +408,7 @@ export function ScenarioBuilder({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-bold text-amber-400">
+                  <label className="font-bold text-amber-400 flex items-center">
                     Narrator Directives
                     <BuildingBlockTooltip blockKey="narrator" />
                   </label>
@@ -423,7 +422,7 @@ export function ScenarioBuilder({
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-bold text-amber-400">
+                <label className="font-bold text-amber-400 flex items-center">
                   History & Backstory
                   <BuildingBlockTooltip blockKey="history" />
                 </label>
@@ -441,7 +440,7 @@ export function ScenarioBuilder({
           {activeTab === 'personas' && (
             <div className="space-y-4 text-xs">
               <div className="flex items-center justify-between">
-                <h3 className="font-bold text-cyan-400 uppercase tracking-wider">
+                <h3 className="font-bold text-cyan-400 uppercase tracking-wider flex items-center">
                   Player Personas
                   <BuildingBlockTooltip blockKey="persona" />
                 </h3>
@@ -504,17 +503,18 @@ export function ScenarioBuilder({
                       className="rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-white"
                     />
                   </div>
-                  <input
-                    type="text"
+
+                  <ImagePickerWithPreview
+                    label="Persona Avatar Portrait"
                     value={p.avatar || ''}
-                    onChange={(e) => {
+                    onChange={(url) => {
                       const updated = [...personas];
-                      updated[idx].avatar = e.target.value;
+                      updated[idx].avatar = url;
                       setPersonas(updated);
                     }}
-                    placeholder="Avatar Image URL (optional)"
-                    className="w-full rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-white"
+                    placeholder="https://... or upload avatar"
                   />
+
                   <textarea
                     value={p.personality}
                     onChange={(e) => {
@@ -534,7 +534,7 @@ export function ScenarioBuilder({
           {activeTab === 'npcs' && (
             <div className="space-y-4 text-xs">
               <div className="flex items-center justify-between">
-                <h3 className="font-bold text-amber-400 uppercase tracking-wider">
+                <h3 className="font-bold text-amber-400 uppercase tracking-wider flex items-center">
                   Scenario NPCs & Companions
                   <BuildingBlockTooltip blockKey="characters" />
                 </h3>
@@ -595,17 +595,18 @@ export function ScenarioBuilder({
                       className="rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-white"
                     />
                   </div>
-                  <input
-                    type="text"
+
+                  <ImagePickerWithPreview
+                    label="NPC Avatar Portrait"
                     value={npc.avatar || ''}
-                    onChange={(e) => {
+                    onChange={(url) => {
                       const updated = [...scenarioNPCs];
-                      updated[idx].avatar = e.target.value;
+                      updated[idx].avatar = url;
                       setScenarioNPCs(updated);
                     }}
-                    placeholder="Avatar Image URL (optional)"
-                    className="w-full rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-white"
+                    placeholder="https://... or upload NPC portrait"
                   />
+
                   <textarea
                     value={npc.personality}
                     onChange={(e) => {
@@ -635,7 +636,7 @@ export function ScenarioBuilder({
           {activeTab === 'locations' && (
             <div className="space-y-4 text-xs">
               <div className="flex items-center justify-between">
-                <h3 className="font-bold text-emerald-400 uppercase tracking-wider">
+                <h3 className="font-bold text-emerald-400 uppercase tracking-wider flex items-center">
                   Grounding Locations
                   <BuildingBlockTooltip blockKey="locations" />
                 </h3>
@@ -698,7 +699,7 @@ export function ScenarioBuilder({
           {activeTab === 'objects' && (
             <div className="space-y-4 text-xs">
               <div className="flex items-center justify-between">
-                <h3 className="font-bold text-purple-400 uppercase tracking-wider">
+                <h3 className="font-bold text-purple-400 uppercase tracking-wider flex items-center">
                   CYOA Custom Objects & Status Rules
                   <BuildingBlockTooltip blockKey="objects" />
                 </h3>
@@ -774,7 +775,7 @@ export function ScenarioBuilder({
           {activeTab === 'notes' && (
             <div className="space-y-4 text-xs">
               <div className="space-y-1.5">
-                <label className="font-bold text-[#38bdf8] flex items-center gap-1.5">
+                <label className="font-bold text-[#38bdf8] flex items-center">
                   Private Author Notes
                   <BuildingBlockTooltip blockKey="privateNotes" />
                 </label>

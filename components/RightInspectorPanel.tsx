@@ -1,9 +1,10 @@
 'use client';
 
 import React from 'react';
-import { WorldBuilding, PersonaTemplate, LocationItem, CustomObject } from '@/lib/scenarios/reader';
+import { WorldBuilding, PersonaTemplate } from '@/lib/scenarios/reader';
 import { BuildingBlockTooltip } from './BuildingBlockTooltip';
-import { X, Sparkles, User, BookOpen, Layers, MapPin, Package, FileText, Plus, Trash2 } from 'lucide-react';
+import { ImagePickerWithPreview } from './ImagePickerWithPreview';
+import { X, Sparkles, User, Plus, Trash2 } from 'lucide-react';
 
 interface RightInspectorPanelProps {
   isOpen: boolean;
@@ -218,12 +219,11 @@ export function RightInspectorPanel({
               className="w-full rounded-xl bg-[#12151e] border border-[#262c3e] p-2.5 text-xs text-white"
             />
 
-            <input
-              type="text"
+            <ImagePickerWithPreview
+              label="Persona Avatar"
               value={persona.avatar || ''}
-              onChange={(e) => onUpdatePersona({ ...persona, avatar: e.target.value })}
-              placeholder="Avatar Image URL"
-              className="w-full rounded-xl bg-[#12151e] border border-[#262c3e] p-2.5 text-xs text-white"
+              onChange={(url) => onUpdatePersona({ ...persona, avatar: url })}
+              placeholder="https://... or upload avatar"
             />
 
             <textarea
@@ -284,17 +284,18 @@ export function RightInspectorPanel({
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <input
-                  type="text"
+
+                <ImagePickerWithPreview
+                  label="NPC Avatar"
                   value={npc.avatar || ''}
-                  onChange={(e) => {
+                  onChange={(url) => {
                     const updated = [...(worldBuilding.scenarioNPCs || [])];
-                    updated[idx].avatar = e.target.value;
+                    updated[idx].avatar = url;
                     onUpdateWorldBuilding({ ...worldBuilding, scenarioNPCs: updated });
                   }}
-                  placeholder="Avatar URL"
-                  className="w-full bg-[#090a0f] p-1.5 rounded text-[11px] text-white"
+                  placeholder="https://... or upload portrait"
                 />
+
                 <textarea
                   value={npc.personality}
                   onChange={(e) => {

@@ -95,7 +95,7 @@ export const BUILDING_BLOCK_GUIDANCE: Record<BuildingBlockType, BuildingBlockInf
     title: '12. Images & Cover Art',
     description: 'Visual media assets for cover art and scene backgrounds.',
     aiImpact: 'Enhances visual UI immersion for cards and background rendering.',
-    formattingTip: 'Provide URL or local file path to hero art assets.',
+    formattingTip: 'Provide URL or upload local image file (PNG, JPEG, WebP, GIF).',
   },
 };
 
@@ -105,16 +105,34 @@ interface TooltipProps {
 
 export function BuildingBlockTooltip({ blockKey }: TooltipProps) {
   const [isOpen, setIsOpen] = React.useState(false);
+  const leaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const info = BUILDING_BLOCK_GUIDANCE[blockKey];
 
   if (!info) return null;
 
+  const handleMouseEnter = () => {
+    if (leaveTimerRef.current) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+    setIsOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    leaveTimerRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 180); // 180ms smooth leave delay preventing accidental close flicker
+  };
+
   return (
-    <div className="relative inline-block ml-1.5 align-middle">
+    <div
+      className="relative inline-block ml-1.5 align-middle"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        onMouseEnter={() => setIsOpen(true)}
         className="p-0.5 rounded-full text-slate-400 hover:text-amber-400 transition-colors focus:outline-none"
         title="View Building Block Guidance"
       >
@@ -122,14 +140,21 @@ export function BuildingBlockTooltip({ blockKey }: TooltipProps) {
       </button>
 
       {isOpen && (
-        <div className="absolute left-6 top-0 z-50 w-72 p-3.5 rounded-xl bg-[#191d29] border border-[#2a3142] shadow-2xl text-xs space-y-2 font-normal text-left">
+        <div
+          className="absolute left-6 top-0 z-50 w-72 p-3.5 rounded-xl bg-[#191d29] border border-[#2a3142] shadow-2xl text-xs space-y-2 font-normal text-left"
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
           <div className="flex items-center justify-between border-b border-[#262c3e] pb-1.5 font-bold text-amber-400">
             <div className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
               <span>{info.title}</span>
             </div>
             <button
-              onClick={() => setIsOpen(false)}
+              onClick={() => {
+                if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+                setIsOpen(false);
+              }}
               className="text-slate-400 hover:text-white"
             >
               <X className="w-3.5 h-3.5" />
