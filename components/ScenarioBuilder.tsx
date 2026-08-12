@@ -77,51 +77,30 @@ export function ScenarioBuilder({
       setTitle('');
       setDescription('');
       setCategory('High Fantasy');
-      setTagsStr('Fantasy, CYOA');
+      setTagsStr('');
       setCoverImage('');
 
-      setSetting('Eldoria is a dark fantasy world shrouded in twilight...');
-      setPlot('Infiltrate the Obsidian Citadel vault to recover the Sunstone.');
-      setStyle('Atmospheric, 2nd-person roleplay prose.');
-      setNarrator('Act as an experienced RPG Game Master.');
+      setSetting('');
+      setPlot('');
+      setStyle('Atmospheric, evocative roleplay prose. 2nd-person present POV.');
+      setNarrator('Act as an interactive RPG Game Master. Maintain tension and react dynamically to player choices.');
+      setOpeningMessage('');
       setHistory('');
       setPrivateNotes('');
 
       setPersonas([
         {
-          id: 'valerius',
-          name: 'Valerius',
-          tagline: 'The Shadow Infiltrator',
-          personality: 'Perceptive rogue specializing in shadow magic.',
-          avatar: '/assets/avatars/valerius.png',
+          id: `persona-${Date.now()}`,
+          name: 'Hero',
+          tagline: 'Protagonist',
+          personality: 'Brave and observant player character.',
+          avatar: '',
           firstMessage: '',
         },
       ]);
-      setScenarioNPCs([
-        {
-          id: 'aria',
-          name: 'Aria Shadowstep',
-          tagline: 'Master Scout of the Silverveil Guild',
-          personality: 'Quick-witted scout companion.',
-          avatar: '/assets/avatars/aria.png',
-          firstMessage: '"Keep your voice down," Aria whispers.',
-        },
-      ]);
-      setLocations([
-        {
-          id: 'citadel_vault',
-          name: 'The Obsidian Citadel Vault',
-          description: 'A fortified underground vault with glowing runes and iron gates.',
-        },
-      ]);
-      setObjects([
-        {
-          id: 'sunstone',
-          name: 'Sunstone Relic',
-          description: 'Glowing rune stone emitting warm thermal magic.',
-          trigger_rule: 'When held, illuminates dark areas but draws shadow specters.',
-        },
-      ]);
+      setScenarioNPCs([]);
+      setLocations([]);
+      setObjects([]);
       setExamples([]);
     }
   }, [initialScenario, isOpen]);

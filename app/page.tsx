@@ -673,6 +673,7 @@ export default function Home() {
       />
 
       <ScenarioBuilder
+        key={builderInitialScenario ? builderInitialScenario.meta.id : 'create-new-scenario'}
         isOpen={isBuilderOpen}
         onClose={() => setIsBuilderOpen(false)}
         initialScenario={builderInitialScenario}
