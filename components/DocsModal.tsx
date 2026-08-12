@@ -13,7 +13,10 @@ import {
   ShieldCheck,
   Sparkles,
   ChevronRight,
-  ExternalLink,
+  ChevronDown,
+  Info,
+  CheckCircle,
+  HelpCircle,
 } from 'lucide-react';
 
 interface DocsSection {
@@ -33,6 +36,130 @@ interface DocsModalProps {
 export function DocsModal({ isOpen, onClose }: DocsModalProps) {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [activeSectionId, setActiveSectionId] = React.useState('overview');
+  const [expandedBlockId, setExpandedBlockId] = React.useState<number | null>(11);
+
+  const blockAccordions = [
+    {
+      id: 1,
+      name: '1. Meta & Scenario Title',
+      badge: 'Identity',
+      color: 'text-amber-400 border-amber-500/30',
+      summary: 'Sets the scenario title, category, description, and cover artwork.',
+      explanation: 'Defines the top-level identity of your story world in the catalog and prompt headers.',
+      guidelines: 'Use distinct, evocative titles and precise tags (e.g. "Cyberpunk", "Anime", "Dark Fantasy").',
+      example: 'Title: "Naruto: Hidden Leaf Era" | Category: "Anime Fantasy" | Tags: ["Ninja", "Action", "CYOA"]',
+    },
+    {
+      id: 2,
+      name: '2. Setting & Worldbuilding',
+      badge: 'Lore',
+      color: 'text-cyan-400 border-cyan-500/30',
+      summary: 'Establishes physical laws, magic systems, technology tier, and factions.',
+      explanation: 'Provides the foundational rules of reality that the AI must respect throughout all narrative turns.',
+      guidelines: 'State hard rules clearly. Define magic limits, technological limits, and political climate.',
+      example: '"Konohagakure village under the Third Hokage. Shinobi manipulate chakra channels to cast ninjutsu. Chakra is finite and requires stamina."',
+    },
+    {
+      id: 3,
+      name: '3. Plot & Scene Premise',
+      badge: 'Objectives',
+      color: 'text-purple-400 border-purple-500/30',
+      summary: 'Defines active plot hooks, immediate objectives, and main conflicts.',
+      explanation: 'Guides the AI narrator on what the current scene is about and what stakes are at play.',
+      guidelines: 'Focus on active tension and immediate goals. Avoid resolving the outcome beforehand.',
+      example: '"Investigate reports of rogue ninjas lurking near the Anbu scroll archives before dawn."',
+    },
+    {
+      id: 4,
+      name: '4. Style & Perspective',
+      badge: 'Prose Style',
+      color: 'text-emerald-400 border-emerald-500/30',
+      summary: 'Controls narrative voice, POV (2nd/3rd person), prose pacing, and sensory depth.',
+      explanation: 'Directs how the AI formats text, describes action, and maintains narrative mood.',
+      guidelines: 'Be specific about perspective (e.g. "Use 2nd-person present POV: You move through the shadows").',
+      example: '"Fast-paced, cinematic action prose. 2nd-person present POV. Emphasize sound and motion."',
+    },
+    {
+      id: 5,
+      name: '5. Narrator Directives',
+      badge: 'GM Rules',
+      color: 'text-amber-400 border-amber-500/30',
+      summary: 'Provides instructions for the AI Game Master on turn pacing and scene boundaries.',
+      explanation: 'Acts as system instructions telling the AI how to behave as a game master.',
+      guidelines: 'Instruct the AI to end turns after environmental reactions, prompting player choice.',
+      example: '"Act as a reactive Game Master. Describe sensory consequences, then prompt the player for their next move."',
+    },
+    {
+      id: 6,
+      name: '6. History & Backstory',
+      badge: 'Timeline',
+      color: 'text-sky-400 border-sky-500/30',
+      summary: 'Tracks prior chapter outcomes, past events, and immediate pre-scene lore.',
+      explanation: 'Provides chronological context so the AI remembers events that occurred before the current turn.',
+      guidelines: 'Summarize past events in clear bullet points or short paragraphs.',
+      example: '"12 years ago, the Nine-Tails attacked Konoha. Yesterday, Team 7 graduated from the Academy."',
+    },
+    {
+      id: 7,
+      name: '7. Player Personas',
+      badge: 'Protagonist',
+      color: 'text-rose-400 border-rose-500/30',
+      summary: 'Character profile for the active player protagonist (traits, appearance, gear).',
+      explanation: 'Informs the AI who the player character is, how they speak, and what abilities they possess.',
+      guidelines: 'Include distinctive traits, speech quirks, and active equipment.',
+      example: 'Name: "Naruto Uzumaki" | Traits: "Loud, determined, fierce loyalty, wields Shadow Clone Jutsu."',
+    },
+    {
+      id: 8,
+      name: '8. Scenario NPCs & Companions',
+      badge: 'Characters',
+      color: 'text-indigo-400 border-indigo-500/30',
+      summary: 'Catalog of secondary characters and companions that the AI can portray.',
+      explanation: 'Gives individual profiles and voice guidelines for non-player characters in the scene.',
+      guidelines: 'Define clear speech patterns, motivation, and opening dialogue lines for each NPC.',
+      example: 'Name: "Kakashi Hatake" | Speech: "Laid-back, polite, reading Make-Out Paradise." | First Line: \'"Sorry I\'m late, a black cat crossed my path."\'',
+    },
+    {
+      id: 9,
+      name: '9. Grounding Locations',
+      badge: 'Environment',
+      color: 'text-emerald-400 border-emerald-500/30',
+      summary: 'Environmental features, spatial architecture, lighting, and ambient cues.',
+      explanation: 'Anchors scenes in physical space so characters don\'t float in generic voids.',
+      guidelines: 'Include sensory details (smell of rain, flickering torches, echoing footsteps).',
+      example: 'Name: "Hokage Archives" | Details: "Dusty scroll shelves, faint ink smell, moonlit stained-glass windows."',
+    },
+    {
+      id: 10,
+      name: '10. CYOA Custom Objects & Rules',
+      badge: 'Mechanics',
+      color: 'text-purple-400 border-purple-500/30',
+      summary: 'Inventory items, status rules, and conditional mechanics active in gameplay.',
+      explanation: 'Defines reactive items or rules that trigger narrative changes when used.',
+      guidelines: 'Specify item description and trigger rule (e.g. "Equipping Kunai enables combat actions").',
+      example: 'Name: "Scroll of Seals" | Rule: "Unlocks forbidden Multi-Shadow Clone technique when opened."',
+    },
+    {
+      id: 11,
+      name: '11. Reference Examples (Few-Shot Learning)',
+      badge: 'Few-Shot',
+      color: 'text-cyan-400 border-cyan-500/30',
+      summary: 'Multi-turn sample dialogues demonstrating desired response formatting, tone, and pacing.',
+      explanation: 'Few-shot examples teach the AI by showing, not telling. By providing sample turns in Block 11, the AI mirrors the exact formatting, tone, and pacing of your examples.',
+      guidelines: 'Provide 1-3 high-quality turn interactions demonstrating the exact prose depth and dialogue formatting you want.',
+      example: 'User: "[Action]: I inspect the glowing seal on the vault door."\nModel: "*The paper talisman sizzles with blue chakra as your fingertips touch the wax boundary.* \\"Be careful, Naruto,\\" Kakashi warns from the shadows."',
+    },
+    {
+      id: 12,
+      name: '12. Private Author Notes',
+      badge: 'Local Scratchpad',
+      color: 'text-slate-400 border-slate-500/30',
+      summary: 'Author scratchpad for secret plot outlines, solution hints, and draft ideas.',
+      explanation: 'Keeps private notes 100% local. This block is strictly hidden from AI API requests.',
+      guidelines: 'Use freely for personal outlines — it will never be sent in prompts.',
+      example: '"Secret Outline: The imposter ninja is actually Kabuto in disguise."',
+    },
+  ];
 
   const sections: DocsSection[] = [
     {
@@ -55,7 +182,7 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
 
           <h3 className="text-sm font-bold text-white border-b border-[#242c3f] pb-2">What Makes DreamWeaver Different?</h3>
           <p>
-            Standard chat AI applications (like generic ChatGPT interfaces) treat interactions as unstructured message streams. As conversations grow longer, the AI forgets character traits, world rules, and narrative constraints.
+            Standard chat AI applications treat interactions as unstructured message streams. As conversations grow longer, generic AI forgets character traits, world rules, and narrative constraints.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
@@ -87,126 +214,191 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
       title: '2. The 12 Building Blocks Engine',
       category: 'Worldbuilding',
       icon: Layers,
-      keywords: ['building blocks', 'setting', 'plot', 'style', 'narrator', 'history', 'personas', 'objects', 'locations', 'examples', 'private notes'],
+      keywords: ['building blocks', 'setting', 'plot', 'style', 'narrator', 'history', 'personas', 'objects', 'locations', 'examples', 'few-shot', 'private notes'],
       content: (
         <div className="space-y-5 text-slate-300 leading-relaxed text-xs">
-          <h3 className="text-sm font-bold text-white border-b border-[#242c3f] pb-2">The 12 Narrative Building Blocks</h3>
+          <h3 className="text-sm font-bold text-white border-b border-[#242c3f] pb-2">The 12 Narrative Building Blocks (Interactive Guide)</h3>
           <p>
-            DreamWeaver compiles 12 specialized blocks into a cohesive prompt architecture before every AI generation turn:
+            DreamWeaver compiles 12 specialized blocks into a cohesive prompt architecture before every AI turn. Click any block below to expand detailed writing guidelines and concrete examples:
           </p>
 
-          <div className="space-y-3 font-mono text-[11px]">
-            <div className="p-3 rounded-lg bg-[#090a0f] border border-[#242b3d] space-y-1">
-              <div className="text-amber-400 font-bold">1. Scenario Meta (Title & Description)</div>
-              <div className="text-slate-400">High-level identity, genre categories, and cover artwork context.</div>
-            </div>
+          {/* Interactive Accordion List */}
+          <div className="space-y-3 pt-1">
+            {blockAccordions.map((block) => {
+              const isExpanded = expandedBlockId === block.id;
+              return (
+                <div
+                  key={block.id}
+                  className={`rounded-xl border transition-all overflow-hidden ${
+                    isExpanded
+                      ? 'bg-[#121624] border-sky-500/50 shadow-lg'
+                      : 'bg-[#090a0f] border-[#242b3d] hover:border-[#38435e]'
+                  }`}
+                >
+                  {/* Accordion Header Bar */}
+                  <button
+                    type="button"
+                    onClick={() => setExpandedBlockId(isExpanded ? null : block.id)}
+                    className="w-full flex items-center justify-between p-3 text-left cursor-pointer select-none"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${block.color}`}>
+                        {block.badge}
+                      </span>
+                      <span className="font-bold text-white text-xs">{block.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-400">
+                      <span className="text-[11px] hidden sm:inline text-slate-400">{block.summary}</span>
+                      {isExpanded ? <ChevronDown className="w-4 h-4 text-sky-400" /> : <ChevronRight className="w-4 h-4" />}
+                    </div>
+                  </button>
 
-            <div className="p-3 rounded-lg bg-[#090a0f] border border-[#242b3d] space-y-1">
-              <div className="text-cyan-400 font-bold">2. Setting & Worldbuilding</div>
-              <div className="text-slate-400">Lore rules, magic systems, technology level, factions, and physical environment.</div>
-            </div>
+                  {/* Accordion Content Body */}
+                  {isExpanded && (
+                    <div className="p-4 border-t border-[#1f2430] space-y-4 bg-[#0a0c14] text-xs">
+                      {/* Plain English Explanation */}
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-sky-300 flex items-center gap-1.5">
+                          <Info className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                          <span>What This Block Controls</span>
+                        </h4>
+                        <p className="text-slate-300 leading-relaxed text-[11px]">
+                          {block.explanation}
+                        </p>
+                      </div>
 
-            <div className="p-3 rounded-lg bg-[#090a0f] border border-[#242b3d] space-y-1">
-              <div className="text-purple-400 font-bold">3. Plot & Scene Premise</div>
-              <div className="text-slate-400">Immediate objectives, plot hooks, active conflicts, and narrative directives.</div>
-            </div>
+                      {/* Writing Guidelines */}
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-amber-300 flex items-center gap-1.5">
+                          <CheckCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>Best Practices & Writing Guidelines</span>
+                        </h4>
+                        <p className="text-slate-300 leading-relaxed text-[11px]">
+                          {block.guidelines}
+                        </p>
+                      </div>
 
-            <div className="p-3 rounded-lg bg-[#090a0f] border border-[#242b3d] space-y-1">
-              <div className="text-emerald-400 font-bold">4. Style & Perspective</div>
-              <div className="text-slate-400">Writing voice guidelines (e.g. "2nd-person present POV, evocative prose").</div>
-            </div>
+                      {/* Deep-Dive Highlight for Block 11 (Few-Shot Examples) */}
+                      {block.id === 11 && (
+                        <div className="p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-200 space-y-3">
+                          <h4 className="font-bold text-xs text-cyan-300 flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-cyan-400" />
+                            Deep-Dive: How Few-Shot Learning Shapes AI Quality
+                          </h4>
+                          <p className="text-[11px] leading-relaxed">
+                            <strong>Few-Shot Prompting</strong> in plain English means <em>"teaching the AI by showing, not telling."</em> By providing 1-3 sample dialogues in Block 11, the AI mirrors your exact dialogue tags, action beat formatting, and narrative pacing!
+                          </p>
 
-            <div className="p-3 rounded-lg bg-[#090a0f] border border-[#242b3d] space-y-1">
-              <div className="text-amber-400 font-bold">5. Narrator Directives</div>
-              <div className="text-slate-400">Game Master rules (e.g. "Describe sensory details, prompt for player actions").</div>
-            </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-[11px]">
+                            <div className="p-3 rounded-lg bg-[#090a0f] border border-rose-500/30 space-y-1">
+                              <span className="text-rose-400 font-bold uppercase text-[10px]">Without Block 11 (Standard Prompt)</span>
+                              <p className="text-slate-400 italic">
+                                "Naruto looks around the archives. He sees old scrolls on the shelf and wonders what Kakashi will do next."
+                              </p>
+                            </div>
 
-            <div className="p-3 rounded-lg bg-[#090a0f] border border-[#242b3d] space-y-1">
-              <div className="text-sky-400 font-bold">6. History & Backstory</div>
-              <div className="text-slate-400">Recap of past chapters, immediate backstory, and previous events.</div>
-            </div>
+                            <div className="p-3 rounded-lg bg-[#090a0f] border border-emerald-500/30 space-y-1">
+                              <span className="text-emerald-400 font-bold uppercase text-[10px]">With Block 11 (Few-Shot Guided)</span>
+                              <p className="text-emerald-200/90 font-mono">
+                                *The paper talisman sizzles with blue chakra.* "Be careful, Naruto," Kakashi warns from the shadows.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
-            <div className="p-3 rounded-lg bg-[#090a0f] border border-[#242b3d] space-y-1">
-              <div className="text-rose-400 font-bold">7. Player Personas</div>
-              <div className="text-slate-400">Character profile of the active protagonist (traits, appearance, equipment).</div>
-            </div>
-
-            <div className="p-3 rounded-lg bg-[#090a0f] border border-[#242b3d] space-y-1">
-              <div className="text-indigo-400 font-bold">8. Scenario NPCs & Companions</div>
-              <div className="text-slate-400">Full profiles and opening dialogue lines for secondary characters.</div>
-            </div>
-
-            <div className="p-3 rounded-lg bg-[#090a0f] border border-[#242b3d] space-y-1">
-              <div className="text-emerald-400 font-bold">9. Grounding Locations</div>
-              <div className="text-slate-400">Architectural features, climate, entry points, and spatial landmarks.</div>
-            </div>
-
-            <div className="p-3 rounded-lg bg-[#090a0f] border border-[#242b3d] space-y-1">
-              <div className="text-purple-400 font-bold">10. CYOA Custom Objects</div>
-              <div className="text-slate-400">Items, status effects, and trigger mechanics active during gameplay.</div>
-            </div>
-
-            <div className="p-3 rounded-lg bg-[#090a0f] border border-[#242b3d] space-y-1">
-              <div className="text-cyan-400 font-bold">11. Reference Examples (Few-Shot)</div>
-              <div className="text-slate-400">Multi-turn dialogue samples demonstrating desired response formatting.</div>
-            </div>
-
-            <div className="p-3 rounded-lg bg-[#090a0f] border border-[#242b3d] space-y-1">
-              <div className="text-slate-400 font-bold">12. Private Notes</div>
-              <div className="text-slate-400">Author outlines kept strictly local and never sent in AI prompts.</div>
-            </div>
+                      {/* Concrete Example */}
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-slate-300">Concrete Sample Payload</h4>
+                        <pre className="p-3 rounded-lg bg-[#05060a] border border-[#1f2430] font-mono text-[10px] text-amber-300/90 whitespace-pre-wrap leading-relaxed">
+                          {block.example}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       ),
     },
     {
       id: 'commands',
-      title: '3. System Commands Reference',
+      title: '3. Scenario Commands & Scripting (Optional)',
       category: 'Gameplay & Controls',
       icon: Terminal,
-      keywords: ['commands', 'slash commands', '/start', '/summon', '/random', 'continue', 'turn controls'],
+      keywords: ['commands', 'slash commands', '/start', '/summon', '/random', 'continue', 'turn controls', 'scripting'],
       content: (
         <div className="space-y-5 text-slate-300 leading-relaxed text-xs">
-          <h3 className="text-sm font-bold text-white border-b border-[#242c3f] pb-2">Slash Commands & Control Dock</h3>
+          <h3 className="text-sm font-bold text-white border-b border-[#242c3f] pb-2">Control Dock Actions vs Optional Scenario Scripts</h3>
 
-          <div className="space-y-4">
-            <div className="p-4 rounded-xl bg-[#090a0f] border border-[#242b3d] space-y-2">
+          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 space-y-1.5">
+            <h4 className="font-bold text-xs flex items-center gap-2 text-amber-400">
+              <HelpCircle className="w-4 h-4" />
+              Core Engine Features vs Optional Scenario Scripts
+            </h4>
+            <p className="text-[11px] leading-relaxed">
+              Slash commands like <code className="text-amber-300">/Start</code>, <code className="text-amber-300">/summon</code>, and <code className="text-amber-300">/Random</code> are <strong>Optional Scenario-Level Scripts</strong> defined inside <em>Narrator Directives</em>. They are primarily used in dynamic sandbox scenarios (e.g., "The Chat: Summon Anyone"). Standard stories rely on built-in Control Dock features.
+            </p>
+          </div>
+
+          {/* Section 1: Built-in Core Engine Features */}
+          <div className="space-y-3">
+            <h4 className="font-bold text-white uppercase tracking-wider text-[11px] text-sky-400">1. Built-in Core Control Dock Actions</h4>
+
+            <div className="p-3.5 rounded-xl bg-[#090a0f] border border-[#242b3d] space-y-1">
               <div className="flex items-center gap-2">
-                <code className="px-2 py-1 rounded bg-amber-500/20 text-amber-300 font-mono font-bold">/Start</code>
-                <span className="text-slate-400 font-medium">— Trigger Initial Prologue</span>
+                <span className="font-bold text-cyan-400">Turn Selector Dropdown</span>
+                <span className="text-[10px] text-slate-400">(Player / Narrator / NPC)</span>
               </div>
-              <p className="text-slate-300">
-                Generates the opening scene based on the active scenario setting, opening message, and persona.
+              <p className="text-slate-300 text-[11px]">
+                Explicitly attributes who is taking action in the turn. The AI will strictly format its output matching the selected speaker's perspective.
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-[#090a0f] border border-[#242b3d] space-y-2">
+            <div className="p-3.5 rounded-xl bg-[#090a0f] border border-[#242b3d] space-y-1">
               <div className="flex items-center gap-2">
-                <code className="px-2 py-1 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">/summon [Character Name]</code>
-                <span className="text-slate-400 font-medium">— Summon NPC into Scene</span>
+                <span className="font-bold text-emerald-400">Continue Button (▶)</span>
+                <span className="text-[10px] text-slate-400">(Pacing Advance)</span>
               </div>
-              <p className="text-slate-300">
-                Dynamically introduces an NPC into the narrative. Example: <code className="text-cyan-300">/summon Kakashi Hatake</code> will switch the turn selector to Kakashi and generate their entering dialogue.
+              <p className="text-slate-300 text-[11px]">
+                Advances narrative time without requiring user text input. Perfect when you want the AI narrator to continue describing the scene.
+              </p>
+            </div>
+          </div>
+
+          {/* Section 2: Optional Scenario Scripts */}
+          <div className="space-y-3 pt-2">
+            <h4 className="font-bold text-white uppercase tracking-wider text-[11px] text-amber-400">2. Optional Scenario-Level Slash Commands</h4>
+
+            <div className="p-3.5 rounded-xl bg-[#090a0f] border border-[#242b3d] space-y-1.5">
+              <div className="flex items-center gap-2">
+                <code className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold text-[11px]">/Start</code>
+                <span className="text-slate-400 text-[11px]">— Triggers Prologue Generator</span>
+              </div>
+              <p className="text-slate-300 text-[11px]">
+                Optional scenario script that launches the initial opening scene based on scenario settings and personas.
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-[#090a0f] border border-[#242b3d] space-y-2">
+            <div className="p-3.5 rounded-xl bg-[#090a0f] border border-[#242b3d] space-y-1.5">
               <div className="flex items-center gap-2">
-                <code className="px-2 py-1 rounded bg-purple-500/20 text-purple-300 font-mono font-bold">/Random + [guidance]</code>
-                <span className="text-slate-400 font-medium">— Procedural Story Event</span>
+                <code className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold text-[11px]">/summon [Name]</code>
+                <span className="text-slate-400 text-[11px]">— Dynamic Character Summon</span>
               </div>
-              <p className="text-slate-300">
-                Triggers a randomized twist or encounter guided by your prompt string.
+              <p className="text-slate-300 text-[11px]">
+                Optional scenario script to introduce any character into sandbox scenes (e.g. <code className="text-cyan-300">/summon Kakashi Hatake</code>).
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-[#090a0f] border border-[#242b3d] space-y-2">
+            <div className="p-3.5 rounded-xl bg-[#090a0f] border border-[#242b3d] space-y-1.5">
               <div className="flex items-center gap-2">
-                <code className="px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">Continue Button (▶)</code>
-                <span className="text-slate-400 font-medium">— Advance Story Pacing</span>
+                <code className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono font-bold text-[11px]">/Random + [guidance]</code>
+                <span className="text-slate-400 text-[11px]">— Randomized Twist Script</span>
               </div>
-              <p className="text-slate-300">
-                Sends a continuation turn to the AI model without requiring user text input.
+              <p className="text-slate-300 text-[11px]">
+                Optional scenario trigger to roll random encounters or plot twists.
               </p>
             </div>
           </div>
