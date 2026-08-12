@@ -38,6 +38,7 @@ export interface WorldBuilding {
   plot: string;
   style: string;
   narrator: string;
+  openingMessage?: string;
   history?: string;
   privateNotes?: string;
   objects: CustomObject[];
@@ -163,6 +164,7 @@ export async function loadScenarioById(
         plot: wbJson.plot || '',
         style: wbJson.style || 'Atmospheric, evocative prose.',
         narrator: wbJson.narrator || 'Act as an interactive RPG Game Master.',
+        openingMessage: wbJson.openingMessage || '',
         history: wbJson.history || '',
         privateNotes: wbJson.privateNotes || '',
         objects: Array.isArray(wbJson.objects) ? wbJson.objects : [],

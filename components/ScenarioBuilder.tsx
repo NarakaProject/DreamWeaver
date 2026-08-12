@@ -36,6 +36,7 @@ export function ScenarioBuilder({
   const [plot, setPlot] = React.useState('');
   const [style, setStyle] = React.useState('');
   const [narrator, setNarrator] = React.useState('');
+  const [openingMessage, setOpeningMessage] = React.useState('');
   const [history, setHistory] = React.useState('');
   const [privateNotes, setPrivateNotes] = React.useState('');
 
@@ -62,6 +63,7 @@ export function ScenarioBuilder({
       setPlot(initialScenario.worldBuilding.plot || '');
       setStyle(initialScenario.worldBuilding.style || '');
       setNarrator(initialScenario.worldBuilding.narrator || '');
+      setOpeningMessage(initialScenario.worldBuilding.openingMessage || '');
       setHistory(initialScenario.worldBuilding.history || '');
       setPrivateNotes(initialScenario.worldBuilding.privateNotes || '');
 
@@ -150,6 +152,7 @@ export function ScenarioBuilder({
         plot,
         style,
         narrator,
+        openingMessage,
         history,
         privateNotes,
         objects,
@@ -367,6 +370,22 @@ export function ScenarioBuilder({
           {/* TAB 2: NARRATIVE LORE & RULES */}
           {activeTab === 'narrative' && (
             <div className="space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="font-bold text-amber-400 flex items-center">
+                  Scenario Opening Narration / Prologue
+                  <BuildingBlockTooltip blockKey="history" />
+                </label>
+                <p className="text-[11px] text-slate-400">
+                  Atmospheric opening prologue introducing setting, backstory, and immediate call to action. Supports <code className="text-amber-300">{"{{user}}"}</code> placeholder.
+                </p>
+                <textarea
+                  value={openingMessage}
+                  onChange={(e) => setOpeningMessage(e.target.value)}
+                  placeholder="*Centuries ago, the Obsidian Spire cracked open...* (Use {{user}} for player name)"
+                  className="w-full h-32 rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500 resize-none font-mono"
+                />
+              </div>
+
               <div className="space-y-1.5">
                 <label className="font-bold text-amber-400 flex items-center">
                   Setting & Worldbuilding

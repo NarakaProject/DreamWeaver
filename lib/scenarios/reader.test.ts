@@ -35,6 +35,7 @@ describe('Scenario Reader & 12 Building Blocks (lib/scenarios/reader.ts)', () =>
         plot: 'Retrieve the encrypted datachip.',
         style: 'Gritty, fast-paced 2nd-person cyberpunk dialogue.',
         narrator: 'Act as a Cyberpunk Game Master.',
+        openingMessage: '*Night City glows under neon rain as {{user}} steps onto the subfloor.*',
         history: 'Yesterday the netrunner infiltrated squad 4.',
         privateNotes: 'SECRET: Trap inside the server room.',
         locations: [
@@ -90,6 +91,7 @@ describe('Scenario Reader & 12 Building Blocks (lib/scenarios/reader.ts)', () =>
 
     expect(loaded).not.toBeNull();
     expect(loaded?.meta.title).toBe('Cyberpunk Heist 2077');
+    expect(loaded?.worldBuilding.openingMessage).toContain('Night City glows');
     expect(loaded?.worldBuilding.history).toContain('infiltrated squad 4');
     expect(loaded?.worldBuilding.privateNotes).toContain('Trap inside the server room');
     expect(loaded?.worldBuilding.locations).toHaveLength(1);

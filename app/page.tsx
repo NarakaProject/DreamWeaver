@@ -208,16 +208,28 @@ export default function Home() {
       body: JSON.stringify({ action: 'saveSession', session: newSession }),
     });
 
-    const primaryNPC =
-      (scenario.worldBuilding.scenarioNPCs && scenario.worldBuilding.scenarioNPCs.length > 0)
-        ? scenario.worldBuilding.scenarioNPCs[0]
-        : scenario.suggestedPersonas.find((p) => p.id !== persona.id);
+    let initialSpeaker = 'Narrator';
+    let rawOpening = scenario.worldBuilding.openingMessage;
 
-    const initialSpeaker = primaryNPC ? primaryNPC.name : 'Aria Shadowstep';
-    const initialContent =
-      primaryNPC?.firstMessage ||
-      persona.firstMessage ||
-      `*The scene opens as ${persona.name} arrives.*`;
+    if (!rawOpening || !rawOpening.trim()) {
+      const primaryNPC = scenario.worldBuilding.scenarioNPCs?.[0];
+      if (primaryNPC?.firstMessage) {
+        rawOpening = primaryNPC.firstMessage;
+        initialSpeaker = primaryNPC.name;
+      } else if (persona.firstMessage) {
+        rawOpening = persona.firstMessage;
+        initialSpeaker = persona.name;
+      } else {
+        rawOpening = `*The story begins as ${persona.name} enters the scene.*`;
+        initialSpeaker = 'Narrator';
+      }
+    }
+
+    // Interpolate {{user}}, {{persona}}, {{USER}}, {{USER_PERSONA_NAME}} placeholders with persona.name
+    const initialContent = rawOpening.replace(
+      /\{\{(user|persona|USER|USER_PERSONA_NAME)\}\}/gi,
+      persona.name
+    );
 
     const initialMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
