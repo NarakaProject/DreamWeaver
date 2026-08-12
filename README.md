@@ -25,7 +25,20 @@ Unlike standard unstructured chat interfaces that quickly forget character trait
 
 ---
 
-### ⚡ 2. Multi-Provider AI Routing & Rate Limit Fallback
+### 🧠 2. Episodic Long-Term Memory (ELTM) Engine & Memory Vault
+- **Local Keyword Relevance Search**: Tokenizes queries (filtering stop words) and performs TF-IDF relevance scoring to retrieve past turns matching specific entities, locations, or items.
+- **Background Auto-Summarizer Engine**: Periodically compresses blocks of 15 turns into permanent background lore checkpoints.
+- **Dynamic Context Injection**: Automatically injects relevant past memories into Block 6 (History & Backstory) before every AI prompt turn:
+  ```markdown
+  ### RELEVANT RETRIEVED MEMORIES FROM PAST EVENTS:
+  - [Turn 2] (Naruto): "I showed Kakashi a strange wooden trinket found in the forest."
+  - [Turn 42] (Muzan): "Muzan mentioned a secret passage beneath the Konoha library."
+  ```
+- **Live Memory Inspector**: View indexed facts, run real-time searches, or manually inject custom permanent lore facts.
+
+---
+
+### ⚡ 3. Multi-Provider AI Routing & Rate Limit Fallback
 - **Supported Providers**:
   - **Google Gemini**: Default engine supporting `gemini-2.5-flash` and `gemini-2.5-pro`.
   - **Groq Cloud**: Ultra-fast inference running `Llama 3.3 70B` and `Mixtral 8x7b`.
@@ -35,25 +48,26 @@ Unlike standard unstructured chat interfaces that quickly forget character trait
 
 ---
 
-### 📥 3. Deep Schema World-Gen JSON Importer
+### 📥 4. Deep Schema World-Gen JSON Importer
 - **Universal Importer Modal**: Drag-and-drop `.json` file upload or raw text paste.
 - **Deep Schema Extraction**: Recursively parses 3rd-party nested JSON files (World-Gen and DreamGen schemas) into native 12-block scenarios, extracting player personas, NPC companions, and world lore.
 
 ---
 
-### 🎭 4. Turn Dynamics & Speaker Identity Engine
+### 🎭 5. Turn Dynamics & Speaker Identity Engine
 - **Explicit Speaker Attribution**: Attributes turns to `Player Persona`, `Narrator`, or specific `NPC Companions`.
 - **Automatic Turn Auto-Switching**: When an NPC stream finishes generating, the turn selector automatically resets back to your player persona.
 
 ---
 
-### 💾 5. 100% Local Storage & Session Persistence
-- **Zero Cloud Lock-in**: All scenario files, session logs, and message histories are saved to local SQLite/IndexedDB storage (`/data/scenarios/` & `/data/app.db`).
-- **`F5` Refresh & Restart Safety**: Active session state is synchronized with `localStorage` (`dreamweaver_active_session_id`), automatically restoring your story upon browser refresh.
+### 💾 6. 100% Persistent Local Storage & Database Safety
+- **Native SQLite Persistence**: Sessions, chat turns, and ELTM memories are stored permanently in `./data/app.db` via `better-sqlite3`.
+- **Server External Package Configuration**: Configured with `serverExternalPackages: ['better-sqlite3', '@libsql/client']` in `next.config.ts`, ensuring the database engine never falls back to temporary in-memory instances upon server restart or force refresh (`F5`).
+- **Session Auto-Restore**: Active session state is synchronized with `localStorage` (`dreamweaver_active_session_id`), automatically restoring your story upon browser refresh.
 
 ---
 
-### 📖 6. Embedded GitBook Documentation Center
+### 📖 7. Embedded GitBook Documentation Center
 - Embedded 7-section user manual with real-time text search, interactive 12-block accordions, deep-dive Few-Shot guidelines, and system commands guide.
 
 ---
@@ -113,7 +127,7 @@ DreamWeaver stores scenario files in `./data/scenarios/` and local session datab
 
 ## 🧪 Running Tests
 
-DreamWeaver includes a comprehensive Vitest unit test suite covering AI prompt compilation, multi-provider routing, JSON schema importing, and database persistence:
+DreamWeaver includes a comprehensive Vitest unit test suite covering AI prompt compilation, multi-provider routing, ELTM memory search, JSON schema importing, and database persistence:
 
 ```bash
 # Run Vitest unit tests once

@@ -33,11 +33,11 @@ export interface DbMemory {
 }
 
 // Ensure data directory exists
-const dbDir = path.join(process.cwd(), 'data');
+const dbDir = path.resolve(process.cwd(), 'data');
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
-const dbPath = path.join(dbDir, 'app.db');
+const dbPath = path.resolve(dbDir, 'app.db');
 
 interface DbAdapter {
   exec(sql: string): Promise<void> | void;
@@ -160,8 +160,9 @@ class LibSqlAdapter implements DbAdapter {
 
   constructor(file: string) {
     const { createClient } = require('@libsql/client');
+    const absPath = path.resolve(file);
     this.client = createClient({
-      url: `file:${file}`,
+      url: `file:${absPath}`,
     });
   }
 

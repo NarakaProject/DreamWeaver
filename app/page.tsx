@@ -248,17 +248,19 @@ export default function Home() {
 
       const sessionObj = existingSessions.find((s) => s.id === sessionId);
       if (sessionObj) {
-        const foundScen = existingScenarios.find((sc) => sc.meta.id === sessionObj.world_id);
+        const foundScen = existingScenarios.find((sc) => sc.meta.id === sessionObj.world_id) || existingScenarios[0];
         if (foundScen) {
           setActiveScenario(foundScen);
           setActiveWorldBuilding(foundScen.worldBuilding);
-          const foundPers = foundScen.suggestedPersonas.find(
-            (p) => p.id === sessionObj.character_id
-          );
-          if (foundPers) {
-            setActivePersona(foundPers);
-            setSelectedSpeaker(foundPers.name);
-          }
+          const foundPers =
+            foundScen.suggestedPersonas.find((p) => p.id === sessionObj.character_id) ||
+            foundScen.suggestedPersonas[0] || {
+              id: sessionObj.character_id || 'player',
+              name: sessionObj.title.match(/\(([^)]+)\)/)?.[1] || 'Player',
+              personality: 'Protagonist',
+            };
+          setActivePersona(foundPers);
+          setSelectedSpeaker(foundPers.name);
         }
       }
 
