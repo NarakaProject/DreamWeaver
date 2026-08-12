@@ -47,7 +47,7 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
       summary: 'Sets the scenario title, category, description, and cover artwork.',
       explanation: 'Defines the top-level identity of your story world in the catalog and prompt headers.',
       guidelines: 'Use distinct, evocative titles and precise tags (e.g. "Cyberpunk", "Anime", "Dark Fantasy").',
-      example: 'Title: "Naruto: Hidden Leaf Era" | Category: "Anime Fantasy" | Tags: ["Ninja", "Action", "CYOA"]',
+      example: 'Title: "Naruto: Hidden Leaf Era" | Category: "Anime Fantasy" | Tags: ["Ninja", "Action", "Interactive"]',
     },
     {
       id: 2,
@@ -131,12 +131,12 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
     },
     {
       id: 10,
-      name: '10. CYOA Custom Objects & Rules',
-      badge: 'Mechanics',
+      name: '10. Custom Objects & Gameplay Rules',
+      badge: 'OBJECTS',
       color: 'text-purple-400 border-purple-500/30',
-      summary: 'Inventory items, status rules, and conditional mechanics active in gameplay.',
-      explanation: 'Defines reactive items or rules that trigger narrative changes when used.',
-      guidelines: 'Specify item description and trigger rule (e.g. "Equipping Kunai enables combat actions").',
+      summary: 'Inventory items, status rules, key items, and conditional mechanics active in gameplay.',
+      explanation: 'Manages inventory items, magical artifacts, status rules, and conditional triggers active during story turns.',
+      guidelines: 'Define item names, descriptions, and trigger conditions (e.g. "Equipping Kunai enables combat actions").',
       example: 'Name: "Scroll of Seals" | Rule: "Unlocks forbidden Multi-Shadow Clone technique when opened."',
     },
     {
@@ -202,7 +202,7 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
                 <li>Deterministic 12-Block prompt compiler</li>
                 <li>Strict speaker identity attribution</li>
                 <li>Dynamic NPC discovery & summoning</li>
-                <li>CYOA Custom Objects & Location grounding</li>
+                <li>Custom Objects & Location grounding</li>
               </ul>
             </div>
           </div>
@@ -239,17 +239,19 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
                   <button
                     type="button"
                     onClick={() => setExpandedBlockId(isExpanded ? null : block.id)}
-                    className="w-full flex items-center justify-between p-3 text-left cursor-pointer select-none"
+                    className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 text-left cursor-pointer select-none"
                   >
-                    <div className="flex items-center gap-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${block.color}`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className={`shrink-0 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider border rounded ${block.color}`}>
                         {block.badge}
                       </span>
-                      <span className="font-bold text-white text-xs">{block.name}</span>
+                      <span className="font-bold text-white text-xs truncate">
+                        {block.name}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <span className="text-[11px] hidden sm:inline text-slate-400">{block.summary}</span>
-                      {isExpanded ? <ChevronDown className="w-4 h-4 text-sky-400" /> : <ChevronRight className="w-4 h-4" />}
+                    <div className="flex items-center gap-2 text-slate-400 shrink-0 min-w-0">
+                      <span className="text-[11px] hidden sm:inline text-slate-400 truncate max-w-xs md:max-w-md">{block.summary}</span>
+                      {isExpanded ? <ChevronDown className="w-4 h-4 text-sky-400 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0 text-slate-500" />}
                     </div>
                   </button>
 
