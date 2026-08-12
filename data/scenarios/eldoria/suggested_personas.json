@@ -3,7 +3,8 @@
     "id": "valerius",
     "name": "Valerius",
     "tagline": "The Shadow Infiltrator",
-    "personality": "Perceptive, silent, strategic rogue specializing in lockpicking and shadow magic.",
+    "personality": "Perceptive, silent, strategic rogue specializing in lockpicking, shadow walking, and stealth tactics.",
+    "avatar": "/assets/avatars/valerius.png",
     "firstMessage": ""
   },
   {
@@ -11,6 +12,7 @@
     "name": "Kaelen",
     "tagline": "The Spellblade Mercenary",
     "personality": "Daring, protective warrior wielding elemental runeblades.",
+    "avatar": "/assets/avatars/kaelen.png",
     "firstMessage": ""
   }
 ]

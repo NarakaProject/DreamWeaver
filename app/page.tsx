@@ -514,6 +514,16 @@ export default function Home() {
     return npcNames;
   }, [activeScenario, activeWorldBuilding, activePersona]);
 
+  const npcAvatars = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    if (activeWorldBuilding?.scenarioNPCs) {
+      activeWorldBuilding.scenarioNPCs.forEach((npc) => {
+        if (npc.avatar) map[npc.name] = npc.avatar;
+      });
+    }
+    return map;
+  }, [activeWorldBuilding]);
+
   return (
     <div className="flex h-screen bg-[#090a0f] text-[#e2e8f0] overflow-hidden">
       {/* Left Sidebar */}
@@ -582,7 +592,9 @@ export default function Home() {
                       type={msg.type}
                       speaker={msg.speaker}
                       userPersonaName={activePersona?.name || 'Valerius'}
+                      userAvatar={activePersona?.avatar}
                       knownNPCs={sceneNPCs}
+                      npcAvatars={npcAvatars}
                       onEdit={(newContent) => handleEditMessage(index, newContent)}
                       onRegenerate={
                         msg.role === 'model' ? () => handleRegenerateFromIndex(index) : undefined
@@ -597,7 +609,9 @@ export default function Home() {
                       content={streamingContent}
                       speaker={selectedSpeaker !== activePersona?.name ? selectedSpeaker : 'Narrator'}
                       userPersonaName={activePersona?.name || 'Valerius'}
+                      userAvatar={activePersona?.avatar}
                       knownNPCs={sceneNPCs}
+                      npcAvatars={npcAvatars}
                       isStreaming={true}
                     />
                   )}

@@ -1,14 +1,15 @@
 'use client';
 
 import React from 'react';
-import { FullScenario, CustomObject, PersonaTemplate } from '@/lib/scenarios/reader';
-import { X, Save, Plus, Trash2, Layers, BookOpen, User, Sparkles } from 'lucide-react';
+import { FullScenario, CustomObject, LocationItem, PromptExample, PersonaTemplate } from '@/lib/scenarios/reader';
+import { BuildingBlockTooltip } from './BuildingBlockTooltip';
+import { X, Plus, Trash2, Save, Sparkles, BookOpen, Layers, User, MapPin, Package, FileText, Image as ImageIcon } from 'lucide-react';
 
 interface ScenarioBuilderProps {
   isOpen: boolean;
   onClose: () => void;
   initialScenario?: FullScenario | null;
-  onSaveSuccess: () => void;
+  onSaveSuccess?: () => void;
 }
 
 export function ScenarioBuilder({
@@ -17,123 +18,144 @@ export function ScenarioBuilder({
   initialScenario,
   onSaveSuccess,
 }: ScenarioBuilderProps) {
-  const [activeTab, setActiveTab] = React.useState<'meta' | 'building' | 'objects' | 'personas'>('meta');
+  const [activeTab, setActiveTab] = React.useState<
+    'meta' | 'narrative' | 'personas' | 'npcs' | 'locations' | 'objects' | 'examples' | 'notes'
+  >('meta');
 
-  // Form State
+  // Meta State
   const [id, setId] = React.useState('');
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
-  const [category, setCategory] = React.useState('Fantasy');
+  const [category, setCategory] = React.useState('High Fantasy');
   const [tagsStr, setTagsStr] = React.useState('');
-  const [mode, setMode] = React.useState<'roleplay' | 'story'>('roleplay');
   const [coverImage, setCoverImage] = React.useState('');
 
+  // 12 Building Blocks State
   const [setting, setSetting] = React.useState('');
   const [plot, setPlot] = React.useState('');
   const [style, setStyle] = React.useState('');
   const [narrator, setNarrator] = React.useState('');
+  const [history, setHistory] = React.useState('');
+  const [privateNotes, setPrivateNotes] = React.useState('');
 
-  const [objects, setObjects] = React.useState<CustomObject[]>([]);
+  // Collections
   const [personas, setPersonas] = React.useState<PersonaTemplate[]>([]);
+  const [scenarioNPCs, setScenarioNPCs] = React.useState<PersonaTemplate[]>([]);
+  const [locations, setLocations] = React.useState<LocationItem[]>([]);
+  const [objects, setObjects] = React.useState<CustomObject[]>([]);
+  const [examples, setExamples] = React.useState<PromptExample[]>([]);
 
   const [saving, setSaving] = React.useState(false);
+  const [errorMsg, setErrorMsg] = React.useState('');
 
   React.useEffect(() => {
     if (initialScenario) {
       setId(initialScenario.meta.id);
       setTitle(initialScenario.meta.title);
       setDescription(initialScenario.meta.description);
-      setCategory(initialScenario.meta.category || 'Fantasy');
-      setTagsStr(initialScenario.meta.tags.join(', '));
-      setMode(initialScenario.meta.mode || 'roleplay');
+      setCategory(initialScenario.meta.category || 'High Fantasy');
+      setTagsStr((initialScenario.meta.tags || []).join(', '));
       setCoverImage(initialScenario.meta.coverImage || '');
 
       setSetting(initialScenario.worldBuilding.setting || '');
       setPlot(initialScenario.worldBuilding.plot || '');
       setStyle(initialScenario.worldBuilding.style || '');
       setNarrator(initialScenario.worldBuilding.narrator || '');
+      setHistory(initialScenario.worldBuilding.history || '');
+      setPrivateNotes(initialScenario.worldBuilding.privateNotes || '');
 
-      setObjects(initialScenario.worldBuilding.objects || []);
       setPersonas(initialScenario.suggestedPersonas || []);
+      setScenarioNPCs(initialScenario.worldBuilding.scenarioNPCs || []);
+      setLocations(initialScenario.worldBuilding.locations || []);
+      setObjects(initialScenario.worldBuilding.objects || []);
+      setExamples(initialScenario.worldBuilding.examples || []);
     } else {
       setId(`scenario-${Date.now()}`);
       setTitle('');
       setDescription('');
-      setCategory('Dark Fantasy');
-      setTagsStr('Action, Mystery');
-      setMode('roleplay');
+      setCategory('High Fantasy');
+      setTagsStr('Fantasy, CYOA');
       setCoverImage('');
 
-      setSetting('');
-      setPlot('');
-      setStyle('Atmospheric, evocative prose.');
-      setNarrator('Act as an interactive RPG Game Master.');
+      setSetting('Eldoria is a dark fantasy world shrouded in twilight...');
+      setPlot('Infiltrate the Obsidian Citadel vault to recover the Sunstone.');
+      setStyle('Atmospheric, 2nd-person roleplay prose.');
+      setNarrator('Act as an experienced RPG Game Master.');
+      setHistory('');
+      setPrivateNotes('');
 
-      setObjects([]);
-      setPersonas([]);
+      setPersonas([
+        {
+          id: 'valerius',
+          name: 'Valerius',
+          tagline: 'The Shadow Infiltrator',
+          personality: 'Perceptive rogue specializing in shadow magic.',
+          avatar: '',
+          firstMessage: '',
+        },
+      ]);
+      setScenarioNPCs([
+        {
+          id: 'aria',
+          name: 'Aria Shadowstep',
+          tagline: 'Master Scout of the Silverveil Guild',
+          personality: 'Quick-witted scout companion.',
+          avatar: '',
+          firstMessage: '"Keep your voice down," Aria whispers.',
+        },
+      ]);
+      setLocations([
+        {
+          id: 'citadel_vault',
+          name: 'The Obsidian Citadel Vault',
+          description: 'A fortified underground vault with glowing runes and iron gates.',
+        },
+      ]);
+      setObjects([
+        {
+          id: 'sunstone',
+          name: 'Sunstone Relic',
+          description: 'Glowing rune stone emitting warm thermal magic.',
+          trigger_rule: 'When held, illuminates dark areas but draws shadow specters.',
+        },
+      ]);
+      setExamples([]);
     }
   }, [initialScenario, isOpen]);
 
   if (!isOpen) return null;
 
-  const handleAddObject = () => {
-    setObjects((prev) => [
-      ...prev,
-      {
-        id: `obj-${Date.now()}`,
-        name: 'New Item / Entity',
-        description: 'Description of the item or status rule...',
-        trigger_rule: 'Trigger rule when activated...',
-      },
-    ]);
-  };
-
-  const handleRemoveObject = (index: number) => {
-    setObjects((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleAddPersona = () => {
-    setPersonas((prev) => [
-      ...prev,
-      {
-        id: `persona-${Date.now()}`,
-        name: 'New Character',
-        tagline: 'Character Title',
-        personality: 'Character traits...',
-        firstMessage: '"Hello there," says the character.',
-      },
-    ]);
-  };
-
-  const handleRemovePersona = (index: number) => {
-    setPersonas((prev) => prev.filter((_, i) => i !== index));
-  };
-
   const handleSave = async () => {
-    if (!title.trim()) return;
-    setSaving(true);
+    if (!title.trim()) {
+      setErrorMsg('Scenario Title is required.');
+      return;
+    }
 
-    const scenarioId = id.trim() || `scenario-${Date.now()}`;
+    setSaving(true);
+    setErrorMsg('');
+
     const fullScenario: FullScenario = {
       meta: {
-        id: scenarioId,
+        id: id || `scenario-${Date.now()}`,
         title: title.trim(),
         description: description.trim(),
-        category: category.trim(),
-        tags: tagsStr
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean),
-        mode,
-        coverImage: coverImage.trim(),
+        category,
+        tags: tagsStr.split(',').map((t) => t.trim()).filter(Boolean),
+        mode: 'roleplay',
+        coverImage,
       },
       worldBuilding: {
         setting,
         plot,
         style,
         narrator,
+        history,
+        privateNotes,
         objects,
-        examples: [],
+        locations,
+        examples,
+        scenarioNPCs,
+        images: { coverImage },
       },
       suggestedPersonas: personas,
     };
@@ -145,369 +167,650 @@ export function ScenarioBuilder({
         body: JSON.stringify(fullScenario),
       });
 
-      if (res.ok) {
-        onSaveSuccess();
-        onClose();
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to save scenario');
       }
-    } catch (err) {
-      console.error('Failed to save scenario:', err);
+
+      if (onSaveSuccess) onSaveSuccess();
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to save scenario to disk.');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
-      <div className="w-full max-w-3xl h-[85vh] rounded-2xl bg-[#12151e] border border-[#262c3e] p-6 shadow-2xl flex flex-col space-y-4 contain-content">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 contain-content">
+      <div className="w-full max-w-4xl rounded-2xl bg-[#12151e] border border-[#262c3e] shadow-2xl flex flex-col h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#1f2430] pb-4 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1f2430] bg-[#0d0f17]">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30">
-              <Sparkles className="w-5 h-5 text-amber-400" />
+            <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/30">
+              <Sparkles className="w-5 h-5 text-purple-400" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-white">
-                {initialScenario ? 'Edit Scenario' : 'Create New Scenario'}
+                {initialScenario ? 'Edit Scenario' : 'Scenario Studio (12 Building Blocks)'}
               </h2>
-              <p className="text-xs text-slate-400">Build custom world rules, CYOA objects, and personas</p>
+              <p className="text-xs text-slate-400">Configure lore, NPCs, locations, objects & GM rules</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-[#1a202c]"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1f2430]"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex items-center gap-2 border-b border-[#1f2430] pb-2 shrink-0 overflow-x-auto">
+        {/* Tab Bar */}
+        <div className="flex items-center gap-1 px-6 border-b border-[#1f2430] bg-[#0d0f17] overflow-x-auto text-xs font-semibold">
           <button
-            type="button"
             onClick={() => setActiveTab('meta')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'meta' ? 'bg-amber-500 text-black' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Metadata</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('building')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'building' ? 'bg-amber-500 text-black' : 'text-slate-400 hover:text-white'
+            className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors whitespace-nowrap ${
+              activeTab === 'meta'
+                ? 'border-amber-400 text-amber-400'
+                : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
-            <span>Worldbuilding</span>
+            <span>Meta & Cover</span>
           </button>
 
           <button
-            type="button"
-            onClick={() => setActiveTab('objects')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'objects' ? 'bg-amber-500 text-black' : 'text-slate-400 hover:text-white'
+            onClick={() => setActiveTab('narrative')}
+            className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors whitespace-nowrap ${
+              activeTab === 'narrative'
+                ? 'border-amber-400 text-amber-400'
+                : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>CYOA Objects ({objects.length})</span>
+            <Layers className="w-3.5 h-3.5" />
+            <span>Lore & Rules</span>
           </button>
 
           <button
-            type="button"
             onClick={() => setActiveTab('personas')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'personas' ? 'bg-amber-500 text-black' : 'text-slate-400 hover:text-white'
+            className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors whitespace-nowrap ${
+              activeTab === 'personas'
+                ? 'border-amber-400 text-amber-400'
+                : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
             <User className="w-3.5 h-3.5" />
-            <span>Suggested Personas ({personas.length})</span>
+            <span>Your Persona ({personas.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('npcs')}
+            className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors whitespace-nowrap ${
+              activeTab === 'npcs'
+                ? 'border-amber-400 text-amber-400'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>NPCs ({scenarioNPCs.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('locations')}
+            className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors whitespace-nowrap ${
+              activeTab === 'locations'
+                ? 'border-amber-400 text-amber-400'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <MapPin className="w-3.5 h-3.5" />
+            <span>Locations ({locations.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('objects')}
+            className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors whitespace-nowrap ${
+              activeTab === 'objects'
+                ? 'border-amber-400 text-amber-400'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <Package className="w-3.5 h-3.5" />
+            <span>Objects ({objects.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('notes')}
+            className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors whitespace-nowrap ${
+              activeTab === 'notes'
+                ? 'border-amber-400 text-amber-400'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Private Notes</span>
           </button>
         </div>
 
-        {/* Form Body */}
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          {activeTab === 'meta' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-300">Scenario Title *</label>
-                  <input
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Shadows Over Eldoria"
-                    className="w-full rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500"
-                  />
-                </div>
+        {/* Tab Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {errorMsg && (
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
+              {errorMsg}
+            </div>
+          )}
 
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-300">Category</label>
-                  <input
-                    type="text"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    placeholder="e.g. Dark Fantasy, Cyberpunk"
-                    className="w-full rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500"
-                  />
-                </div>
+          {/* TAB 1: META & IMAGES */}
+          {activeTab === 'meta' && (
+            <div className="space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">
+                  Scenario Title
+                  <BuildingBlockTooltip blockKey="plot" />
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. Shadows Over Eldoria"
+                  className="w-full rounded-xl bg-[#090a0f] border border-[#262c3e] px-4 py-2.5 text-sm text-[#e2e8f0] focus:outline-none focus:border-amber-500"
+                />
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-300">Description</label>
+                <label className="font-semibold text-slate-300">Description</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Summary hook of the scenario..."
+                  placeholder="Brief synopsis of the scenario..."
                   className="w-full h-20 rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500 resize-none"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-300">Tags (comma separated)</label>
+                  <label className="font-semibold text-slate-300">Category</label>
                   <input
                     type="text"
-                    value={tagsStr}
-                    onChange={(e) => setTagsStr(e.target.value)}
-                    placeholder="Infiltration, Magic, Stealth"
-                    className="w-full rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full rounded-xl bg-[#090a0f] border border-[#262c3e] px-4 py-2 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-300">Mode</label>
-                  <select
-                    value={mode}
-                    onChange={(e) => setMode(e.target.value as any)}
-                    className="w-full rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="roleplay">Role-Play</option>
-                    <option value="story">Story</option>
-                  </select>
+                  <label className="font-semibold text-slate-300">Tags (comma separated)</label>
+                  <input
+                    type="text"
+                    value={tagsStr}
+                    onChange={(e) => setTagsStr(e.target.value)}
+                    className="w-full rounded-xl bg-[#090a0f] border border-[#262c3e] px-4 py-2 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500"
+                  />
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-300">Cover Image URL</label>
+              <div className="space-y-1.5 pt-2">
+                <label className="font-semibold text-slate-300">
+                  Cover Art Image URL
+                  <BuildingBlockTooltip blockKey="images" />
+                </label>
                 <input
                   type="text"
                   value={coverImage}
                   onChange={(e) => setCoverImage(e.target.value)}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500"
+                  placeholder="https://... or /assets/cover.jpg"
+                  className="w-full rounded-xl bg-[#090a0f] border border-[#262c3e] px-4 py-2 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500"
                 />
               </div>
             </div>
           )}
 
-          {activeTab === 'building' && (
-            <div className="space-y-4">
+          {/* TAB 2: NARRATIVE LORE & RULES */}
+          {activeTab === 'narrative' && (
+            <div className="space-y-4 text-xs">
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-300">Narrator Directives & System Behavior</label>
-                <textarea
-                  value={narrator}
-                  onChange={(e) => setNarrator(e.target.value)}
-                  placeholder="Directives for how the AI Game Master should act..."
-                  className="w-full h-20 rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500 resize-none"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-300">Setting & World Rules</label>
+                <label className="font-bold text-amber-400">
+                  Setting & Worldbuilding
+                  <BuildingBlockTooltip blockKey="setting" />
+                </label>
                 <textarea
                   value={setting}
                   onChange={(e) => setSetting(e.target.value)}
-                  placeholder="Environmental lore, geography, rules..."
+                  placeholder="World lore, magic systems, tech level..."
                   className="w-full h-24 rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500 resize-none"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-300">Plot Hooks & Initial Storyline</label>
+                <label className="font-bold text-amber-400">
+                  Plot & Scene Premise
+                  <BuildingBlockTooltip blockKey="plot" />
+                </label>
                 <textarea
                   value={plot}
                   onChange={(e) => setPlot(e.target.value)}
-                  placeholder="Core objective, mystery, or conflict..."
-                  className="w-full h-20 rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500 resize-none"
+                  placeholder="Main objective and plot hooks..."
+                  className="w-full h-24 rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500 resize-none"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="font-bold text-amber-400">
+                    Style & Perspective
+                    <BuildingBlockTooltip blockKey="style" />
+                  </label>
+                  <textarea
+                    value={style}
+                    onChange={(e) => setStyle(e.target.value)}
+                    placeholder="2nd-person present POV, dark prose..."
+                    className="w-full h-24 rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500 resize-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-bold text-amber-400">
+                    Narrator Directives
+                    <BuildingBlockTooltip blockKey="narrator" />
+                  </label>
+                  <textarea
+                    value={narrator}
+                    onChange={(e) => setNarrator(e.target.value)}
+                    placeholder="Game Master rules and pacing directives..."
+                    className="w-full h-24 rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500 resize-none"
+                  />
+                </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-300">Writing Style & Perspective</label>
+                <label className="font-bold text-amber-400">
+                  History & Backstory
+                  <BuildingBlockTooltip blockKey="history" />
+                </label>
                 <textarea
-                  value={style}
-                  onChange={(e) => setStyle(e.target.value)}
-                  placeholder="e.g. Atmospheric, evocative prose with 2nd-person perspective..."
-                  className="w-full h-16 rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500 resize-none"
+                  value={history}
+                  onChange={(e) => setHistory(e.target.value)}
+                  placeholder="Recap of past chapters or immediate backstory..."
+                  className="w-full h-20 rounded-xl bg-[#090a0f] border border-[#262c3e] p-3 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500 resize-none"
                 />
               </div>
             </div>
           )}
 
-          {activeTab === 'objects' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-400">
-                  Custom Entities & CYOA Attributes tracked actively by Gemini
-                </p>
-                <button
-                  type="button"
-                  onClick={handleAddObject}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 text-black text-xs font-bold"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Custom Object</span>
-                </button>
-              </div>
-
-              {objects.map((obj, i) => (
-                <div key={obj.id || i} className="p-4 rounded-xl bg-[#090a0f] border border-[#262c3e] space-y-3">
-                  <div className="flex items-center justify-between">
-                    <input
-                      type="text"
-                      value={obj.name}
-                      onChange={(e) => {
-                        const updated = [...objects];
-                        updated[i].name = e.target.value;
-                        setObjects(updated);
-                      }}
-                      placeholder="Object Name"
-                      className="font-bold text-xs text-amber-400 bg-transparent focus:outline-none border-b border-amber-500/40 pb-0.5"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveObject(i)}
-                      className="text-slate-500 hover:text-red-400"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  <input
-                    type="text"
-                    value={obj.description}
-                    onChange={(e) => {
-                      const updated = [...objects];
-                      updated[i].description = e.target.value;
-                      setObjects(updated);
-                    }}
-                    placeholder="Description of item / state..."
-                    className="w-full rounded-lg bg-[#12151e] border border-[#1f2430] p-2 text-xs text-slate-200"
-                  />
-
-                  <input
-                    type="text"
-                    value={obj.trigger_rule || ''}
-                    onChange={(e) => {
-                      const updated = [...objects];
-                      updated[i].trigger_rule = e.target.value;
-                      setObjects(updated);
-                    }}
-                    placeholder="Trigger Rule (e.g. When held, grants thermal magic...)"
-                    className="w-full rounded-lg bg-[#12151e] border border-[#1f2430] p-2 text-xs text-cyan-300"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
+          {/* TAB 3: YOUR PERSONA */}
           {activeTab === 'personas' && (
-            <div className="space-y-4">
+            <div className="space-y-4 text-xs">
               <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-400">Pre-configured Character Persona templates</p>
+                <h3 className="font-bold text-cyan-400 uppercase tracking-wider">
+                  Player Personas
+                  <BuildingBlockTooltip blockKey="persona" />
+                </h3>
                 <button
                   type="button"
-                  onClick={handleAddPersona}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 text-black text-xs font-bold"
+                  onClick={() =>
+                    setPersonas((prev) => [
+                      ...prev,
+                      {
+                        id: `persona-${Date.now()}`,
+                        name: 'New Hero',
+                        tagline: 'Protagonist',
+                        personality: 'Brave and inquisitive.',
+                        avatar: '',
+                        firstMessage: '',
+                      },
+                    ])
+                  }
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-semibold"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Persona</span>
                 </button>
               </div>
 
-              {personas.map((p, i) => (
-                <div key={p.id || i} className="p-4 rounded-xl bg-[#090a0f] border border-[#262c3e] space-y-3">
+              {personas.map((p, idx) => (
+                <div key={p.id || idx} className="p-4 rounded-xl bg-[#090a0f] border border-[#262c3e] space-y-3">
                   <div className="flex items-center justify-between">
+                    <span className="font-bold text-white">Persona #{idx + 1}</span>
+                    {personas.length > 1 && (
+                      <button
+                        onClick={() => setPersonas((prev) => prev.filter((_, i) => i !== idx))}
+                        className="text-slate-400 hover:text-rose-400"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
                     <input
                       type="text"
                       value={p.name}
                       onChange={(e) => {
                         const updated = [...personas];
-                        updated[i].name = e.target.value;
+                        updated[idx].name = e.target.value;
                         setPersonas(updated);
                       }}
-                      placeholder="Character Name"
-                      className="font-bold text-xs text-cyan-300 bg-transparent focus:outline-none border-b border-cyan-500/40 pb-0.5"
+                      placeholder="Name"
+                      className="rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-white"
                     />
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePersona(i)}
-                      className="text-slate-500 hover:text-red-400"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <input
+                      type="text"
+                      value={p.tagline || ''}
+                      onChange={(e) => {
+                        const updated = [...personas];
+                        updated[idx].tagline = e.target.value;
+                        setPersonas(updated);
+                      }}
+                      placeholder="Tagline / Class"
+                      className="rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-white"
+                    />
                   </div>
-
                   <input
                     type="text"
-                    value={p.tagline || ''}
+                    value={p.avatar || ''}
                     onChange={(e) => {
                       const updated = [...personas];
-                      updated[i].tagline = e.target.value;
+                      updated[idx].avatar = e.target.value;
                       setPersonas(updated);
                     }}
-                    placeholder="Tagline / Title"
-                    className="w-full rounded-lg bg-[#12151e] border border-[#1f2430] p-2 text-xs text-slate-300"
+                    placeholder="Avatar Image URL (optional)"
+                    className="w-full rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-white"
                   />
-
                   <textarea
                     value={p.personality}
                     onChange={(e) => {
                       const updated = [...personas];
-                      updated[i].personality = e.target.value;
+                      updated[idx].personality = e.target.value;
                       setPersonas(updated);
                     }}
-                    placeholder="Personality traits..."
-                    className="w-full h-16 rounded-lg bg-[#12151e] border border-[#1f2430] p-2 text-xs text-slate-300 resize-none"
-                  />
-
-                  <textarea
-                    value={p.firstMessage}
-                    onChange={(e) => {
-                      const updated = [...personas];
-                      updated[i].firstMessage = e.target.value;
-                      setPersonas(updated);
-                    }}
-                    placeholder="Opening first message..."
-                    className="w-full h-16 rounded-lg bg-[#12151e] border border-[#1f2430] p-2 text-xs text-slate-300 resize-none"
+                    placeholder="Personality & Traits..."
+                    className="w-full h-16 rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-white resize-none"
                   />
                 </div>
               ))}
             </div>
           )}
+
+          {/* TAB 4: NPCS & COMPANIONS */}
+          {activeTab === 'npcs' && (
+            <div className="space-y-4 text-xs">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-amber-400 uppercase tracking-wider">
+                  Scenario NPCs & Companions
+                  <BuildingBlockTooltip blockKey="characters" />
+                </h3>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setScenarioNPCs((prev) => [
+                      ...prev,
+                      {
+                        id: `npc-${Date.now()}`,
+                        name: 'New Companion',
+                        tagline: 'Ally',
+                        personality: 'Loyal and perceptive companion.',
+                        avatar: '',
+                        firstMessage: '"Greetings," they say.',
+                      },
+                    ])
+                  }
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add NPC</span>
+                </button>
+              </div>
+
+              {scenarioNPCs.map((npc, idx) => (
+                <div key={npc.id || idx} className="p-4 rounded-xl bg-[#090a0f] border border-[#262c3e] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white">NPC #{idx + 1}</span>
+                    <button
+                      onClick={() => setScenarioNPCs((prev) => prev.filter((_, i) => i !== idx))}
+                      className="text-slate-400 hover:text-rose-400"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      value={npc.name}
+                      onChange={(e) => {
+                        const updated = [...scenarioNPCs];
+                        updated[idx].name = e.target.value;
+                        setScenarioNPCs(updated);
+                      }}
+                      placeholder="NPC Name"
+                      className="rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-white"
+                    />
+                    <input
+                      type="text"
+                      value={npc.tagline || ''}
+                      onChange={(e) => {
+                        const updated = [...scenarioNPCs];
+                        updated[idx].tagline = e.target.value;
+                        setScenarioNPCs(updated);
+                      }}
+                      placeholder="Tagline / Title"
+                      className="rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-white"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={npc.avatar || ''}
+                    onChange={(e) => {
+                      const updated = [...scenarioNPCs];
+                      updated[idx].avatar = e.target.value;
+                      setScenarioNPCs(updated);
+                    }}
+                    placeholder="Avatar Image URL (optional)"
+                    className="w-full rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-white"
+                  />
+                  <textarea
+                    value={npc.personality}
+                    onChange={(e) => {
+                      const updated = [...scenarioNPCs];
+                      updated[idx].personality = e.target.value;
+                      setScenarioNPCs(updated);
+                    }}
+                    placeholder="NPC Personality & Motivations..."
+                    className="w-full h-16 rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-white resize-none"
+                  />
+                  <textarea
+                    value={npc.firstMessage}
+                    onChange={(e) => {
+                      const updated = [...scenarioNPCs];
+                      updated[idx].firstMessage = e.target.value;
+                      setScenarioNPCs(updated);
+                    }}
+                    placeholder="First Speaking Opening Message..."
+                    className="w-full h-16 rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-amber-300/90 resize-none"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* TAB 5: LOCATIONS */}
+          {activeTab === 'locations' && (
+            <div className="space-y-4 text-xs">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-emerald-400 uppercase tracking-wider">
+                  Grounding Locations
+                  <BuildingBlockTooltip blockKey="locations" />
+                </h3>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setLocations((prev) => [
+                      ...prev,
+                      {
+                        id: `loc-${Date.now()}`,
+                        name: 'New Area',
+                        description: 'Architectural details and ambient setting.',
+                      },
+                    ])
+                  }
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Location</span>
+                </button>
+              </div>
+
+              {locations.map((loc, idx) => (
+                <div key={loc.id || idx} className="p-4 rounded-xl bg-[#090a0f] border border-[#262c3e] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <input
+                      type="text"
+                      value={loc.name}
+                      onChange={(e) => {
+                        const updated = [...locations];
+                        updated[idx].name = e.target.value;
+                        setLocations(updated);
+                      }}
+                      placeholder="Location Name"
+                      className="rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs font-bold text-white flex-1 mr-3"
+                    />
+                    <button
+                      onClick={() => setLocations((prev) => prev.filter((_, i) => i !== idx))}
+                      className="text-slate-400 hover:text-rose-400"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <textarea
+                    value={loc.description}
+                    onChange={(e) => {
+                      const updated = [...locations];
+                      updated[idx].description = e.target.value;
+                      setLocations(updated);
+                    }}
+                    placeholder="Environmental features, ambient noise, entry points..."
+                    className="w-full h-16 rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-white resize-none"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* TAB 6: OBJECTS */}
+          {activeTab === 'objects' && (
+            <div className="space-y-4 text-xs">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-purple-400 uppercase tracking-wider">
+                  CYOA Custom Objects & Status Rules
+                  <BuildingBlockTooltip blockKey="objects" />
+                </h3>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setObjects((prev) => [
+                      ...prev,
+                      {
+                        id: `obj-${Date.now()}`,
+                        name: 'New Item',
+                        description: 'Artifact description',
+                        trigger_rule: 'Effect rule when used or equipped.',
+                      },
+                    ])
+                  }
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Object</span>
+                </button>
+              </div>
+
+              {objects.map((obj, idx) => (
+                <div key={obj.id || idx} className="p-4 rounded-xl bg-[#090a0f] border border-[#262c3e] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <input
+                      type="text"
+                      value={obj.name}
+                      onChange={(e) => {
+                        const updated = [...objects];
+                        updated[idx].name = e.target.value;
+                        setObjects(updated);
+                      }}
+                      placeholder="Item Name"
+                      className="rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs font-bold text-white flex-1 mr-3"
+                    />
+                    <button
+                      onClick={() => setObjects((prev) => prev.filter((_, i) => i !== idx))}
+                      className="text-slate-400 hover:text-rose-400"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={obj.description}
+                    onChange={(e) => {
+                      const updated = [...objects];
+                      updated[idx].description = e.target.value;
+                      setObjects(updated);
+                    }}
+                    placeholder="Description"
+                    className="w-full rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-white"
+                  />
+                  <input
+                    type="text"
+                    value={obj.trigger_rule || ''}
+                    onChange={(e) => {
+                      const updated = [...objects];
+                      updated[idx].trigger_rule = e.target.value;
+                      setObjects(updated);
+                    }}
+                    placeholder="Trigger rule / debuff mechanic (optional)"
+                    className="w-full rounded-lg bg-[#12151e] border border-[#262c3e] p-2 text-xs text-purple-300 font-mono"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* TAB 7: PRIVATE NOTES */}
+          {activeTab === 'notes' && (
+            <div className="space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="font-bold text-[#38bdf8] flex items-center gap-1.5">
+                  Private Author Notes
+                  <BuildingBlockTooltip blockKey="privateNotes" />
+                </label>
+                <p className="text-[11px] text-slate-400">
+                  Secret outlines and draft ideas. This section is strictly <strong>hidden from Gemini</strong> and will never be sent in API prompts.
+                </p>
+                <textarea
+                  value={privateNotes}
+                  onChange={(e) => setPrivateNotes(e.target.value)}
+                  placeholder="Keep your plot secrets, solution hints, or personal notes here..."
+                  className="w-full h-64 rounded-xl bg-[#090a0f] border border-[#262c3e] p-4 text-xs text-[#e2e8f0] focus:outline-none focus:border-[#38bdf8] resize-none"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 border-t border-[#1f2430] pt-4 shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || !title.trim()}
-            className="flex items-center gap-2 px-6 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs transition-colors shadow-lg disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" />
-            <span>{saving ? 'Saving...' : 'Save Scenario'}</span>
-          </button>
+        <div className="flex items-center justify-between px-6 py-4 border-t border-[#1f2430] bg-[#0d0f17]">
+          <div className="text-xs text-slate-400">All 12 Building Blocks validated</div>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs transition-colors shadow-md disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              <span>{saving ? 'Saving...' : 'Save Scenario'}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -10,7 +10,7 @@ import {
 
 const TEST_SCENARIOS_DIR = path.join(process.cwd(), 'temp_test_scenarios');
 
-describe('Scenario Reader & Data Model (lib/scenarios/reader.ts)', () => {
+describe('Scenario Reader & 12 Building Blocks (lib/scenarios/reader.ts)', () => {
   beforeEach(async () => {
     await fs.mkdir(TEST_SCENARIOS_DIR, { recursive: true });
   });
@@ -19,21 +19,41 @@ describe('Scenario Reader & Data Model (lib/scenarios/reader.ts)', () => {
     await fs.rm(TEST_SCENARIOS_DIR, { recursive: true, force: true });
   });
 
-  it('should save and load scenario.json, world_building.json, and suggested_personas.json', async () => {
+  it('should save and load all 12 building blocks', async () => {
     const scenario: FullScenario = {
       meta: {
-        id: 'test-scenario',
-        title: 'Cyberpunk Heist',
+        id: 'test-12-blocks',
+        title: 'Cyberpunk Heist 2077',
         description: 'Hack into Arasaka mainframe.',
         category: 'Cyberpunk',
         tags: ['Sci-Fi', 'Action', 'CYOA'],
         mode: 'roleplay',
+        coverImage: '/assets/covers/cyberpunk.jpg',
       },
       worldBuilding: {
         setting: 'Night City neon streets.',
         plot: 'Retrieve the encrypted datachip.',
-        style: 'Gritty, fast-paced cyberpunk dialogue.',
+        style: 'Gritty, fast-paced 2nd-person cyberpunk dialogue.',
         narrator: 'Act as a Cyberpunk Game Master.',
+        history: 'Yesterday the netrunner infiltrated squad 4.',
+        privateNotes: 'SECRET: Trap inside the server room.',
+        locations: [
+          {
+            id: 'arasaka_tower',
+            name: 'Arasaka Tower Server Subfloor',
+            description: 'Coolant tubes and glowing fiber cables.',
+          },
+        ],
+        scenarioNPCs: [
+          {
+            id: 'alt',
+            name: 'Alt Cunningham',
+            tagline: 'Legendary Netrunner',
+            personality: 'Brilliant, transcendent, mysterious.',
+            avatar: '/assets/avatars/alt.jpg',
+            firstMessage: '"You should not have come here."',
+          },
+        ],
         objects: [
           {
             id: 'cyberdeck',
@@ -48,6 +68,10 @@ describe('Scenario Reader & Data Model (lib/scenarios/reader.ts)', () => {
             model: 'Data streams past your retinas.',
           },
         ],
+        images: {
+          coverImage: '/assets/covers/cyberpunk.jpg',
+          backgroundImage: '/assets/bg/neon.jpg',
+        },
       },
       suggestedPersonas: [
         {
@@ -55,17 +79,23 @@ describe('Scenario Reader & Data Model (lib/scenarios/reader.ts)', () => {
           name: 'V',
           tagline: 'Solo Netrunner',
           personality: 'Cynical, skilled, loyal.',
+          avatar: '/assets/avatars/v.jpg',
           firstMessage: '"Jack in before security responds."',
         },
       ],
     };
 
     await saveScenario(scenario, TEST_SCENARIOS_DIR);
-    const loaded = await loadScenarioById('test-scenario', TEST_SCENARIOS_DIR);
+    const loaded = await loadScenarioById('test-12-blocks', TEST_SCENARIOS_DIR);
 
     expect(loaded).not.toBeNull();
-    expect(loaded?.meta.title).toBe('Cyberpunk Heist');
-    expect(loaded?.worldBuilding.plot).toContain('encrypted datachip');
+    expect(loaded?.meta.title).toBe('Cyberpunk Heist 2077');
+    expect(loaded?.worldBuilding.history).toContain('infiltrated squad 4');
+    expect(loaded?.worldBuilding.privateNotes).toContain('Trap inside the server room');
+    expect(loaded?.worldBuilding.locations).toHaveLength(1);
+    expect(loaded?.worldBuilding.locations?.[0].name).toBe('Arasaka Tower Server Subfloor');
+    expect(loaded?.worldBuilding.scenarioNPCs).toHaveLength(1);
+    expect(loaded?.worldBuilding.scenarioNPCs?.[0].name).toBe('Alt Cunningham');
     expect(loaded?.worldBuilding.objects).toHaveLength(1);
     expect(loaded?.worldBuilding.objects[0].name).toBe('Militech Cyberdeck');
     expect(loaded?.suggestedPersonas).toHaveLength(1);

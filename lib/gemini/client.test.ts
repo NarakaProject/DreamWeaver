@@ -21,6 +21,35 @@ describe('Gemini Client & Identity Rules (lib/gemini/client.ts)', () => {
     expect(sysPrompt).toContain('USER PERSONA (PLAYER IDENTITY - DO NOT ROLEPLAY AS THIS USER)');
   });
 
+  it('should synthesize all 12 building blocks into structured prompt payload', () => {
+    const sysPrompt = buildSystemInstruction({
+      characterName: 'Valerius',
+      characterPersonality: 'Shadow infiltrator.',
+      settingLore: 'Twilight continent of Eldoria.',
+      plotHooks: 'Infiltrate Obsidian Citadel vault.',
+      historyContent: ' Cultists stole the Sunstone 3 days ago.',
+      narratorDirectives: 'Maintain suspense and track movement.',
+      writingStyle: '2nd-person present POV dark prose.',
+      locations: [
+        { id: 'vault', name: 'Obsidian Citadel Vault', description: 'Underground volcanic chamber.' },
+      ],
+      scenarioNPCs: [
+        { id: 'aria', name: 'Aria Shadowstep', tagline: 'Master Scout', personality: 'Quick-witted scout.' },
+      ],
+      customObjects: [
+        { id: 'sunstone', name: 'Sunstone Relic', description: 'Thermal rune stone.', trigger_rule: 'Illuminates room.' },
+      ],
+    });
+
+    expect(sysPrompt).toContain('KEY SCENE LOCATIONS & GROUNDING:');
+    expect(sysPrompt).toContain('Obsidian Citadel Vault');
+    expect(sysPrompt).toContain('RECENT HISTORY & BACKSTORY:');
+    expect(sysPrompt).toContain('SCENARIO COMPANIONS & NPCS:');
+    expect(sysPrompt).toContain('Aria Shadowstep');
+    expect(sysPrompt).toContain('ACTIVE CUSTOM OBJECTS & CYOA MECHANICS:');
+    expect(sysPrompt).not.toContain('privateNotes');
+  });
+
   it('should default to gemini-3.6-flash model constant', () => {
     expect(DEFAULT_GEMINI_MODEL).toBe('gemini-3.6-flash');
   });

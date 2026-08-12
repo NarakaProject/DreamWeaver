@@ -10,7 +10,9 @@ interface DreamGenRendererProps {
   type?: 'do' | 'say' | 'story_note' | 'continue' | 'narration';
   speaker?: string;
   userPersonaName?: string;
+  userAvatar?: string;
   knownNPCs?: string[];
+  npcAvatars?: Record<string, string>;
   isStreaming?: boolean;
   onRegenerate?: () => void;
   onEdit?: (newContent: string) => void;
@@ -19,7 +21,6 @@ interface DreamGenRendererProps {
 
 /**
  * Resolves raw or shortened AI speaker names to their full canonical name.
- * E.g., "Aria" -> "Aria Shadowstep", "Ignis" -> "Ignis Emberheart".
  */
 export function getCanonicalSpeakerName(
   speaker: string,
@@ -54,7 +55,9 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
   type,
   speaker,
   userPersonaName = 'Valerius',
+  userAvatar,
   knownNPCs = [],
+  npcAvatars = {},
   isStreaming = false,
   onRegenerate,
   onEdit,
@@ -86,29 +89,43 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
 
   const isNarrator = canonicalSpeaker.toLowerCase() === 'narrator';
   const isUserSpeaker = isUserTurn || canonicalSpeaker.toLowerCase() === userPersonaName.toLowerCase();
+  const avatarUrl = isUserSpeaker ? userAvatar : npcAvatars[canonicalSpeaker];
 
   return (
-    <div className="group relative my-6 max-w-5xl mx-auto w-full rounded-xl bg-[#12151e] border border-[#1f2430] p-7 sm:p-8 shadow-md transition-colors hover:border-[#2a3142] contain-content space-y-4">
-      {/* Identity Attribution Header */}
-      <div className="flex items-center justify-between text-xs border-b border-[#1f2430] pb-2.5">
-        <div className="flex items-center gap-2">
+    <div className="group relative my-6 max-w-7xl mx-auto w-full rounded-xl bg-[#12151e] border border-[#1f2430] p-7 sm:p-8 shadow-md transition-colors hover:border-[#2a3142] contain-content space-y-4">
+      {/* Identity Attribution Header with Avatar Support */}
+      <div className="flex items-center justify-between text-xs border-b border-[#1f2430] pb-3">
+        <div className="flex items-center gap-2.5">
+          {/* Avatar Image / Fallback Badge */}
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={canonicalSpeaker}
+              className="w-7 h-7 rounded-full object-cover border border-[#2a3142] shrink-0"
+              onError={(e) => {
+                // hide broken avatar gracefully
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+          ) : null}
+
           {isUserSpeaker ? (
             <div className="flex items-center gap-1.5 font-bold text-[#38bdf8]">
-              <User className="w-3.5 h-3.5" />
-              <span>{canonicalSpeaker}</span>
-              <span className="px-1.5 py-0.5 rounded text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 uppercase">
+              {!avatarUrl && <User className="w-4 h-4" />}
+              <span className="text-sm tracking-wide">{canonicalSpeaker}</span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 uppercase font-mono">
                 PLAYER
               </span>
             </div>
           ) : isNarrator ? (
-            <span className="text-slate-500 font-mono italic text-[11px]">
+            <span className="text-slate-500 font-mono italic text-xs">
               (narrative)
             </span>
           ) : (
             <div className="flex items-center gap-1.5 font-bold text-amber-300">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>{canonicalSpeaker}</span>
-              <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/30 uppercase">
+              {!avatarUrl && <Sparkles className="w-4 h-4 text-amber-400" />}
+              <span className="text-sm tracking-wide">{canonicalSpeaker}</span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/30 uppercase font-mono">
                 NPC
               </span>
             </div>

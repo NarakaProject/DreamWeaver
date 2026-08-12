@@ -14,6 +14,20 @@ export interface CustomObjectContext {
   trigger_rule?: string;
 }
 
+export interface LocationContext {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface ScenarioNPCContext {
+  id: string;
+  name: string;
+  tagline?: string;
+  personality: string;
+  avatar?: string;
+}
+
 export interface PromptExampleContext {
   user: string;
   model: string;
@@ -23,12 +37,16 @@ export interface PromptContextParams {
   narratorDirectives?: string;
   settingLore?: string;
   plotHooks?: string;
+  historyContent?: string;
   writingStyle?: string;
+  locations?: LocationContext[];
   customObjects?: CustomObjectContext[];
+  scenarioNPCs?: ScenarioNPCContext[];
   fewShotExamples?: PromptExampleContext[];
   characterName?: string;
   characterPersonality?: string;
   characterTagline?: string;
+  characterAvatar?: string;
   targetSpeaker?: string;
   userInstruction?: string;
   messages: ChatMessage[];
@@ -53,8 +71,8 @@ export interface GeminiPayload {
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 
 /**
- * Synthesizes Narrator Directives, Setting & Lore, Plot Hooks, CYOA Custom Objects,
- * Writing Style, Active Persona, and Strict User Agency Rules into a single system instruction.
+ * Synthesizes all 12 building blocks into a structured prompt payload for Gemini
+ * (excluding Private Notes which remain strictly confidential to the player).
  */
 export function buildSystemInstruction(params: Partial<PromptContextParams>): string {
   const userName = params.characterName || 'Player';
@@ -76,7 +94,7 @@ export function buildSystemInstruction(params: Partial<PromptContextParams>): st
     '4. Maintain character persona and scenario directives consistency at all times.',
   ];
 
-  // Active User Persona
+  // User Persona
   if (params.characterName) {
     parts.push(`\n### USER PERSONA (PLAYER IDENTITY - DO NOT ROLEPLAY AS THIS USER):\nName: ${params.characterName}`);
     if (params.characterTagline) {
@@ -97,9 +115,22 @@ export function buildSystemInstruction(params: Partial<PromptContextParams>): st
     parts.push(`\n### NARRATOR & GAME MASTER DIRECTIVES:\n${params.narratorDirectives.trim()}`);
   }
 
+  // Writing Style & Perspective
+  if (params.writingStyle && params.writingStyle.trim()) {
+    parts.push(`\n### WRITING STYLE & PERSPECTIVE:\n${params.writingStyle.trim()}`);
+  }
+
   // Setting & Lore
   if (params.settingLore && params.settingLore.trim()) {
     parts.push(`\n### SETTING & ENVIRONMENTAL CONTEXT:\n${params.settingLore.trim()}`);
+  }
+
+  // Grounding Locations
+  if (params.locations && params.locations.length > 0) {
+    const locList = params.locations
+      .map((loc) => `- **${loc.name}**: ${loc.description}`)
+      .join('\n');
+    parts.push(`\n### KEY SCENE LOCATIONS & GROUNDING:\n${locList}`);
   }
 
   // Plot Hooks
@@ -107,12 +138,23 @@ export function buildSystemInstruction(params: Partial<PromptContextParams>): st
     parts.push(`\n### ACTIVE PLOT HOOKS & STORYLINE:\n${params.plotHooks.trim()}`);
   }
 
-  // Writing Style & Perspective
-  if (params.writingStyle && params.writingStyle.trim()) {
-    parts.push(`\n### WRITING STYLE & PERSPECTIVE:\n${params.writingStyle.trim()}`);
+  // History & Backstory
+  if (params.historyContent && params.historyContent.trim()) {
+    parts.push(`\n### RECENT HISTORY & BACKSTORY:\n${params.historyContent.trim()}`);
   }
 
-  // CYOA Custom Objects Tracking
+  // Scenario Companions & NPCs
+  if (params.scenarioNPCs && params.scenarioNPCs.length > 0) {
+    const npcList = params.scenarioNPCs
+      .map(
+        (npc) =>
+          `- **${npc.name}**${npc.tagline ? ` (${npc.tagline})` : ''}: ${npc.personality}`
+      )
+      .join('\n');
+    parts.push(`\n### SCENARIO COMPANIONS & NPCS:\n${npcList}`);
+  }
+
+  // CYOA Custom Objects & Mechanics
   if (params.customObjects && params.customObjects.length > 0) {
     const objectList = params.customObjects
       .map(

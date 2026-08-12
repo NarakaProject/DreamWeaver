@@ -8,6 +8,12 @@ export interface CustomObject {
   trigger_rule?: string;
 }
 
+export interface LocationItem {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export interface PromptExample {
   user: string;
   model: string;
@@ -22,15 +28,23 @@ export interface PersonaTemplate {
   firstMessage: string;
 }
 
+export interface ImageAssets {
+  coverImage?: string;
+  backgroundImage?: string;
+}
+
 export interface WorldBuilding {
   setting: string;
   plot: string;
   style: string;
   narrator: string;
+  history?: string;
+  privateNotes?: string;
   objects: CustomObject[];
+  locations?: LocationItem[];
   examples: PromptExample[];
   scenarioNPCs?: PersonaTemplate[];
-  privateNotes?: string;
+  images?: ImageAssets;
 }
 
 export interface ScenarioMeta {
@@ -132,9 +146,13 @@ export async function loadScenarioById(
       plot: '',
       style: 'Atmospheric, evocative prose.',
       narrator: 'Act as an interactive RPG Game Master.',
+      history: '',
+      privateNotes: '',
       objects: [],
+      locations: [],
       examples: [],
       scenarioNPCs: [],
+      images: {},
     };
     try {
       const wbPath = path.join(scenarioFolder, 'world_building.json');
@@ -145,10 +163,13 @@ export async function loadScenarioById(
         plot: wbJson.plot || '',
         style: wbJson.style || 'Atmospheric, evocative prose.',
         narrator: wbJson.narrator || 'Act as an interactive RPG Game Master.',
+        history: wbJson.history || '',
+        privateNotes: wbJson.privateNotes || '',
         objects: Array.isArray(wbJson.objects) ? wbJson.objects : [],
+        locations: Array.isArray(wbJson.locations) ? wbJson.locations : [],
         examples: Array.isArray(wbJson.examples) ? wbJson.examples : [],
         scenarioNPCs: Array.isArray(wbJson.scenarioNPCs) ? wbJson.scenarioNPCs : [],
-        privateNotes: wbJson.privateNotes || '',
+        images: wbJson.images || {},
       };
     } catch {
       // default world building if missing
@@ -240,6 +261,7 @@ async function convertLegacyWorldToScenario(
         style: 'Evocative roleplay prose.',
         narrator: 'Act as an engaging RPG narrator.',
         objects: [],
+        locations: [],
         examples: [],
         scenarioNPCs: [],
       },
