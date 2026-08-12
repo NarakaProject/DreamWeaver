@@ -39,6 +39,9 @@ const GENRE_OPTIONS = [
   'Slice-of-Life',
   'Mystery',
   'Romance',
+  'Urban Fantasy',
+  'Isekai',
+  'Steampunk',
 ];
 
 const TONE_OPTIONS = [
@@ -47,6 +50,8 @@ const TONE_OPTIONS = [
   'Fast-Paced Action',
   'Heroic & Epic',
   'Grim & Gritty',
+  'Whimsical & Melancholic',
+  'Philosophical',
 ];
 
 export function ScenarioWizardModal({
@@ -64,6 +69,12 @@ export function ScenarioWizardModal({
   const [idea, setIdea] = React.useState('');
   const [genre, setGenre] = React.useState('Sci-Fi Horror');
   const [tone, setTone] = React.useState('Dark & Suspenseful');
+
+  const [isCustomGenre, setIsCustomGenre] = React.useState(false);
+  const [customGenreText, setCustomGenreText] = React.useState('');
+
+  const [isCustomTone, setIsCustomTone] = React.useState(false);
+  const [customToneText, setCustomToneText] = React.useState('');
 
   // Generation & Loading State
   const [isGenerating, setIsGenerating] = React.useState(false);
@@ -427,7 +438,7 @@ export function ScenarioWizardModal({
                 />
               </div>
 
-              {/* Genre Selector */}
+              {/* Hybrid Creatable Genre Selector */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-slate-300">Select Genre</label>
                 <div className="flex flex-wrap gap-2">
@@ -435,20 +446,54 @@ export function ScenarioWizardModal({
                     <button
                       key={g}
                       type="button"
-                      onClick={() => setGenre(g)}
+                      onClick={() => {
+                        setIsCustomGenre(false);
+                        setGenre(g);
+                      }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                        genre === g
-                          ? 'bg-amber-500 text-black shadow-md'
+                        !isCustomGenre && genre === g
+                          ? 'bg-amber-500 text-black shadow-md font-bold'
                           : 'bg-[#141824] border border-[#242b3d] text-slate-400 hover:text-white'
                       }`}
                     >
                       {g}
                     </button>
                   ))}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomGenre(true);
+                      if (customGenreText.trim()) setGenre(customGenreText.trim());
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                      isCustomGenre
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 font-bold'
+                        : 'bg-[#141824] border-[#242b3d] text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    + Custom Genre
+                  </button>
                 </div>
+
+                {isCustomGenre && (
+                  <div className="pt-1.5">
+                    <input
+                      type="text"
+                      value={customGenreText}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCustomGenreText(val);
+                        setGenre(val || 'Custom Genre');
+                      }}
+                      placeholder="Type custom genre (e.g. Eldritch Western, Cyberpunk Noir, Space Opera)..."
+                      className="w-full rounded-xl bg-[#090a0f] border border-amber-500/50 p-2.5 text-xs text-amber-300 focus:outline-none focus:border-amber-400 font-semibold"
+                    />
+                  </div>
+                )}
               </div>
 
-              {/* Tone Selector */}
+              {/* Hybrid Creatable Tone Selector */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-slate-300">Narrative Tone</label>
                 <div className="flex flex-wrap gap-2">
@@ -456,17 +501,51 @@ export function ScenarioWizardModal({
                     <button
                       key={t}
                       type="button"
-                      onClick={() => setTone(t)}
+                      onClick={() => {
+                        setIsCustomTone(false);
+                        setTone(t);
+                      }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                        tone === t
-                          ? 'bg-purple-500 text-white shadow-md'
+                        !isCustomTone && tone === t
+                          ? 'bg-purple-500 text-white shadow-md font-bold'
                           : 'bg-[#141824] border border-[#242b3d] text-slate-400 hover:text-white'
                       }`}
                     >
                       {t}
                     </button>
                   ))}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomTone(true);
+                      if (customToneText.trim()) setTone(customToneText.trim());
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                      isCustomTone
+                        ? 'bg-purple-500/20 text-purple-300 border-purple-500/60 font-bold'
+                        : 'bg-[#141824] border-[#242b3d] text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    + Custom Tone
+                  </button>
                 </div>
+
+                {isCustomTone && (
+                  <div className="pt-1.5">
+                    <input
+                      type="text"
+                      value={customToneText}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCustomToneText(val);
+                        setTone(val || 'Custom Tone');
+                      }}
+                      placeholder="Type custom narrative tone descriptors (e.g. Satirical & Surreal, Melancholic Cyberpunk)..."
+                      className="w-full rounded-xl bg-[#090a0f] border border-purple-500/50 p-2.5 text-xs text-purple-300 focus:outline-none focus:border-purple-400 font-semibold"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Live Animated Progress Bar during Generation */}
