@@ -532,6 +532,9 @@ export default function Home() {
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsStreaming(false);
+      // Automatically reset turn selector back to player persona when stream finishes
+      const playerSpeaker = activePersona?.name || 'Naraka';
+      setSelectedSpeaker(playerSpeaker);
     }
   };
 

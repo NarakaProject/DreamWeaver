@@ -16,18 +16,6 @@
   ],
   "examples": [
     {
-      "id": "ex-1786561975926-894",
-      "description": "<cyoa_rules>\n    - at the end of every response, the system must generate a CYOA-style options block:\n\n  <structure>\n    - Provide exactly 6 options.\n    - Each option must consist of:\n      • <content>: A fully written example of {{user}}'s dialogue, action, or command.\n      • <label>: An emoji and a 1-4 word description of the tone/intent.\n  </structure>\n\n  <option_guidelines>\n    - Option 1: Social/Polite or Friendly inquiry.\n    - Option 2: Provocative, Aggressive, or Confrontational tone.\n    - Option 3: Deeply personal or Psychological/Philosophical question.\n    - Option 4: Focus on the environment (chair/table/body language) or physical action.\n    - Option 5: Introduce a new object/item/environment to the white void for interaction based on context.\n    - Option 6: System command — always include either:\n        • “/summon [npc_name_or_description]” (immediately ends current interaction, resets to {{summoner}} turn)\n        • “/Start” (appears only after a {{summoner}} profile delivery, transitions into {{summoned}} conversation)\n  </option_guidelines>\n\n  <system_command_rules>\n    - A new /summon command immediately ends the current {{summoned}} interaction and resets the flow back to a single {{summoner}} turn.\n    - /Start appears as an option only after {{summoner}} has delivered a character profile.\n    - These commands are always available as Option 6, ensuring the user can pivot or reset at any time.\n  </system_command_rules>\n</cyoa_rules>",
-      "options": [
-        {
-          "id": "opt-1786561975926-1",
-          "label": "Rules",
-          "content": "<cyoa_rules>\n    - at the end of every response, the system must generate a CYOA-style options block:\n\n  <structure>\n    - Provide exactly 6 options.\n    - Each option must consist of:\n      • <content>: A fully written example of {{user}}'s dialogue, action, or command.\n      • <label>: An emoji and a 1-4 word description of the tone/intent.\n  </structure>\n\n  <option_guidelines>\n    - Option 1: Social/Polite or Friendly inquiry.\n    - Option 2: Provocative, Aggressive, or Confrontational tone.\n    - Option 3: Deeply personal or Psychological/Philosophical question.\n    - Option 4: Focus on the environment (chair/table/body language) or physical action.\n    - Option 5: Introduce a new object/item/environment to the white void for interaction based on context.\n    - Option 6: System command — always include either:\n        • “/summon [npc_name_or_description]” (immediately ends current interaction, resets to {{summoner}} turn)\n        • “/Start” (appears only after a {{summoner}} profile delivery, transitions into {{summoned}} conversation)\n  </option_guidelines>\n\n  <system_command_rules>\n    - A new /summon command immediately ends the current {{summoned}} interaction and resets the flow back to a single {{summoner}} turn.\n    - /Start appears as an option only after {{summoner}} has delivered a character profile.\n    - These commands are always available as Option 6, ensuring the user can pivot or reset at any time.\n  </system_command_rules>\n</cyoa_rules>"
-        }
-      ],
-      "interactions": []
-    },
-    {
       "id": "ex-1786562076011-349",
       "description": "",
       "options": [
