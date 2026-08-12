@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { HelpCircle, X, Sparkles } from 'lucide-react';
 
 export type BuildingBlockType =
@@ -105,8 +106,49 @@ interface TooltipProps {
 
 export function BuildingBlockTooltip({ blockKey }: TooltipProps) {
   const [isOpen, setIsOpen] = React.useState(false);
+  const [mounted, setMounted] = React.useState(false);
+  const [coords, setCoords] = React.useState<{ top: number; left: number } | null>(null);
+
+  const buttonRef = React.useRef<HTMLButtonElement | null>(null);
   const leaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const info = BUILDING_BLOCK_GUIDANCE[blockKey];
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const updatePosition = React.useCallback(() => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const popoverWidth = 320; // 20rem / w-80
+
+      // Compute position floating to the left of the button
+      let left = rect.left - popoverWidth - 12;
+      let top = rect.top + rect.height / 2;
+
+      // Fallback to right if off-screen on the left
+      if (left < 16) {
+        left = Math.max(16, rect.right + 12);
+      }
+
+      // Constrain top within viewport bounds
+      top = Math.max(80, Math.min(window.innerHeight - 150, top));
+
+      setCoords({ top, left });
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+      window.addEventListener('resize', updatePosition);
+      window.addEventListener('scroll', updatePosition, true);
+      return () => {
+        window.removeEventListener('resize', updatePosition);
+        window.removeEventListener('scroll', updatePosition, true);
+      };
+    }
+  }, [isOpen, updatePosition]);
 
   if (!info) return null;
 
@@ -115,32 +157,45 @@ export function BuildingBlockTooltip({ blockKey }: TooltipProps) {
       clearTimeout(leaveTimerRef.current);
       leaveTimerRef.current = null;
     }
+    updatePosition();
     setIsOpen(true);
   };
 
   const handleMouseLeave = () => {
     leaveTimerRef.current = setTimeout(() => {
       setIsOpen(false);
-    }, 180); // 180ms smooth leave delay preventing accidental close flicker
+    }, 180);
   };
 
   return (
     <div
-      className="relative inline-block ml-1.5 align-middle"
+      className="inline-block ml-1.5 align-middle"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          updatePosition();
+          setIsOpen(!isOpen);
+        }}
         className="p-0.5 rounded-full text-slate-400 hover:text-amber-400 transition-colors focus:outline-none"
       >
         <HelpCircle className="w-3.5 h-3.5" />
       </button>
 
-      {isOpen && (
+      {/* React Portal to document.body bypassing parent overflow clipping */}
+      {isOpen && mounted && coords && createPortal(
         <div
-          className="absolute right-full top-1/2 -translate-y-1/2 mr-3 w-80 max-w-[calc(100vw-4rem)] z-50 p-4 rounded-xl bg-neutral-900 border border-neutral-700/80 shadow-2xl text-xs space-y-2 font-normal text-left pointer-events-auto"
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            transform: 'translateY(-50%)',
+            zIndex: 9999,
+          }}
+          className="w-80 max-w-[calc(100vw-2rem)] p-4 rounded-xl bg-neutral-900 border border-neutral-700/80 shadow-2xl text-xs space-y-2 font-normal text-left pointer-events-auto"
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
@@ -175,7 +230,8 @@ export function BuildingBlockTooltip({ blockKey }: TooltipProps) {
             </div>
             <p className="text-slate-300 text-[11px] leading-relaxed">{info.formattingTip}</p>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
