@@ -207,13 +207,22 @@ export default function Home() {
       body: JSON.stringify({ action: 'saveSession', session: newSession }),
     });
 
-    const primaryNPC = scenario.suggestedPersonas.find((p) => p.id !== persona.id);
+    const primaryNPC =
+      (scenario.worldBuilding.scenarioNPCs && scenario.worldBuilding.scenarioNPCs.length > 0)
+        ? scenario.worldBuilding.scenarioNPCs[0]
+        : scenario.suggestedPersonas.find((p) => p.id !== persona.id);
+
+    const initialSpeaker = primaryNPC ? primaryNPC.name : 'Aria Shadowstep';
+    const initialContent =
+      primaryNPC?.firstMessage ||
+      persona.firstMessage ||
+      `*The scene opens as ${persona.name} arrives.*`;
 
     const initialMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'model',
-      content: persona.firstMessage || `*The scene opens as ${persona.name} arrives.*`,
-      speaker: primaryNPC ? primaryNPC.name : 'Narrator',
+      content: initialContent,
+      speaker: initialSpeaker,
       timestamp: Date.now(),
     };
 
@@ -482,13 +491,19 @@ export default function Home() {
     }
   };
 
-  // Active scene NPCs for speaker dropdown
   const sceneNPCs = React.useMemo(() => {
     if (!activeScenario) return [];
-    return activeScenario.suggestedPersonas
-      .map((p) => p.name)
-      .filter((n) => n !== activePersona?.name);
-  }, [activeScenario, activePersona]);
+    const npcNames: string[] = [];
+    if (activeWorldBuilding?.scenarioNPCs) {
+      activeWorldBuilding.scenarioNPCs.forEach((npc) => npcNames.push(npc.name));
+    }
+    activeScenario.suggestedPersonas.forEach((p) => {
+      if (p.name !== activePersona?.name && !npcNames.includes(p.name)) {
+        npcNames.push(p.name);
+      }
+    });
+    return npcNames;
+  }, [activeScenario, activeWorldBuilding, activePersona]);
 
   return (
     <div className="flex h-screen bg-[#090a0f] text-[#e2e8f0] overflow-hidden">

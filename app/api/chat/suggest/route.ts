@@ -33,9 +33,7 @@ Plot: ${plotHooks}
 Recent Story Events:
 ${recentContext}
 
-Based on the story situation above, generate exactly 3 short, distinct, plausible action/dialogue choices for "${characterName}".
-Format output strictly as a JSON array of 3 strings: ["Option 1", "Option 2", "Option 3"].
-Do NOT include markdown wrapping or extra conversational text.
+Return ONLY a raw JSON array of exactly 3 plain text action suggestions for "${characterName}", e.g. ["Inspect the glowing runes", "Ask companion about the guards", "Stay hidden in the shadows"]. Do NOT wrap in markdown code blocks, brackets, or escape characters.
 `.trim();
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -63,28 +61,76 @@ Do NOT include markdown wrapping or extra conversational text.
     }
 
     const data = await res.json();
-    const rawReply = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+    const rawReply = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
-    // Clean JSON array parsing
-    const cleaned = rawReply.replace(/```json/g, '').replace(/```/g, '').trim();
+    // Robust cleaning & parsing
+    let cleaned = rawReply
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .trim();
+
     let suggestions: string[] = [];
+
+    // Attempt direct JSON parse
     try {
-      suggestions = JSON.parse(cleaned);
-      if (!Array.isArray(suggestions)) suggestions = [];
+      const parsed = JSON.parse(cleaned);
+      if (Array.isArray(parsed)) {
+        suggestions = parsed.map((s) => String(s).trim()).filter(Boolean);
+      }
     } catch {
+      // If direct parse fails, try extracting from [ to ]
+      const bracketMatch = cleaned.match(/\[[\s\S]*\]/);
+      if (bracketMatch) {
+        try {
+          const parsed = JSON.parse(bracketMatch[0]);
+          if (Array.isArray(parsed)) {
+            suggestions = parsed.map((s) => String(s).trim()).filter(Boolean);
+          }
+        } catch {}
+      }
+    }
+
+    // Fallback line parsing if JSON array extraction failed
+    if (suggestions.length === 0) {
       suggestions = cleaned
         .split('\n')
-        .map((line: string) => line.replace(/^\d+\.\s*/, '').trim())
-        .filter(Boolean)
-        .slice(0, 3);
+        .map((line: string) =>
+          line
+            .replace(/^[\s\d\-*\.\"[\]\\]+/, '') // Strip line numbers, quotes, brackets, escapes
+            .replace(/[\"\]\\]+$/, '')
+            .trim()
+        )
+        .filter((s: string) => s.length > 3 && !s.startsWith('[') && !s.startsWith('{'));
+    }
+
+    // Sanitize items to remove any leftover escaping or broken syntax
+    suggestions = suggestions.map((s) =>
+      s
+        .replace(/\\"/g, '"')
+        .replace(/^["'\[\\]+/, '')
+        .replace(/["'\]\\]+$/, '')
+        .trim()
+    ).filter(Boolean);
+
+    // Guaranteed reliable fallback if array is empty or corrupt
+    if (suggestions.length < 3) {
+      const defaultFallbacks = [
+        `Inspect the surrounding area carefully`,
+        `Ask your companion for tactical advice`,
+        `Prepare your weapons and stay alert`,
+      ];
+      suggestions = [...suggestions, ...defaultFallbacks].slice(0, 3);
     }
 
     return NextResponse.json({ suggestions: suggestions.slice(0, 3) });
   } catch (err: any) {
     console.error('Suggest API Error:', err);
-    return NextResponse.json(
-      { error: err.message || 'Failed to generate suggestions' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      suggestions: [
+        'Inspect the surrounding area carefully',
+        'Ask your companion for tactical advice',
+        'Prepare your weapons and stay alert',
+      ],
+    });
   }
 }

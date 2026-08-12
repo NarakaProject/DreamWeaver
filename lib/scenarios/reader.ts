@@ -13,16 +13,6 @@ export interface PromptExample {
   model: string;
 }
 
-export interface WorldBuilding {
-  setting: string;
-  plot: string;
-  style: string;
-  narrator: string;
-  objects: CustomObject[];
-  examples: PromptExample[];
-  privateNotes?: string;
-}
-
 export interface PersonaTemplate {
   id: string;
   name: string;
@@ -30,6 +20,17 @@ export interface PersonaTemplate {
   personality: string;
   avatar?: string;
   firstMessage: string;
+}
+
+export interface WorldBuilding {
+  setting: string;
+  plot: string;
+  style: string;
+  narrator: string;
+  objects: CustomObject[];
+  examples: PromptExample[];
+  scenarioNPCs?: PersonaTemplate[];
+  privateNotes?: string;
 }
 
 export interface ScenarioMeta {
@@ -133,6 +134,7 @@ export async function loadScenarioById(
       narrator: 'Act as an interactive RPG Game Master.',
       objects: [],
       examples: [],
+      scenarioNPCs: [],
     };
     try {
       const wbPath = path.join(scenarioFolder, 'world_building.json');
@@ -145,6 +147,7 @@ export async function loadScenarioById(
         narrator: wbJson.narrator || 'Act as an interactive RPG Game Master.',
         objects: Array.isArray(wbJson.objects) ? wbJson.objects : [],
         examples: Array.isArray(wbJson.examples) ? wbJson.examples : [],
+        scenarioNPCs: Array.isArray(wbJson.scenarioNPCs) ? wbJson.scenarioNPCs : [],
         privateNotes: wbJson.privateNotes || '',
       };
     } catch {
@@ -238,6 +241,7 @@ async function convertLegacyWorldToScenario(
         narrator: 'Act as an engaging RPG narrator.',
         objects: [],
         examples: [],
+        scenarioNPCs: [],
       },
       suggestedPersonas: personas,
     };
