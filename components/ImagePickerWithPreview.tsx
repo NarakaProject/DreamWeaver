@@ -1,13 +1,16 @@
 'use client';
 
 import React from 'react';
-import { Upload, X, Image as ImageIcon, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, AlertCircle, Loader2, Sparkles, Wand2 } from 'lucide-react';
+import { AssetType } from '@/lib/gemini/image-prompt';
 
 interface ImagePickerWithPreviewProps {
   label?: string;
   value: string;
   onChange: (newValue: string) => void;
   placeholder?: string;
+  assetType?: AssetType;
+  promptHint?: string;
 }
 
 export function ImagePickerWithPreview({
@@ -15,8 +18,11 @@ export function ImagePickerWithPreview({
   value,
   onChange,
   placeholder = 'https://... or /uploads/image.png',
+  assetType = 'general',
+  promptHint = '',
 }: ImagePickerWithPreviewProps) {
   const [uploading, setUploading] = React.useState(false);
+  const [isGeneratingAI, setIsGeneratingAI] = React.useState(false);
   const [imgError, setImgError] = React.useState(false);
   const [uploadError, setUploadError] = React.useState('');
 
@@ -27,6 +33,7 @@ export function ImagePickerWithPreview({
     setUploadError('');
   }, [value]);
 
+  // Handle Local File Upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -58,6 +65,43 @@ export function ImagePickerWithPreview({
     }
   };
 
+  // Handle AI Image Generation via FLUX API Route
+  const handleGenerateAIImage = async () => {
+    const defaultPrompt = promptHint || label || '';
+    const userPrompt = window.prompt(
+      'Describe the image asset to generate with FLUX.1-schnell AI:',
+      defaultPrompt
+    );
+
+    if (!userPrompt || !userPrompt.trim()) return;
+
+    setIsGeneratingAI(true);
+    setUploadError('');
+
+    try {
+      const res = await fetch('/api/generate/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: userPrompt.trim(),
+          type: assetType,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'AI image generation failed.');
+      }
+
+      onChange(data.imageUrl);
+    } catch (err: any) {
+      console.error('AI Image Generation Error:', err);
+      setUploadError(err.message || 'Failed to generate AI image.');
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
   return (
     <div className="space-y-2 text-xs">
       {label && <label className="block font-semibold text-slate-300">{label}</label>}
@@ -65,7 +109,12 @@ export function ImagePickerWithPreview({
       <div className="flex items-start gap-3">
         {/* Live Image Preview Box */}
         <div className="relative shrink-0 w-16 h-16 rounded-xl bg-[#090a0f] border border-[#262c3e] overflow-hidden flex items-center justify-center">
-          {value && !imgError ? (
+          {isGeneratingAI ? (
+            <div className="flex flex-col items-center justify-center p-1 text-[9px] text-amber-400 text-center space-y-1">
+              <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+              <span>FLUX Painting...</span>
+            </div>
+          ) : value && !imgError ? (
             <img
               src={value}
               alt="Preview"
@@ -84,7 +133,7 @@ export function ImagePickerWithPreview({
             </div>
           )}
 
-          {value && (
+          {value && !isGeneratingAI && (
             <button
               type="button"
               onClick={() => onChange('')}
@@ -96,15 +145,15 @@ export function ImagePickerWithPreview({
           )}
         </div>
 
-        {/* Dual Input Controls */}
+        {/* Triple Controls: Text URL Input, Upload Button & ✨ Auto-Generate AI Image Button */}
         <div className="flex-1 space-y-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <input
               type="text"
               value={value}
               onChange={(e) => onChange(e.target.value)}
               placeholder={placeholder}
-              className="flex-1 rounded-xl bg-[#090a0f] border border-[#262c3e] px-3 py-2 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500"
+              className="flex-1 min-w-[140px] rounded-xl bg-[#090a0f] border border-[#262c3e] px-3 py-2 text-xs text-[#e2e8f0] focus:outline-none focus:border-amber-500"
             />
 
             {/* Native File Input Trigger */}
@@ -119,8 +168,8 @@ export function ImagePickerWithPreview({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#1c2233] border border-[#2a344d] hover:bg-[#252d45] text-amber-300 font-semibold text-xs transition-colors shrink-0 disabled:opacity-50"
+              disabled={uploading || isGeneratingAI}
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-[#1c2233] border border-[#2a344d] hover:bg-[#252d45] text-amber-300 font-semibold text-xs transition-colors shrink-0 disabled:opacity-50"
               title="Upload image from computer"
             >
               {uploading ? (
@@ -128,13 +177,27 @@ export function ImagePickerWithPreview({
               ) : (
                 <Upload className="w-3.5 h-3.5" />
               )}
-              <span>{uploading ? 'Uploading...' : 'Upload File'}</span>
+              <span>{uploading ? 'Uploading...' : 'Upload'}</span>
+            </button>
+
+            {/* ✨ Auto-Generate AI Image Button (FLUX Engine) */}
+            <button
+              type="button"
+              onClick={handleGenerateAIImage}
+              disabled={uploading || isGeneratingAI}
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-purple-500/20 border border-purple-500/40 hover:bg-purple-500/30 text-purple-300 font-semibold text-xs transition-colors shrink-0 disabled:opacity-50"
+              title="Generate asset with Hugging Face FLUX AI model"
+            >
+              {isGeneratingAI ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
+              ) : (
+                <Wand2 className="w-3.5 h-3.5 text-purple-400" />
+              )}
+              <span>{isGeneratingAI ? 'Painting...' : '✨ AI Image'}</span>
             </button>
           </div>
 
-          {uploadError && (
-            <p className="text-[11px] text-rose-400 font-medium">{uploadError}</p>
-          )}
+          {uploadError && <p className="text-[11px] text-rose-400 font-medium">{uploadError}</p>}
         </div>
       </div>
     </div>
