@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FullScenario } from '@/lib/scenarios/reader';
+import { FullScenario } from '@/lib/scenarios/types';
 import { Search, Plus, Play, Edit3, Compass, Sparkles, Tag, Layers } from 'lucide-react';
 
 interface ScenarioDiscoveryProps {

@@ -1,3 +1,5 @@
+import { PromptExample, normalizePromptExample } from '@/lib/scenarios/types';
+
 export interface ChatMessage {
   id?: string;
   role: 'user' | 'model' | 'system';
@@ -28,11 +30,6 @@ export interface ScenarioNPCContext {
   avatar?: string;
 }
 
-export interface PromptExampleContext {
-  user: string;
-  model: string;
-}
-
 export interface PromptContextParams {
   narratorDirectives?: string;
   settingLore?: string;
@@ -42,7 +39,7 @@ export interface PromptContextParams {
   locations?: LocationContext[];
   customObjects?: CustomObjectContext[];
   scenarioNPCs?: ScenarioNPCContext[];
-  fewShotExamples?: PromptExampleContext[];
+  fewShotExamples?: PromptExample[];
   characterName?: string;
   characterPersonality?: string;
   characterTagline?: string;
@@ -167,6 +164,33 @@ export function buildSystemInstruction(params: Partial<PromptContextParams>): st
     parts.push(`\n### ACTIVE CUSTOM OBJECTS & CYOA MECHANICS:\nTrack the following entities, items, and status rules during narrative generation:\n${objectList}`);
   }
 
+  // Few-Shot Roleplay Examples (Multi-Turn Trees)
+  if (params.fewShotExamples && params.fewShotExamples.length > 0) {
+    const exampleBlocks = params.fewShotExamples.map((ex, i) => {
+      const normalized = normalizePromptExample(ex);
+      const exParts: string[] = [];
+      exParts.push(`#### EXAMPLE TREE #${i + 1}${normalized.description ? `: ${normalized.description}` : ''}`);
+
+      if (normalized.options && normalized.options.length > 0) {
+        exParts.push(`Choose The Next Step Options:`);
+        normalized.options.forEach((opt) => {
+          exParts.push(`- [${opt.label}]: ${opt.content}`);
+        });
+      }
+
+      if (normalized.interactions && normalized.interactions.length > 0) {
+        exParts.push(`Interaction Thread:`);
+        normalized.interactions.forEach((it) => {
+          exParts.push(`[Speaker: ${it.role}]: ${it.content}`);
+        });
+      }
+
+      return exParts.join('\n');
+    });
+
+    parts.push(`\n### FEW-SHOT ROLEPLAY REFERENCE EXAMPLES:\nUse the following reference examples to mimic voice, tone, choices, and narration formatting mechanics:\n\n${exampleBlocks.join('\n\n')}`);
+  }
+
   return parts.join('\n');
 }
 
@@ -210,8 +234,13 @@ export function assembleGeminiPayload(
   if (params.fewShotExamples && params.fewShotExamples.length > 0 && recentMessages.length <= 1) {
     const exampleTurns: { role: 'user' | 'model'; parts: { text: string }[] }[] = [];
     for (const ex of params.fewShotExamples) {
-      exampleTurns.push({ role: 'user', parts: [{ text: ex.user }] });
-      exampleTurns.push({ role: 'model', parts: [{ text: ex.model }] });
+      const normalized = normalizePromptExample(ex);
+      for (const it of normalized.interactions) {
+        exampleTurns.push({
+          role: it.role === 'user' ? 'user' : 'model',
+          parts: [{ text: `[${it.role}]: ${it.content}` }],
+        });
+      }
     }
     contents.unshift(...exampleTurns);
   }

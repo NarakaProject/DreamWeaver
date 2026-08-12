@@ -1,9 +1,10 @@
 'use client';
 
 import React from 'react';
-import { FullScenario, CustomObject, LocationItem, PromptExample, PersonaTemplate } from '@/lib/scenarios/reader';
+import { FullScenario, CustomObject, LocationItem, PromptExample, PersonaTemplate } from '@/lib/scenarios/types';
 import { BuildingBlockTooltip } from './BuildingBlockTooltip';
 import { ImagePickerWithPreview } from './ImagePickerWithPreview';
+import { ExamplesBlockEditor } from './ExamplesBlockEditor';
 import { X, Plus, Trash2, Save, Sparkles, BookOpen, Layers, User, MapPin, Package, FileText } from 'lucide-react';
 
 interface ScenarioBuilderProps {
@@ -784,75 +785,11 @@ export function ScenarioBuilder({
 
           {/* TAB 7: EXAMPLES (REFERENCE MATERIAL) */}
           {activeTab === 'examples' && (
-            <div className="space-y-4 text-xs">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-amber-400 uppercase tracking-wider flex items-center">
-                    Reference Examples (Roleplay Reference Material)
-                    <BuildingBlockTooltip blockKey="examples" />
-                  </h3>
-                  <p className="text-slate-400 text-[11px] mt-0.5">
-                    Optional interactions that demonstrate aspects of your role-play. Used to demonstrate writing style, character voices, and mechanics (not part of canon story).
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setExamples((prev) => [
-                      ...prev,
-                      {
-                        user: 'Sample player action...',
-                        model: 'Sample Game Master narration response...',
-                      },
-                    ])
-                  }
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Example Pair</span>
-                </button>
-              </div>
-
-              {examples.map((ex, idx) => (
-                <div key={idx} className="p-4 rounded-xl bg-[#090a0f] border border-[#262c3e] space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-xs">Example Turn Pair #{idx + 1}</span>
-                    <button
-                      onClick={() => setExamples((prev) => prev.filter((_, i) => i !== idx))}
-                      className="text-slate-400 hover:text-rose-400 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-cyan-400">User Turn Action</label>
-                    <textarea
-                      value={ex.user}
-                      onChange={(e) => {
-                        const updated = [...examples];
-                        updated[idx].user = e.target.value;
-                        setExamples(updated);
-                      }}
-                      placeholder="e.g. I draw my sword and demand to speak with the captain..."
-                      className="w-full h-20 rounded-lg bg-[#12151e] border border-[#262c3e] p-2.5 text-xs text-white resize-none font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-amber-400">GM Model Narration</label>
-                    <textarea
-                      value={ex.model}
-                      onChange={(e) => {
-                        const updated = [...examples];
-                        updated[idx].model = e.target.value;
-                        setExamples(updated);
-                      }}
-                      placeholder="e.g. The guards freeze as steel rings out across the courtyard..."
-                      className="w-full h-24 rounded-lg bg-[#12151e] border border-[#262c3e] p-2.5 text-xs text-amber-300 resize-none font-mono"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ExamplesBlockEditor
+              examples={examples}
+              onChange={setExamples}
+              knownNPCs={scenarioNPCs}
+            />
           )}
 
           {/* TAB 8: PRIVATE NOTES */}

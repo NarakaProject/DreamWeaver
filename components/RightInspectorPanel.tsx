@@ -1,9 +1,10 @@
 'use client';
 
 import React from 'react';
-import { WorldBuilding, PersonaTemplate, LocationItem, CustomObject, PromptExample } from '@/lib/scenarios/reader';
+import { WorldBuilding, PersonaTemplate, LocationItem, CustomObject, PromptExample } from '@/lib/scenarios/types';
 import { BuildingBlockTooltip } from './BuildingBlockTooltip';
 import { ImagePickerWithPreview } from './ImagePickerWithPreview';
+import { ExamplesBlockEditor } from './ExamplesBlockEditor';
 import { X, Sparkles, User, Plus, Trash2, ChevronDown, ChevronRight, MapPin, Package, FileText, Layers, BookOpen, Image as ImageIcon, Save, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface RightInspectorPanelProps {
@@ -646,61 +647,18 @@ export function RightInspectorPanel({
               <span>11. Reference Examples ({draftWorldBuilding.examples?.length || 0})</span>
               <BuildingBlockTooltip blockKey="examples" />
             </div>
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                const updated = [...(draftWorldBuilding.examples || [])];
-                updated.push({ user: '', model: '' });
-                handleUpdateWorldBuildingDraft({ ...draftWorldBuilding, examples: updated });
-                setOpenSections((prev) => ({ ...prev, examples: true }));
-              }}
-              className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 text-[10px] font-bold"
-            >
-              <Plus className="w-3 h-3" />
-              <span>Add</span>
-            </button>
           </div>
 
           {openSections.examples && (
             <div className="p-3 bg-[#0d0f17] border-t border-[#1f2430] space-y-3 w-full box-border">
-              {(draftWorldBuilding.examples || []).map((ex, idx) => (
-                <div key={idx} className="p-3 rounded-xl bg-[#12151e] border border-[#262c3e] space-y-2 w-full box-border">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-[11px]">Example Pair #{idx + 1}</span>
-                    <button
-                      onClick={() => {
-                        const updated = (draftWorldBuilding.examples || []).filter((_, i) => i !== idx);
-                        handleUpdateWorldBuildingDraft({ ...draftWorldBuilding, examples: updated });
-                      }}
-                      className="text-slate-400 hover:text-rose-400 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <textarea
-                    value={ex.user}
-                    onChange={(e) => {
-                      const updated = [...(draftWorldBuilding.examples || [])];
-                      updated[idx].user = e.target.value;
-                      handleUpdateWorldBuildingDraft({ ...draftWorldBuilding, examples: updated });
-                    }}
-                    placeholder="User Turn Action Example..."
-                    className="w-full bg-[#090a0f] p-2 rounded-lg border border-[#262c3e] text-xs text-white h-14 resize-none"
-                  />
-                  <textarea
-                    value={ex.model}
-                    onChange={(e) => {
-                      const updated = [...(draftWorldBuilding.examples || [])];
-                      updated[idx].model = e.target.value;
-                      handleUpdateWorldBuildingDraft({ ...draftWorldBuilding, examples: updated });
-                    }}
-                    placeholder="GM Model Response Example..."
-                    className="w-full bg-[#090a0f] p-2 rounded-lg border border-[#262c3e] text-xs text-amber-300 h-14 resize-none"
-                  />
-                </div>
-              ))}
+              <ExamplesBlockEditor
+                examples={draftWorldBuilding.examples || []}
+                onChange={(updatedEx) =>
+                  handleUpdateWorldBuildingDraft({ ...draftWorldBuilding, examples: updatedEx })
+                }
+                knownNPCs={draftWorldBuilding.scenarioNPCs || []}
+                userPersonaName={draftPersona?.name || 'user'}
+              />
             </div>
           )}
         </div>

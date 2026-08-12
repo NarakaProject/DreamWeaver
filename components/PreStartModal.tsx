@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FullScenario, PersonaTemplate } from '@/lib/scenarios/reader';
+import { FullScenario, PersonaTemplate } from '@/lib/scenarios/types';
 import { X, User, Play, Sparkles, Plus, Check, Edit3, Save } from 'lucide-react';
 import { ImagePickerWithPreview } from './ImagePickerWithPreview';
 

@@ -13,7 +13,7 @@ import { ScenarioBuilder } from '@/components/ScenarioBuilder';
 import { ScenarioWizardModal } from '@/components/ScenarioWizardModal';
 import { RightInspectorPanel } from '@/components/RightInspectorPanel';
 
-import { FullScenario, PersonaTemplate, WorldBuilding } from '@/lib/scenarios/reader';
+import { FullScenario, PersonaTemplate, WorldBuilding } from '@/lib/scenarios/types';
 import { DbSession, DbMessage } from '@/lib/db';
 import { ChatMessage, DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
 import { splitMultiSpeakerText } from '@/lib/parser/dreamgen';

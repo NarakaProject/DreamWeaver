@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { FullScenario } from '@/lib/scenarios/reader';
+import { FullScenario } from '@/lib/scenarios/types';
+import { ExamplesBlockEditor } from './ExamplesBlockEditor';
 import { BuildingBlockTooltip } from './BuildingBlockTooltip';
 import {
   X,
@@ -794,35 +795,16 @@ export function ScenarioWizardModal({
                 </div>
 
                 {/* EXAMPLES CARD */}
-                <div className="p-4 rounded-xl bg-[#141824] border border-[#242b3d] space-y-2 sm:col-span-2">
-                  <div className="flex items-center justify-between font-bold text-amber-400">
-                    <span>Reference Examples ({scenarioDraft.worldBuilding.examples?.length || 0})</span>
-                    <button
-                      onClick={() => {
-                        const updatedEx = [...(scenarioDraft.worldBuilding.examples || [])];
-                        updatedEx.push({ user: 'Sample user turn action...', model: 'Sample GM narration response...' });
-                        setScenarioDraft((prev) =>
-                          prev ? { ...prev, worldBuilding: { ...prev.worldBuilding, examples: updatedEx } } : null
-                        );
-                      }}
-                      className="text-[10px] text-cyan-300 hover:underline font-mono"
-                    >
-                      + Add Example Pair
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-slate-400 leading-normal">
-                    Optional interactions that demonstrate aspects of your role-play. Used to demonstrate writing style, character voices, and mechanics (not part of canon story).
-                  </p>
-                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                    {(scenarioDraft.worldBuilding.examples || []).map((ex, idx) => (
-                      <div key={idx} className="p-2.5 rounded-lg bg-[#090a0f] border border-[#262c3e] space-y-1">
-                        <div className="text-[10px] font-bold text-cyan-300">User Turn #{idx + 1}</div>
-                        <div className="text-slate-300 font-mono text-[11px]">{ex.user || '(Empty)'}</div>
-                        <div className="text-[10px] font-bold text-amber-300 pt-1">Model Response #{idx + 1}</div>
-                        <div className="text-slate-300 font-mono text-[11px]">{ex.model || '(Empty)'}</div>
-                      </div>
-                    ))}
-                  </div>
+                <div className="p-4 rounded-xl bg-[#141824] border border-[#242b3d] sm:col-span-2">
+                  <ExamplesBlockEditor
+                    examples={scenarioDraft.worldBuilding.examples || []}
+                    onChange={(updatedEx) =>
+                      setScenarioDraft((prev) =>
+                        prev ? { ...prev, worldBuilding: { ...prev.worldBuilding, examples: updatedEx } } : null
+                      )
+                    }
+                    knownNPCs={scenarioDraft.worldBuilding.scenarioNPCs || []}
+                  />
                 </div>
               </div>
             </div>

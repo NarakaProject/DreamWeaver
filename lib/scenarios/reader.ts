@@ -1,68 +1,13 @@
 import fs from 'fs/promises';
 import path from 'path';
+import {
+  FullScenario,
+  ScenarioMeta,
+  WorldBuilding,
+  PersonaTemplate,
+} from './types';
 
-export interface CustomObject {
-  id: string;
-  name: string;
-  description: string;
-  trigger_rule?: string;
-}
-
-export interface LocationItem {
-  id: string;
-  name: string;
-  description: string;
-}
-
-export interface PromptExample {
-  user: string;
-  model: string;
-}
-
-export interface PersonaTemplate {
-  id: string;
-  name: string;
-  tagline?: string;
-  personality: string;
-  avatar?: string;
-  firstMessage: string;
-}
-
-export interface ImageAssets {
-  coverImage?: string;
-  backgroundImage?: string;
-}
-
-export interface WorldBuilding {
-  setting: string;
-  plot: string;
-  style: string;
-  narrator: string;
-  openingMessage?: string;
-  history?: string;
-  privateNotes?: string;
-  objects: CustomObject[];
-  locations?: LocationItem[];
-  examples: PromptExample[];
-  scenarioNPCs?: PersonaTemplate[];
-  images?: ImageAssets;
-}
-
-export interface ScenarioMeta {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  tags: string[];
-  mode: 'roleplay' | 'story';
-  coverImage?: string;
-}
-
-export interface FullScenario {
-  meta: ScenarioMeta;
-  worldBuilding: WorldBuilding;
-  suggestedPersonas: PersonaTemplate[];
-}
+export * from './types';
 
 const BASE_SCENARIOS_PATH = path.join(process.cwd(), 'data', 'scenarios');
 const LEGACY_WORLDS_PATH = path.join(process.cwd(), 'data', 'worlds');

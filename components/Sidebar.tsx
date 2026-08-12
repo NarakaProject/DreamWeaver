@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FullScenario, PersonaTemplate } from '@/lib/scenarios/reader';
+import { FullScenario, PersonaTemplate } from '@/lib/scenarios/types';
 import { DbSession } from '@/lib/db';
 import {
   Home,
