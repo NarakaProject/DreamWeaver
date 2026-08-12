@@ -140,7 +140,7 @@ export function BuildingBlockTooltip({ blockKey }: TooltipProps) {
 
       {isOpen && (
         <div
-          className="absolute right-0 left-auto top-full mt-2 w-80 max-w-[calc(100vw-2rem)] z-50 p-3.5 rounded-xl bg-neutral-900 border border-neutral-700/80 shadow-2xl text-xs space-y-2 font-normal text-left"
+          className="absolute right-full top-1/2 -translate-y-1/2 mr-3 w-80 max-w-[calc(100vw-4rem)] z-50 p-4 rounded-xl bg-neutral-900 border border-neutral-700/80 shadow-2xl text-xs space-y-2 font-normal text-left pointer-events-auto"
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
