@@ -36,8 +36,8 @@ describe('Gemini Client & Context Assembly (lib/gemini/client.ts)', () => {
     expect(sysPrompt).toContain('Draws shadow specters when unshielded');
   });
 
-  it('should default to gemini-2.5-flash model constant', () => {
-    expect(DEFAULT_GEMINI_MODEL).toBe('gemini-2.5-flash');
+  it('should default to gemini-3.6-flash model constant', () => {
+    expect(DEFAULT_GEMINI_MODEL).toBe('gemini-3.6-flash');
   });
 
   it('should sort messages chronologically and preserve narrative order', () => {

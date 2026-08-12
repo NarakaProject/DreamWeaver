@@ -48,7 +48,7 @@ export interface GeminiPayload {
   };
 }
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 
 /**
  * Synthesizes Narrator Directives, Setting & Lore, Plot Hooks, CYOA Custom Objects,

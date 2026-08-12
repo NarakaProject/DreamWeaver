@@ -22,7 +22,7 @@ interface HeaderProps {
 }
 
 const FALLBACK_MODELS: HeaderModelOption[] = [
-  { id: 'gemini-2.5-flash', displayName: 'gemini-2.5-flash (Default)' },
+  { id: 'gemini-3.6-flash', displayName: 'gemini-3.6-flash (Default)' },
   { id: 'gemini-2.0-flash', displayName: 'gemini-2.0-flash' },
   { id: 'gemini-1.5-flash', displayName: 'gemini-1.5-flash' },
   { id: 'gemini-1.5-pro', displayName: 'gemini-1.5-pro' },
