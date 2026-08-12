@@ -47,6 +47,7 @@ interface SidebarProps {
   onCreateScenario: () => void;
   onOpenWizard?: () => void;
   onOpenImportModal?: () => void;
+  onOpenDocs?: () => void;
   onOpenSettings: () => void;
   onOpenMemory: () => void;
 }
@@ -64,6 +65,7 @@ export function Sidebar({
   onCreateScenario,
   onOpenWizard,
   onOpenImportModal,
+  onOpenDocs,
   onOpenSettings,
   onOpenMemory,
 }: SidebarProps) {
@@ -321,6 +323,17 @@ export function Sidebar({
 
       {/* Footer Controls */}
       <div className="p-3 border-t border-[#1a1f2c] space-y-1">
+        <button
+          onClick={onOpenDocs}
+          className={`w-full flex items-center gap-2.5 p-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-[#181d2a] hover:text-white transition-colors ${
+            collapsed ? 'justify-center' : ''
+          }`}
+          title="Documentation & System Guide"
+        >
+          <BookOpen className="w-4 h-4 text-sky-400 shrink-0" />
+          {!collapsed && <span>Docs & System Guide</span>}
+        </button>
+
         <button
           onClick={onOpenMemory}
           className={`w-full flex items-center gap-2.5 p-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-[#181d2a] hover:text-white transition-colors ${

@@ -13,6 +13,7 @@ import { ScenarioBuilder } from '@/components/ScenarioBuilder';
 import { ScenarioWizardModal } from '@/components/ScenarioWizardModal';
 import { ImportScenarioModal } from '@/components/ImportScenarioModal';
 import { DeleteScenarioModal } from '@/components/DeleteScenarioModal';
+import { DocsModal } from '@/components/DocsModal';
 import { RightInspectorPanel } from '@/components/RightInspectorPanel';
 
 import { FullScenario, PersonaTemplate, WorldBuilding } from '@/lib/scenarios/types';
@@ -41,6 +42,7 @@ export default function Home() {
   const [builderInitialScenario, setBuilderInitialScenario] = React.useState<FullScenario | null>(null);
   const [isWizardOpen, setIsWizardOpen] = React.useState(false);
   const [isImportOpen, setIsImportOpen] = React.useState(false);
+  const [isDocsOpen, setIsDocsOpen] = React.useState(false);
   const [deletingScenario, setDeletingScenario] = React.useState<FullScenario | null>(null);
 
   const [isRightInspectorOpen, setIsRightInspectorOpen] = React.useState(false);
@@ -729,6 +731,7 @@ export default function Home() {
         onCreateScenario={() => handleOpenBuilder()}
         onOpenWizard={() => setIsWizardOpen(true)}
         onOpenImportModal={() => setIsImportOpen(true)}
+        onOpenDocs={() => setIsDocsOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenMemory={() => setIsMemoryOpen(true)}
       />
@@ -911,6 +914,11 @@ export default function Home() {
         onClose={() => setDeletingScenario(null)}
         scenario={deletingScenario}
         onConfirmDelete={handleConfirmDeleteScenario}
+      />
+
+      <DocsModal
+        isOpen={isDocsOpen}
+        onClose={() => setIsDocsOpen(false)}
       />
 
       <SettingsModal
