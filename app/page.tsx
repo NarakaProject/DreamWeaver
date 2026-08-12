@@ -316,14 +316,15 @@ export default function Home() {
       setSelectedSpeaker(targetNpcName);
     }
 
-    const speakerName = speakerOverride || selectedSpeaker || activePersona?.name || 'Valerius';
+    // User message MUST strictly be attributed to player persona, NEVER overwriting player identity
+    const userSpeakerName = speakerOverride || activePersona?.name || 'Naraka';
 
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
       content,
       type: 'narration',
-      speaker: speakerName,
+      speaker: userSpeakerName,
       timestamp: Date.now(),
     };
 
@@ -460,6 +461,8 @@ export default function Home() {
 
       for (let i = 0; i < sections.length; i++) {
         const sec = sections[i];
+        if (!sec.content || !sec.content.trim() || sec.speaker === 'npc_name') continue;
+
         const aiMsg: ChatMessage = {
           id: `msg-${Date.now()}-${i}`,
           role: 'model',
@@ -645,7 +648,9 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="max-w-3xl mx-auto space-y-4">
-                  {messages.map((msg, index) => (
+                  {messages
+                    .filter((msg) => msg.content && msg.content.trim() !== '' && msg.speaker !== 'npc_name')
+                    .map((msg, index) => (
                     <DreamGenRenderer
                       key={msg.id || `msg-${index}`}
                       role={msg.role}

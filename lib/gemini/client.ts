@@ -98,6 +98,11 @@ export function buildSystemInstruction(params: Partial<PromptContextParams>): st
     '   - 💬 Friendly Inquiry: "What is this place?"',
     '   - ⚙️ System Command: "/Start"',
     '   </cyoa_options>',
+    '',
+    '### CRITICAL NEGATIVE CONSTRAINTS (ZERO META-REASONING / NO CHECKLISTS):',
+    '1. Output ONLY in-character dialogue, actions, and narrative script prose.',
+    '2. NEVER output validation checklists, self-correction notes, style reflections, or evaluation steps (e.g. NEVER write "* Are all spoken lines enclosed in double quotes? Yes" or "Checklist:").',
+    '3. Output pure story narration and character speech directly without meta commentary.',
   ];
 
   // User Persona
