@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { assembleGeminiPayload, DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
+import { assembleGeminiPayload, buildSystemInstruction, DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
+import { routeChatStream, AIProvider, DEFAULT_MODELS } from '@/lib/ai/provider-router';
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = req.headers.get('x-gemini-api-key') || req.headers.get('authorization')?.replace('Bearer ', '');
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'Gemini API Key is required. Please set your API key in Settings.' },
-        { status: 401 }
-      );
-    }
+    const geminiKey = req.headers.get('x-gemini-api-key') || req.headers.get('authorization')?.replace('Bearer ', '');
+    const groqKey = req.headers.get('x-groq-api-key') || undefined;
+    const openrouterKey = req.headers.get('x-openrouter-api-key') || undefined;
 
     const body = await req.json();
     const {
-      model = DEFAULT_GEMINI_MODEL,
+      provider = (req.headers.get('x-provider') as AIProvider) || 'gemini',
+      model,
       narratorDirectives,
       settingLore,
       plotHooks,
@@ -30,6 +27,35 @@ export async function POST(req: NextRequest) {
       temperature = 0.8,
       maxOutputTokens = 2048,
     } = body;
+
+    const activeModel = model || DEFAULT_MODELS[provider as AIProvider] || DEFAULT_GEMINI_MODEL;
+
+    // Check if at least one key is present
+    const keys = {
+      geminiKey: geminiKey || undefined,
+      groqKey,
+      openrouterKey,
+    };
+
+    if (!keys.geminiKey && !keys.groqKey && !keys.openrouterKey) {
+      return NextResponse.json(
+        { error: 'An API Key for Gemini, Groq, or OpenRouter is required. Please set your API keys in Settings.' },
+        { status: 401 }
+      );
+    }
+
+    const systemInstruction = buildSystemInstruction({
+      narratorDirectives,
+      settingLore,
+      plotHooks,
+      writingStyle,
+      customObjects,
+      fewShotExamples,
+      characterName,
+      characterPersonality,
+      characterTagline,
+      targetSpeaker,
+    });
 
     const payload = assembleGeminiPayload(
       {
@@ -49,65 +75,25 @@ export async function POST(req: NextRequest) {
       { temperature, maxOutputTokens }
     );
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+    // Format chat messages for provider router
+    const recentMsgs = messages.slice(-maxRecentMessages);
+    const normalizedMessages = recentMsgs.map((m: any) => ({
+      role: m.role === 'model' ? ('model' as const) : ('user' as const),
+      content: m.content || '',
+    }));
 
-    const geminiRes = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    return await routeChatStream(
+      {
+        provider: provider as AIProvider,
+        model: activeModel,
+        keys,
+        systemInstruction,
+        messages: normalizedMessages,
+        temperature,
+        maxOutputTokens,
       },
-      body: JSON.stringify(payload),
-    });
-
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      let parsedErr = errText;
-      try {
-        const json = JSON.parse(errText);
-        parsedErr = json.error?.message || errText;
-      } catch {}
-      return NextResponse.json(
-        { error: `Gemini API Error (${geminiRes.status}): ${parsedErr}` },
-        { status: geminiRes.status }
-      );
-    }
-
-    if (!geminiRes.body) {
-      return NextResponse.json({ error: 'No response body received from Gemini API' }, { status: 500 });
-    }
-
-    const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
-
-    const transformStream = new TransformStream({
-      async transform(chunk, controller) {
-        const text = decoder.decode(chunk, { stream: true });
-        const lines = text.split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const dataStr = line.slice(6).trim();
-            if (dataStr === '[DONE]') continue;
-            try {
-              const json = JSON.parse(dataStr);
-              const chunkText =
-                json.candidates?.[0]?.content?.parts?.[0]?.text || '';
-              if (chunkText) {
-                controller.enqueue(encoder.encode(chunkText));
-              }
-            } catch {
-              // ignore non-json SSE lines
-            }
-          }
-        }
-      },
-    });
-
-    return new Response(geminiRes.body.pipeThrough(transformStream), {
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'Cache-Control': 'no-cache',
-      },
-    });
+      payload
+    );
   } catch (err: any) {
     console.error('Chat API Error:', err);
     return NextResponse.json(

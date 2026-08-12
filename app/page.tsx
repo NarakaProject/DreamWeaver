@@ -17,6 +17,7 @@ import { FullScenario, PersonaTemplate, WorldBuilding } from '@/lib/scenarios/ty
 import { DbSession, DbMessage } from '@/lib/db';
 import { ChatMessage, DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
 import { splitMultiSpeakerText } from '@/lib/parser/dreamgen';
+import { AIProvider } from '@/lib/ai/provider-router';
 
 export default function Home() {
   const [scenarios, setScenarios] = React.useState<FullScenario[]>([]);
@@ -43,7 +44,10 @@ export default function Home() {
   const [isMemoryOpen, setIsMemoryOpen] = React.useState(false);
 
   // Settings State
+  const [provider, setProvider] = React.useState<AIProvider>('gemini');
   const [apiKey, setApiKey] = React.useState<string>('');
+  const [groqApiKey, setGroqApiKey] = React.useState<string>('');
+  const [openRouterApiKey, setOpenRouterApiKey] = React.useState<string>('');
   const [selectedModel, setSelectedModel] = React.useState<string>(DEFAULT_GEMINI_MODEL);
   const [availableModels, setAvailableModels] = React.useState<{ id: string; displayName: string }[]>([]);
   const [temperature, setTemperature] = React.useState<number>(0.8);
@@ -77,25 +81,46 @@ export default function Home() {
 
   // Load Settings from localStorage
   React.useEffect(() => {
+    const savedProvider = (localStorage.getItem('dreamweaver_provider') as AIProvider) || 'gemini';
     const savedKey = localStorage.getItem('dreamweaver_gemini_key') || '';
+    const savedGroqKey = localStorage.getItem('dreamweaver_groq_key') || '';
+    const savedOpenRouterKey = localStorage.getItem('dreamweaver_openrouter_key') || '';
     const savedTemp = localStorage.getItem('dreamweaver_temperature');
     const savedTokens = localStorage.getItem('dreamweaver_max_tokens');
 
+    setProvider(savedProvider);
     setApiKey(savedKey);
+    setGroqApiKey(savedGroqKey);
+    setOpenRouterApiKey(savedOpenRouterKey);
     if (savedTemp) setTemperature(parseFloat(savedTemp));
     if (savedTokens) setMaxTokens(parseInt(savedTokens));
 
-    if (!savedKey) {
+    if (!savedKey && !savedGroqKey && !savedOpenRouterKey) {
       setIsSettingsOpen(true);
-    } else {
+    } else if (savedKey) {
       fetchDynamicModels(savedKey);
     }
   }, []);
+
+  const handleSaveProvider = (prov: AIProvider) => {
+    setProvider(prov);
+    localStorage.setItem('dreamweaver_provider', prov);
+  };
 
   const handleSaveApiKey = (key: string) => {
     setApiKey(key);
     localStorage.setItem('dreamweaver_gemini_key', key);
     fetchDynamicModels(key);
+  };
+
+  const handleSaveGroqApiKey = (key: string) => {
+    setGroqApiKey(key);
+    localStorage.setItem('dreamweaver_groq_key', key);
+  };
+
+  const handleSaveOpenRouterApiKey = (key: string) => {
+    setOpenRouterApiKey(key);
+    localStorage.setItem('dreamweaver_openrouter_key', key);
   };
 
   const handleSaveTemperature = (temp: number) => {
@@ -382,7 +407,7 @@ export default function Home() {
 
   // Fetch Action Suggestions for User Persona
   const handleFetchSuggestions = async (): Promise<string[]> => {
-    if (!apiKey) {
+    if (!apiKey && !groqApiKey && !openRouterApiKey) {
       setIsSettingsOpen(true);
       return [];
     }
@@ -393,8 +418,12 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json',
           'x-gemini-api-key': apiKey,
+          'x-groq-api-key': groqApiKey,
+          'x-openrouter-api-key': openRouterApiKey,
+          'x-provider': provider,
         },
         body: JSON.stringify({
+          provider,
           model: selectedModel,
           characterName: activePersona?.name || 'Player',
           settingLore: activeWorldBuilding?.setting,
@@ -413,7 +442,7 @@ export default function Home() {
     return [];
   };
 
-  // Gemini Stream Generation
+  // Stream Generation
   const triggerStreamingResponse = async (
     history: ChatMessage[],
     sessionId: string,
@@ -428,8 +457,12 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json',
           'x-gemini-api-key': apiKey,
+          'x-groq-api-key': groqApiKey,
+          'x-openrouter-api-key': openRouterApiKey,
+          'x-provider': provider,
         },
         body: JSON.stringify({
+          provider,
           model: selectedModel,
           narratorDirectives: activeWorldBuilding?.narrator,
           settingLore: activeWorldBuilding?.setting,
@@ -789,8 +822,14 @@ export default function Home() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        provider={provider}
+        onSaveProvider={handleSaveProvider}
         apiKey={apiKey}
         onSaveApiKey={handleSaveApiKey}
+        groqApiKey={groqApiKey}
+        onSaveGroqApiKey={handleSaveGroqApiKey}
+        openRouterApiKey={openRouterApiKey}
+        onSaveOpenRouterApiKey={handleSaveOpenRouterApiKey}
         temperature={temperature}
         onSaveTemperature={handleSaveTemperature}
         maxTokens={maxTokens}
