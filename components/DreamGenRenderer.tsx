@@ -14,6 +14,7 @@ interface DreamGenRendererProps {
   knownNPCs?: string[];
   npcAvatars?: Record<string, string>;
   isStreaming?: boolean;
+  isFirstMessage?: boolean;
   onRegenerate?: () => void;
   onEdit?: (newContent: string) => void;
   onDelete?: () => void;
@@ -59,6 +60,7 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
   knownNPCs = [],
   npcAvatars = {},
   isStreaming = false,
+  isFirstMessage = false,
   onRegenerate,
   onEdit,
   onDelete,
@@ -134,7 +136,7 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
 
         {/* Action Controls */}
         <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          {onRegenerate && !isStreaming && (
+          {onRegenerate && !isStreaming && !isFirstMessage && (
             <button
               onClick={onRegenerate}
               className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors"
@@ -144,7 +146,7 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
               <span>Retry</span>
             </button>
           )}
-          {onEdit && !isStreaming && (
+          {onEdit && !isStreaming && !isFirstMessage && (
             <button
               onClick={() => setIsEditing(!isEditing)}
               className="p-1 text-slate-400 hover:text-slate-200 transition-colors"
@@ -160,7 +162,7 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
-          {onDelete && !isStreaming && (
+          {onDelete && !isStreaming && !isFirstMessage && (
             <button
               onClick={onDelete}
               className="p-1 text-slate-400 hover:text-red-400 transition-colors"

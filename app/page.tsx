@@ -607,6 +607,7 @@ export default function Home() {
                       userAvatar={activePersona?.avatar}
                       knownNPCs={sceneNPCs}
                       npcAvatars={npcAvatars}
+                      isFirstMessage={index === 0}
                       onEdit={(newContent) => handleEditMessage(index, newContent)}
                       onRegenerate={
                         msg.role === 'model' ? () => handleRegenerateFromIndex(index) : undefined
