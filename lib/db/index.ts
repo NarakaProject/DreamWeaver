@@ -17,6 +17,7 @@ export interface DbMessage {
   role: 'user' | 'model' | 'system';
   content: string;
   type?: 'do' | 'say' | 'story_note' | 'continue' | 'narration';
+  speaker?: string;
   timestamp: number;
 }
 
@@ -78,13 +79,22 @@ class BetterSqliteAdapter implements DbAdapter {
 
   async saveMessage(message: DbMessage): Promise<void> {
     const stmt = this.db.prepare(`
-      INSERT INTO messages (id, session_id, role, content, type, timestamp)
-      VALUES (@id, @session_id, @role, @content, @type, @timestamp)
+      INSERT INTO messages (id, session_id, role, content, type, speaker, timestamp)
+      VALUES (@id, @session_id, @role, @content, @type, @speaker, @timestamp)
       ON CONFLICT(id) DO UPDATE SET
         content = excluded.content,
+        speaker = excluded.speaker,
         timestamp = excluded.timestamp
     `);
-    stmt.run(message);
+    stmt.run({
+      id: message.id,
+      session_id: message.session_id,
+      role: message.role,
+      content: message.content,
+      type: message.type || null,
+      speaker: message.speaker || null,
+      timestamp: message.timestamp,
+    });
 
     // Update parent session updated_at
     this.db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(message.timestamp, message.session_id);
@@ -155,21 +165,23 @@ class LibSqlAdapter implements DbAdapter {
       role: row.role as any,
       content: String(row.content),
       type: row.type ? (row.type as any) : undefined,
+      speaker: row.speaker ? String(row.speaker) : undefined,
       timestamp: Number(row.timestamp),
     }));
   }
 
   async saveMessage(message: DbMessage): Promise<void> {
     await this.client.execute({
-      sql: `INSERT INTO messages (id, session_id, role, content, type, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET content = excluded.content, timestamp = excluded.timestamp`,
+      sql: `INSERT INTO messages (id, session_id, role, content, type, speaker, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET content = excluded.content, speaker = excluded.speaker, timestamp = excluded.timestamp`,
       args: [
         message.id,
         message.session_id,
         message.role,
         message.content,
         message.type || null,
+        message.speaker || null,
         message.timestamp,
       ],
     });
@@ -215,6 +227,7 @@ export function getDatabase(): DbAdapter {
       role TEXT NOT NULL,
       content TEXT NOT NULL,
       type TEXT,
+      speaker TEXT,
       timestamp INTEGER NOT NULL,
       FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
     );
@@ -224,6 +237,13 @@ export function getDatabase(): DbAdapter {
     dbInstance.exec(initSql);
   } catch (err) {
     console.error('Failed to initialize SQLite schema:', err);
+  }
+
+  // Graceful column migration for existing databases
+  try {
+    dbInstance.exec('ALTER TABLE messages ADD COLUMN speaker TEXT;');
+  } catch {
+    // speaker column already exists, safe migration fallback
   }
 
   return dbInstance;

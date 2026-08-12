@@ -24,23 +24,30 @@ export async function POST(req: NextRequest) {
       characterName,
       characterPersonality,
       characterTagline,
+      targetSpeaker,
       messages = [],
       maxRecentMessages = 30,
+      temperature = 0.8,
+      maxOutputTokens = 2048,
     } = body;
 
-    const payload = assembleGeminiPayload({
-      narratorDirectives,
-      settingLore,
-      plotHooks,
-      writingStyle,
-      customObjects,
-      fewShotExamples,
-      characterName,
-      characterPersonality,
-      characterTagline,
-      messages,
-      maxRecentMessages,
-    });
+    const payload = assembleGeminiPayload(
+      {
+        narratorDirectives,
+        settingLore,
+        plotHooks,
+        writingStyle,
+        customObjects,
+        fewShotExamples,
+        characterName,
+        characterPersonality,
+        characterTagline,
+        targetSpeaker,
+        messages,
+        maxRecentMessages,
+      },
+      { temperature, maxOutputTokens }
+    );
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 

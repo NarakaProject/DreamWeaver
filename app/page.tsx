@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Sidebar } from '@/components/Sidebar';
+import { Sidebar, SidebarNavView } from '@/components/Sidebar';
 import { Header } from '@/components/Header';
 import { DreamGenRenderer } from '@/components/DreamGenRenderer';
 import { ControlDock, InputMode } from '@/components/ControlDock';
@@ -15,7 +15,6 @@ import { RightInspectorPanel } from '@/components/RightInspectorPanel';
 import { FullScenario, PersonaTemplate, WorldBuilding } from '@/lib/scenarios/reader';
 import { DbSession, DbMessage } from '@/lib/db';
 import { ChatMessage, DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
-import { Key } from 'lucide-react';
 
 export default function Home() {
   const [scenarios, setScenarios] = React.useState<FullScenario[]>([]);
@@ -27,7 +26,7 @@ export default function Home() {
   const [activeSessionId, setActiveSessionId] = React.useState<string | null>(null);
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
 
-  const [viewMode, setViewMode] = React.useState<'discovery' | 'play'>('discovery');
+  const [viewMode, setViewMode] = React.useState<SidebarNavView>('discovery');
 
   // Modals & Panels State
   const [isPreStartOpen, setIsPreStartOpen] = React.useState(false);
@@ -40,9 +39,15 @@ export default function Home() {
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [isMemoryOpen, setIsMemoryOpen] = React.useState(false);
 
+  // Settings State
   const [apiKey, setApiKey] = React.useState<string>('');
   const [selectedModel, setSelectedModel] = React.useState<string>(DEFAULT_GEMINI_MODEL);
   const [availableModels, setAvailableModels] = React.useState<{ id: string; displayName: string }[]>([]);
+  const [temperature, setTemperature] = React.useState<number>(0.8);
+  const [maxTokens, setMaxTokens] = React.useState<number>(2048);
+
+  // Active Turn Speaker State
+  const [selectedSpeaker, setSelectedSpeaker] = React.useState<string>('You');
 
   const [isStreaming, setIsStreaming] = React.useState<boolean>(false);
   const [streamingContent, setStreamingContent] = React.useState<string>('');
@@ -57,7 +62,6 @@ export default function Home() {
         const data = await res.json();
         if (data.models && data.models.length > 0) {
           setAvailableModels(data.models);
-          // Default to first flash model if selected model is not in list
           if (!data.models.some((m: any) => m.id === selectedModel)) {
             setSelectedModel(data.models[0].id);
           }
@@ -68,10 +72,16 @@ export default function Home() {
     }
   };
 
-  // Load API Key from localStorage
+  // Load Settings from localStorage
   React.useEffect(() => {
     const savedKey = localStorage.getItem('dreamweaver_gemini_key') || '';
+    const savedTemp = localStorage.getItem('dreamweaver_temperature');
+    const savedTokens = localStorage.getItem('dreamweaver_max_tokens');
+
     setApiKey(savedKey);
+    if (savedTemp) setTemperature(parseFloat(savedTemp));
+    if (savedTokens) setMaxTokens(parseInt(savedTokens));
+
     if (!savedKey) {
       setIsSettingsOpen(true);
     } else {
@@ -85,7 +95,17 @@ export default function Home() {
     fetchDynamicModels(key);
   };
 
-  // Load Scenarios from local API
+  const handleSaveTemperature = (temp: number) => {
+    setTemperature(temp);
+    localStorage.setItem('dreamweaver_temperature', temp.toString());
+  };
+
+  const handleSaveMaxTokens = (tokens: number) => {
+    setMaxTokens(tokens);
+    localStorage.setItem('dreamweaver_max_tokens', tokens.toString());
+  };
+
+  // Load Scenarios & Sessions
   const fetchScenarios = async () => {
     try {
       const res = await fetch('/api/scenarios');
@@ -98,7 +118,6 @@ export default function Home() {
     }
   };
 
-  // Load SQLite Sessions
   const fetchSessions = async () => {
     try {
       const res = await fetch('/api/sessions');
@@ -116,7 +135,6 @@ export default function Home() {
     fetchSessions();
   }, []);
 
-  // Scroll to bottom during message streaming
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingContent]);
@@ -134,12 +152,12 @@ export default function Home() {
             role: m.role,
             content: m.content,
             type: m.type,
+            speaker: m.speaker,
             timestamp: m.timestamp,
           }))
         );
       }
 
-      // Attach scenario if matched
       const sessionObj = sessions.find((s) => s.id === sessionId);
       if (sessionObj) {
         const foundScen = scenarios.find((sc) => sc.meta.id === sessionObj.world_id);
@@ -149,7 +167,10 @@ export default function Home() {
           const foundPers = foundScen.suggestedPersonas.find(
             (p) => p.id === sessionObj.character_id
           );
-          if (foundPers) setActivePersona(foundPers);
+          if (foundPers) {
+            setActivePersona(foundPers);
+            setSelectedSpeaker(foundPers.name);
+          }
         }
       }
 
@@ -159,17 +180,16 @@ export default function Home() {
     }
   };
 
-  // Start Play Flow from Discovery Card
   const handleOpenPlayFlow = (scenario: FullScenario) => {
     setPreStartScenario(scenario);
     setIsPreStartOpen(true);
   };
 
-  // Confirm Game Start from PreStartModal
   const handleStartGame = async (scenario: FullScenario, persona: PersonaTemplate) => {
     setActiveScenario(scenario);
     setActivePersona(persona);
     setActiveWorldBuilding(scenario.worldBuilding);
+    setSelectedSpeaker(persona.name);
 
     const newSessionId = `session-${Date.now()}`;
     const newSession: DbSession = {
@@ -181,18 +201,19 @@ export default function Home() {
       updated_at: Date.now(),
     };
 
-    // Save session to SQLite
     await fetch('/api/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'saveSession', session: newSession }),
     });
 
-    // Opening initial message
+    const primaryNPC = scenario.suggestedPersonas.find((p) => p.id !== persona.id);
+
     const initialMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'model',
-      content: persona.firstMessage || `*${persona.name} looks around slowly.*`,
+      content: persona.firstMessage || `*The scene opens as ${persona.name} arrives.*`,
+      speaker: primaryNPC ? primaryNPC.name : 'Narrator',
       timestamp: Date.now(),
     };
 
@@ -207,6 +228,7 @@ export default function Home() {
           role: initialMsg.role,
           content: initialMsg.content,
           type: 'narration',
+          speaker: initialMsg.speaker,
           timestamp: initialMsg.timestamp,
         },
       }),
@@ -218,32 +240,34 @@ export default function Home() {
     setViewMode('play');
   };
 
-  // Edit Scenario Builder
   const handleOpenBuilder = (scenario?: FullScenario) => {
     setBuilderInitialScenario(scenario || null);
     setIsBuilderOpen(true);
   };
 
   // Send User Action / Dialogue Input
-  const handleSendInput = async (content: string, type: InputMode) => {
+  const handleSendInput = async (content: string, type: InputMode, speakerOverride?: string) => {
     if (!apiKey) {
       setIsSettingsOpen(true);
       return;
     }
     if (!activeSessionId) return;
 
+    const speakerName = speakerOverride || selectedSpeaker || activePersona?.name || 'Player';
+
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
       content,
       type,
+      speaker: speakerName,
       timestamp: Date.now(),
     };
 
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
 
-    // Save user message to SQLite
+    // Save message to SQLite
     fetch('/api/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -255,26 +279,64 @@ export default function Home() {
           role: userMsg.role,
           content: userMsg.content,
           type: userMsg.type,
+          speaker: userMsg.speaker,
           timestamp: userMsg.timestamp,
         },
       }),
     });
 
-    triggerStreamingResponse(updatedMessages, activeSessionId);
+    triggerStreamingResponse(updatedMessages, activeSessionId, speakerOverride);
   };
 
-  const handleContinue = () => {
+  const handleContinue = (targetSpeaker?: string) => {
     if (!apiKey) {
       setIsSettingsOpen(true);
       return;
     }
     if (!activeSessionId) return;
 
-    triggerStreamingResponse(messages, activeSessionId);
+    triggerStreamingResponse(messages, activeSessionId, targetSpeaker);
+  };
+
+  // Fetch Action Suggestions for User Persona
+  const handleFetchSuggestions = async (): Promise<string[]> => {
+    if (!apiKey) {
+      setIsSettingsOpen(true);
+      return [];
+    }
+
+    try {
+      const res = await fetch('/api/chat/suggest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-gemini-api-key': apiKey,
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          characterName: activePersona?.name || 'Player',
+          settingLore: activeWorldBuilding?.setting,
+          plotHooks: activeWorldBuilding?.plot,
+          messages,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        return data.suggestions || [];
+      }
+    } catch (err) {
+      console.error('Failed to fetch action suggestions:', err);
+    }
+    return [];
   };
 
   // Gemini Stream Generation
-  const triggerStreamingResponse = async (history: ChatMessage[], sessionId: string) => {
+  const triggerStreamingResponse = async (
+    history: ChatMessage[],
+    sessionId: string,
+    targetSpeaker?: string
+  ) => {
     setIsStreaming(true);
     setStreamingContent('');
 
@@ -296,7 +358,10 @@ export default function Home() {
           characterName: activePersona?.name,
           characterPersonality: activePersona?.personality,
           characterTagline: activePersona?.tagline,
+          targetSpeaker: targetSpeaker || (selectedSpeaker !== activePersona?.name ? selectedSpeaker : undefined),
           messages: history,
+          temperature,
+          maxOutputTokens: maxTokens,
         }),
       });
 
@@ -319,10 +384,13 @@ export default function Home() {
         }
       }
 
+      const aiSpeaker = targetSpeaker || 'Narrator';
+
       const aiMsg: ChatMessage = {
         id: `msg-${Date.now()}`,
         role: 'model',
         content: fullText,
+        speaker: aiSpeaker,
         timestamp: Date.now(),
       };
 
@@ -341,6 +409,7 @@ export default function Home() {
             role: aiMsg.role,
             content: aiMsg.content,
             type: 'narration',
+            speaker: aiMsg.speaker,
             timestamp: aiMsg.timestamp,
           },
         }),
@@ -351,6 +420,7 @@ export default function Home() {
         id: `err-${Date.now()}`,
         role: 'model',
         content: `*Story Engine Error:* ${err.message}`,
+        speaker: 'Narrator',
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -396,6 +466,7 @@ export default function Home() {
             role: targetMsg.role,
             content: newContent,
             type: targetMsg.type || 'narration',
+            speaker: targetMsg.speaker,
             timestamp: targetMsg.timestamp || Date.now(),
           },
         }),
@@ -411,47 +482,28 @@ export default function Home() {
     }
   };
 
-  // Convert Scenarios for Sidebar legacy compatibility
-  const sidebarWorlds = React.useMemo(() => {
-    return scenarios.map((sc) => ({
-      id: sc.meta.id,
-      name: sc.meta.title,
-      description: sc.meta.description,
-      loreContent: sc.worldBuilding.setting,
-      characters: sc.suggestedPersonas.map((p) => ({
-        id: p.id,
-        name: p.name,
-        tagline: p.tagline,
-        personality: p.personality,
-        firstMessage: p.firstMessage,
-      })),
-    }));
-  }, [scenarios]);
+  // Active scene NPCs for speaker dropdown
+  const sceneNPCs = React.useMemo(() => {
+    if (!activeScenario) return [];
+    return activeScenario.suggestedPersonas
+      .map((p) => p.name)
+      .filter((n) => n !== activePersona?.name);
+  }, [activeScenario, activePersona]);
 
   return (
     <div className="flex h-screen bg-[#090a0f] text-[#e2e8f0] overflow-hidden">
       {/* Left Sidebar */}
       <Sidebar
-        worlds={sidebarWorlds}
-        selectedWorld={
-          activeScenario
-            ? {
-                id: activeScenario.meta.id,
-                name: activeScenario.meta.title,
-                description: activeScenario.meta.description,
-                loreContent: activeWorldBuilding?.setting || '',
-                characters: activeScenario.suggestedPersonas,
-              }
-            : null
-        }
-        selectedCharacter={activePersona}
+        currentView={viewMode}
+        onNavigate={(view) => setViewMode(view)}
+        scenarios={scenarios}
+        activeScenario={activeScenario}
+        activePersona={activePersona}
         sessions={sessions}
         activeSessionId={activeSessionId}
-        onSelectWorld={() => setViewMode('discovery')}
-        onSelectCharacter={() => {}}
         onSelectSession={loadSessionMessages}
-        onNewStory={() => setViewMode('discovery')}
         onDeleteSession={handleDeleteSession}
+        onCreateScenario={() => handleOpenBuilder()}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenMemory={() => setIsMemoryOpen(true)}
       />
@@ -480,8 +532,8 @@ export default function Home() {
           onOpenMemory={() => setIsRightInspectorOpen(!isRightInspectorOpen)}
         />
 
-        {/* Dynamic View: Discovery Card Grid vs Active Roleplay Session */}
-        {viewMode === 'discovery' ? (
+        {/* Dynamic View */}
+        {viewMode === 'discovery' || viewMode === 'scenarios' ? (
           <ScenarioDiscovery
             scenarios={scenarios}
             onPlayScenario={handleOpenPlayFlow}
@@ -504,6 +556,8 @@ export default function Home() {
                       role={msg.role}
                       content={msg.content}
                       type={msg.type}
+                      speaker={msg.speaker}
+                      userPersonaName={activePersona?.name || 'You'}
                       onEdit={(newContent) => handleEditMessage(index, newContent)}
                       onRegenerate={
                         msg.role === 'model' ? () => handleRegenerateFromIndex(index) : undefined
@@ -516,6 +570,7 @@ export default function Home() {
                     <DreamGenRenderer
                       role="model"
                       content={streamingContent}
+                      speaker={selectedSpeaker !== activePersona?.name ? selectedSpeaker : 'Narrator'}
                       isStreaming={true}
                     />
                   )}
@@ -525,7 +580,7 @@ export default function Home() {
               )}
             </main>
 
-            {/* In-Game Tabbed Right Panel (DreamGen Parity) */}
+            {/* In-Game Tabbed Right Panel */}
             {isRightInspectorOpen && activeWorldBuilding && (
               <RightInspectorPanel
                 isOpen={isRightInspectorOpen}
@@ -542,9 +597,14 @@ export default function Home() {
         {/* Input Dock (Active during Play mode) */}
         {viewMode === 'play' && (
           <ControlDock
+            userPersonaName={activePersona?.name || 'You'}
+            availableSpeakers={sceneNPCs}
+            selectedSpeaker={selectedSpeaker}
+            onSpeakerChange={setSelectedSpeaker}
             onSend={handleSendInput}
             onContinue={handleContinue}
             onUndo={handleUndo}
+            onFetchSuggestions={handleFetchSuggestions}
             disabled={isStreaming}
           />
         )}
@@ -570,6 +630,10 @@ export default function Home() {
         onClose={() => setIsSettingsOpen(false)}
         apiKey={apiKey}
         onSaveApiKey={handleSaveApiKey}
+        temperature={temperature}
+        onSaveTemperature={handleSaveTemperature}
+        maxTokens={maxTokens}
+        onSaveMaxTokens={handleSaveMaxTokens}
         onModelsFetched={setAvailableModels}
       />
 

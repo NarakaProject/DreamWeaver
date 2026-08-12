@@ -3,6 +3,7 @@ export interface ChatMessage {
   role: 'user' | 'model' | 'system';
   content: string;
   type?: 'do' | 'say' | 'story_note' | 'continue' | 'narration';
+  speaker?: string;
   timestamp?: number;
 }
 
@@ -28,6 +29,7 @@ export interface PromptContextParams {
   characterName?: string;
   characterPersonality?: string;
   characterTagline?: string;
+  targetSpeaker?: string;
   userInstruction?: string;
   messages: ChatMessage[];
   maxRecentMessages?: number;
@@ -52,12 +54,20 @@ export const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 
 /**
  * Synthesizes Narrator Directives, Setting & Lore, Plot Hooks, CYOA Custom Objects,
- * Writing Style, Active Persona, and DreamGen Formatting Rules into a single system instruction.
+ * Writing Style, Active Persona, and Strict User Agency Rules into a single system instruction.
  */
 export function buildSystemInstruction(params: Partial<PromptContextParams>): string {
+  const userName = params.characterName || 'Player';
+
   const parts: string[] = [
     'You are DreamWeaver, an elite interactive AI Storyteller, Roleplay Master, and World Director inspired by DreamGen.',
     'Your goal is to co-create rich, deeply immersive, atmospheric, and highly engaging fictional roleplay narratives.',
+    '',
+    '### ABSOLUTE IDENTITY SEPARATION & USER AGENCY RULES:',
+    `1. ABSOLUTE IDENTITY SEPARATION: You (the AI Engine) are strictly the Narrator, World Master, and NPCs. You MUST NEVER generate actions, thoughts, feelings, or spoken dialogue for the User's Persona (User Name: "${userName}").`,
+    `2. ZERO AGENT OVERREACH: Stop the narrative immediately when an NPC finishes their action/dialogue or when the environment changes. NEVER decide what "${userName}" does, says, or feels next under ANY circumstances, unless explicitly directed via "Continue As" commands.`,
+    `3. SUGGESTIONS ENGINE ONLY: If requested for next step suggestions, provide 3 plausible action choices for "${userName}", but DO NOT auto-execute them in the story stream. Wait for the user to select or write their own move.`,
+    '4. ATTRIBUTION HEADERS: Prefix responses with explicit speaker tags if generating as a specific NPC (e.g. [Speaker: Orelia]) or format as [Narrator] when acting as the environment/plot master.',
     '',
     '### ERGONOMICS & FORMATTING RULES:',
     '1. SPOKEN DIALOGUE MUST be enclosed in double quotes (e.g. "Hold your ground!").',
@@ -66,20 +76,25 @@ export function buildSystemInstruction(params: Partial<PromptContextParams>): st
     '4. Maintain character persona and scenario directives consistency at all times.',
   ];
 
-  // Narrator Directives
-  if (params.narratorDirectives && params.narratorDirectives.trim()) {
-    parts.push(`\n### NARRATOR & GAME MASTER DIRECTIVES:\n${params.narratorDirectives.trim()}`);
-  }
-
-  // Active Persona
+  // Active User Persona
   if (params.characterName) {
-    parts.push(`\n### ACTIVE CHARACTER PERSONA:\nName: ${params.characterName}`);
+    parts.push(`\n### USER PERSONA (PLAYER IDENTITY - DO NOT ROLEPLAY AS THIS USER):\nName: ${params.characterName}`);
     if (params.characterTagline) {
       parts.push(`Tagline: ${params.characterTagline}`);
     }
     if (params.characterPersonality) {
       parts.push(`Personality & Trait: ${params.characterPersonality}`);
     }
+  }
+
+  // Target Speaker Directive
+  if (params.targetSpeaker) {
+    parts.push(`\n### TURN SPEAKER DIRECTIVE:\nRespond specifically as: "${params.targetSpeaker}".`);
+  }
+
+  // Narrator Directives
+  if (params.narratorDirectives && params.narratorDirectives.trim()) {
+    parts.push(`\n### NARRATOR & GAME MASTER DIRECTIVES:\n${params.narratorDirectives.trim()}`);
   }
 
   // Setting & Lore
@@ -114,35 +129,35 @@ export function buildSystemInstruction(params: Partial<PromptContextParams>): st
 }
 
 /**
- * Sophisticated Context Manager:
- * Preserves chronological order (oldest to newest) while intelligently slicing recent turns
- * to ensure narrative coherence without exceeding token limits as sessions grow long.
+ * Context Manager:
+ * Preserves chronological order while assembling system instructions and formatting turns.
  */
-export function assembleGeminiPayload(params: PromptContextParams): GeminiPayload {
+export function assembleGeminiPayload(
+  params: PromptContextParams,
+  generationConfig?: { temperature?: number; maxOutputTokens?: number }
+): GeminiPayload {
   const systemInstructionText = buildSystemInstruction(params);
 
-  // Filter out pure system messages from the conversational history
   const dialogueMessages = params.messages.filter((m) => m.role === 'user' || m.role === 'model');
 
-  // Sort strictly by timestamp if available, ensuring chronological narrative integrity
   const sortedMessages = [...dialogueMessages].sort((a, b) => {
     const timeA = a.timestamp || 0;
     const timeB = b.timestamp || 0;
     return timeA - timeB;
   });
 
-  // Keep up to maxRecentMessages (default: 30 turns)
   const maxTurns = params.maxRecentMessages || 30;
   const recentMessages = sortedMessages.slice(-maxTurns);
 
-  // Map to Gemini API format
   const contents = recentMessages.map((msg) => {
     let formattedText = msg.content;
+    const speakerPrefix = msg.speaker ? `[${msg.speaker}]: ` : '';
+
     if (msg.role === 'user' && msg.type) {
-      if (msg.type === 'do') formattedText = `[Action]: ${msg.content}`;
-      else if (msg.type === 'say') formattedText = `[Say]: "${msg.content}"`;
-      else if (msg.type === 'story_note') formattedText = `[Story Note / Guidance]: ${msg.content}`;
-      else if (msg.type === 'continue') formattedText = `[Continue the story naturally from where it left off]`;
+      if (msg.type === 'do') formattedText = `${speakerPrefix}[Action]: ${msg.content}`;
+      else if (msg.type === 'say') formattedText = `${speakerPrefix}[Say]: "${msg.content}"`;
+      else if (msg.type === 'story_note') formattedText = `${speakerPrefix}[Story Note]: ${msg.content}`;
+      else if (msg.type === 'continue') formattedText = `${speakerPrefix}[Continue narrative naturally]`;
     }
     return {
       role: msg.role === 'user' ? ('user' as const) : ('model' as const),
@@ -150,7 +165,6 @@ export function assembleGeminiPayload(params: PromptContextParams): GeminiPayloa
     };
   });
 
-  // Prepend Few-shot Examples if present and conversation history is short (< 2 turns)
   if (params.fewShotExamples && params.fewShotExamples.length > 0 && recentMessages.length <= 1) {
     const exampleTurns: { role: 'user' | 'model'; parts: { text: string }[] }[] = [];
     for (const ex of params.fewShotExamples) {
@@ -160,7 +174,6 @@ export function assembleGeminiPayload(params: PromptContextParams): GeminiPayloa
     contents.unshift(...exampleTurns);
   }
 
-  // Ensure Gemini API contents starts with a 'user' role message if not empty
   if (contents.length > 0 && contents[0].role === 'model') {
     contents.unshift({
       role: 'user',
@@ -168,7 +181,6 @@ export function assembleGeminiPayload(params: PromptContextParams): GeminiPayloa
     });
   }
 
-  // Ensure Gemini API contents doesn't end with two consecutive messages from the same role
   const collapsedContents: { role: 'user' | 'model'; parts: { text: string }[] }[] = [];
   for (const item of contents) {
     if (collapsedContents.length > 0 && collapsedContents[collapsedContents.length - 1].role === item.role) {
@@ -184,9 +196,9 @@ export function assembleGeminiPayload(params: PromptContextParams): GeminiPayloa
     },
     contents: collapsedContents,
     generationConfig: {
-      temperature: 0.8,
+      temperature: generationConfig?.temperature ?? 0.8,
       topP: 0.95,
-      maxOutputTokens: 2048,
+      maxOutputTokens: generationConfig?.maxOutputTokens ?? 2048,
     },
   };
 }
