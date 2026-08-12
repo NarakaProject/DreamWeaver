@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { FullScenario, PersonaTemplate } from '@/lib/scenarios/reader';
-import { X, User, Play, Sparkles, Plus, Check } from 'lucide-react';
+import { X, User, Play, Sparkles, Plus, Check, Edit3, Save } from 'lucide-react';
+import { ImagePickerWithPreview } from './ImagePickerWithPreview';
 
 interface PreStartModalProps {
   isOpen: boolean;
@@ -14,6 +15,8 @@ interface PreStartModalProps {
 export function PreStartModal({ isOpen, onClose, scenario, onStartGame }: PreStartModalProps) {
   const [selectedPersonaId, setSelectedPersonaId] = React.useState<string>('');
   const [isCustomMode, setIsCustomMode] = React.useState<boolean>(false);
+  const [personasCopy, setPersonasCopy] = React.useState<PersonaTemplate[]>([]);
+  const [editingPersonaId, setEditingPersonaId] = React.useState<string | null>(null);
 
   // Custom Persona state
   const [customName, setCustomName] = React.useState('');
@@ -23,11 +26,14 @@ export function PreStartModal({ isOpen, onClose, scenario, onStartGame }: PreSta
 
   React.useEffect(() => {
     if (scenario && scenario.suggestedPersonas.length > 0) {
+      setPersonasCopy(scenario.suggestedPersonas);
       setSelectedPersonaId(scenario.suggestedPersonas[0].id);
       setIsCustomMode(false);
     } else {
+      setPersonasCopy([]);
       setIsCustomMode(true);
     }
+    setEditingPersonaId(null);
   }, [scenario]);
 
   if (!isOpen || !scenario) return null;
@@ -46,13 +52,19 @@ export function PreStartModal({ isOpen, onClose, scenario, onStartGame }: PreSta
           customFirstMessage.trim() || `*${customName.trim()} steps into the story scenario.*`,
       };
     } else {
-      const found = scenario.suggestedPersonas.find((p) => p.id === selectedPersonaId);
+      const found = personasCopy.find((p) => p.id === selectedPersonaId);
       if (!found) return;
       finalPersona = found;
     }
 
     onStartGame(scenario, finalPersona);
     onClose();
+  };
+
+  const updatePersonaField = (id: string, field: keyof PersonaTemplate, value: string) => {
+    setPersonasCopy((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
+    );
   };
 
   const coverUrl = scenario.meta.coverImage || scenario.worldBuilding.images?.coverImage;
@@ -114,7 +126,7 @@ export function PreStartModal({ isOpen, onClose, scenario, onStartGame }: PreSta
             </p>
             <p className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Choose or create your character persona to start</span>
+              <span>Choose or customize your character persona to start</span>
             </p>
           </div>
 
@@ -130,7 +142,7 @@ export function PreStartModal({ isOpen, onClose, scenario, onStartGame }: PreSta
               }`}
             >
               <User className="w-4 h-4" />
-              <span>Suggested Personas ({scenario.suggestedPersonas.length})</span>
+              <span>Suggested Personas ({personasCopy.length})</span>
             </button>
 
             <button
@@ -150,55 +162,128 @@ export function PreStartModal({ isOpen, onClose, scenario, onStartGame }: PreSta
           {/* Suggested Personas Grid */}
           {!isCustomMode ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {scenario.suggestedPersonas.map((persona) => {
+              {personasCopy.map((persona) => {
                 const isSelected = selectedPersonaId === persona.id;
+                const isEditing = editingPersonaId === persona.id;
+
                 return (
                   <div
                     key={persona.id}
-                    onClick={() => setSelectedPersonaId(persona.id)}
-                    className={`cursor-pointer p-4 rounded-xl border transition-all relative flex items-start gap-3.5 ${
+                    className={`p-4 rounded-xl border transition-all relative flex flex-col gap-3 ${
                       isSelected
                         ? 'bg-[#1e2538] border-amber-500 shadow-lg ring-1 ring-amber-500/50'
                         : 'bg-[#181d2a] border-[#262c3e] hover:border-slate-500'
                     }`}
                   >
-                    {/* Persona Avatar Portrait */}
-                    {persona.avatar ? (
-                      <img
-                        src={persona.avatar}
-                        alt={persona.name}
-                        className="w-12 h-12 rounded-full object-cover border border-amber-500/40 shrink-0 mt-0.5"
-                        onError={(e) => {
-                          (e.target as HTMLElement).style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500/20 to-purple-500/20 border border-amber-500/30 flex items-center justify-center text-amber-300 font-bold text-base shrink-0 mt-0.5">
-                        {persona.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    {/* Card Header & Radio Trigger */}
+                    <div
+                      onClick={() => setSelectedPersonaId(persona.id)}
+                      className="cursor-pointer flex items-start gap-3.5"
+                    >
+                      {/* Persona Avatar Portrait */}
+                      {persona.avatar ? (
+                        <img
+                          src={persona.avatar}
+                          alt={persona.name}
+                          className="w-12 h-12 rounded-full object-cover border border-amber-500/40 shrink-0 mt-0.5"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500/20 to-purple-500/20 border border-amber-500/30 flex items-center justify-center text-amber-300 font-bold text-base shrink-0 mt-0.5">
+                          {persona.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
 
-                    {/* Persona Details */}
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-bold text-sm text-white truncate">{persona.name}</h4>
-                        {isSelected && (
-                          <span className="p-1 rounded-full bg-amber-500 text-black shrink-0 ml-1">
-                            <Check className="w-3 h-3" />
-                          </span>
+                      {/* Persona Summary */}
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-sm text-white truncate">{persona.name}</h4>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingPersonaId(isEditing ? null : persona.id);
+                              }}
+                              className="p-1 rounded-md text-slate-400 hover:text-amber-400 hover:bg-[#12151e] transition-colors"
+                              title="Edit persona details"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            {isSelected && (
+                              <span className="p-1 rounded-full bg-amber-500 text-black">
+                                <Check className="w-3 h-3" />
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {persona.tagline && (
+                          <p className="text-xs text-amber-300 font-medium truncate">
+                            {persona.tagline}
+                          </p>
+                        )}
+                        {!isEditing && persona.personality && (
+                          <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                            {persona.personality}
+                          </p>
                         )}
                       </div>
-                      {persona.tagline && (
-                        <p className="text-xs text-amber-300 font-medium truncate">
-                          {persona.tagline}
-                        </p>
-                      )}
-                      {persona.personality && (
-                        <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-                          {persona.personality}
-                        </p>
-                      )}
                     </div>
+
+                    {/* Inline Edit Drawer */}
+                    {isEditing && (
+                      <div className="pt-3 border-t border-[#262c3e] space-y-3 text-xs animate-fadeIn">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-300">Name</label>
+                          <input
+                            type="text"
+                            value={persona.name}
+                            onChange={(e) => updatePersonaField(persona.id, 'name', e.target.value)}
+                            className="w-full rounded-lg bg-[#090a0f] border border-[#262c3e] p-2 text-xs text-white"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-300">Tagline / Class</label>
+                          <input
+                            type="text"
+                            value={persona.tagline || ''}
+                            onChange={(e) => updatePersonaField(persona.id, 'tagline', e.target.value)}
+                            className="w-full rounded-lg bg-[#090a0f] border border-[#262c3e] p-2 text-xs text-white"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-300">Personality & Backstory</label>
+                          <textarea
+                            value={persona.personality}
+                            onChange={(e) => updatePersonaField(persona.id, 'personality', e.target.value)}
+                            className="w-full h-20 rounded-lg bg-[#090a0f] border border-[#262c3e] p-2 text-xs text-white resize-none"
+                          />
+                        </div>
+
+                        <ImagePickerWithPreview
+                          label="Avatar Portrait"
+                          value={persona.avatar || ''}
+                          assetType="avatar"
+                          contextHint={`${persona.name} ${persona.tagline || ''}`}
+                          onChange={(url) => updatePersonaField(persona.id, 'avatar', url)}
+                        />
+
+                        <div className="flex justify-end pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingPersonaId(null)}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold"
+                          >
+                            <Save className="w-3 h-3" />
+                            <span>Done Editing</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
