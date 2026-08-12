@@ -5,6 +5,7 @@ import {
   saveScenario,
   loadScenarioById,
   loadAllScenarios,
+  deleteScenario,
   FullScenario,
 } from './reader';
 
@@ -122,5 +123,20 @@ describe('Scenario Reader & 12 Building Blocks (lib/scenarios/reader.ts)', () =>
     const dummyLegacy = path.join(process.cwd(), 'temp_dummy_legacy');
     const scenarios = await loadAllScenarios(TEST_SCENARIOS_DIR, dummyLegacy);
     expect(scenarios).toHaveLength(2);
+  });
+
+  it('should delete scenario directory from disk', async () => {
+    const s: FullScenario = {
+      meta: { id: 's-to-delete', title: 'Delete Me', description: 'Desc', category: 'General', tags: [], mode: 'roleplay' },
+      worldBuilding: { setting: '', plot: '', style: '', narrator: '', objects: [], examples: [] },
+      suggestedPersonas: [],
+    };
+    await saveScenario(s, TEST_SCENARIOS_DIR);
+    let loaded = await loadScenarioById('s-to-delete', TEST_SCENARIOS_DIR);
+    expect(loaded).not.toBeNull();
+
+    await deleteScenario('s-to-delete', TEST_SCENARIOS_DIR);
+    loaded = await loadScenarioById('s-to-delete', TEST_SCENARIOS_DIR);
+    expect(loaded).toBeNull();
   });
 });

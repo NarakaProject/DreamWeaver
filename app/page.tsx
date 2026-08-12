@@ -641,12 +641,14 @@ export default function Home() {
 
   const handleConfirmDeleteScenario = async (scenarioId: string) => {
     try {
-      await fetch(`/api/scenarios?id=${scenarioId}`, { method: 'DELETE' });
-      await fetchScenarios();
-      if (activeScenario?.meta.id === scenarioId) {
-        setActiveScenario(null);
-        setActiveWorldBuilding(null);
-        setActivePersona(null);
+      const res = await fetch(`/api/scenarios?id=${scenarioId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setScenarios((prev) => prev.filter((s) => s.meta.id !== scenarioId));
+        if (activeScenario?.meta.id === scenarioId) {
+          setActiveScenario(null);
+          setActiveWorldBuilding(null);
+          setActivePersona(null);
+        }
       }
     } catch (err) {
       console.error('Failed to delete scenario:', err);

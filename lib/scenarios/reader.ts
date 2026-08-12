@@ -168,6 +168,21 @@ export async function saveScenario(
 }
 
 /**
+ * Deletes a scenario folder from disk by ID.
+ */
+export async function deleteScenario(
+  scenarioId: string,
+  baseDir: string = BASE_SCENARIOS_PATH
+): Promise<void> {
+  const scenarioFolder = path.join(baseDir, scenarioId);
+  try {
+    await fs.rm(scenarioFolder, { recursive: true, force: true });
+  } catch (err) {
+    console.error(`Failed to delete scenario directory ${scenarioFolder}:`, err);
+  }
+}
+
+/**
  * Legacy World Converter: Converts old /data/worlds/ structure on the fly.
  */
 async function convertLegacyWorldToScenario(
