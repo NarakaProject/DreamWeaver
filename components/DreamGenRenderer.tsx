@@ -88,7 +88,7 @@ export const DreamGenRenderer = React.memo(function DreamGenRenderer({
   const isUserSpeaker = isUserTurn || canonicalSpeaker.toLowerCase() === userPersonaName.toLowerCase();
 
   return (
-    <div className="group relative my-6 max-w-3xl mx-auto w-full rounded-xl bg-[#12151e] border border-[#1f2430] p-6 shadow-md transition-colors hover:border-[#2a3142] contain-content space-y-3">
+    <div className="group relative my-6 max-w-5xl mx-auto w-full rounded-xl bg-[#12151e] border border-[#1f2430] p-7 sm:p-8 shadow-md transition-colors hover:border-[#2a3142] contain-content space-y-4">
       {/* Identity Attribution Header */}
       <div className="flex items-center justify-between text-xs border-b border-[#1f2430] pb-2.5">
         <div className="flex items-center gap-2">

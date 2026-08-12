@@ -60,7 +60,7 @@ export function ControlDock({
 
   return (
     <div className="sticky bottom-0 bg-[#0d0f17] border-t border-[#1f2430] p-3 backdrop-blur-none z-10 contain-content">
-      <div className="max-w-3xl mx-auto space-y-2.5">
+      <div className="max-w-5xl mx-auto w-full space-y-2.5">
         {/* Contextual Action Suggestions Dock */}
         {suggestions.length > 0 && (
           <div className="p-3 rounded-xl bg-[#141824] border border-[#242b3d] space-y-2">
