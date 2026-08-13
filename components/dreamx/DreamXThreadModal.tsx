@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import type { DreamXPost as DreamXPostType } from '@/lib/dreamx/types';
 import { X, Send, Loader2, MessageSquare } from 'lucide-react';
 import { DreamXPost } from './DreamXPost';
+import { DreamXMentionComposer } from './DreamXMentionComposer';
+
 
 interface DreamXThreadModalProps {
   threadId: string;
@@ -136,12 +138,14 @@ export function DreamXThreadModal({ threadId, onClose, onPostCreated }: DreamXTh
               Replying to <span className="font-bold">{replyTarget.handle}</span>
             </div>
             <form onSubmit={handleSendReply} className="flex gap-2">
-              <input
+              <DreamXMentionComposer
                 value={replyContent}
-                onChange={e => setReplyContent(e.target.value)}
+                onChange={setReplyContent}
+                isTextArea={false}
                 placeholder="Post your reply..."
                 className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-white placeholder-white/30 focus:outline-none focus:border-blue-500 text-sm"
               />
+
               <button
                 type="submit"
                 disabled={isSubmitting || !replyContent.trim()}

@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { MessageSquare, Heart, Repeat2, Share, User } from 'lucide-react';
 import type { DreamXPost as DreamXPostType } from '@/lib/dreamx/types';
 import Link from 'next/link';
+import { DreamXPostContent } from './DreamXPostContent';
+
 
 interface DreamXPostProps {
   post: DreamXPostType;
@@ -125,8 +127,9 @@ export function DreamXPost({
           </div>
 
           <p className="text-white/90 whitespace-pre-wrap break-words leading-relaxed mb-3 text-sm">
-            {post.content}
+            <DreamXPostContent content={post.content} />
           </p>
+
 
           {/* Social Interaction Bar */}
           <div className="flex items-center gap-8 text-white/40 pt-1">

@@ -8,6 +8,8 @@ import { DreamXOnboarding } from './DreamXOnboarding';
 import { DreamXThreadModal } from './DreamXThreadModal';
 import { Sparkles, Send, Loader2, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
+import { DreamXMentionComposer } from './DreamXMentionComposer';
+
 
 interface DreamXProps {
   apiKeys: any;
@@ -144,13 +146,14 @@ export function DreamX({ apiKeys, selectedModel }: DreamXProps) {
                 {humanUser.avatar_url ? <img src={humanUser.avatar_url} alt={humanUser.display_name} className="w-full h-full rounded-full object-cover" /> : humanUser.display_name.charAt(0)}
               </div>
               <div className="flex-1">
-                <textarea 
+                <DreamXMentionComposer 
                   value={postContent}
-                  onChange={e => setPostContent(e.target.value)}
+                  onChange={setPostContent}
                   placeholder="What's happening?"
                   rows={2}
                   className="w-full bg-transparent border-none text-white text-base placeholder-white/30 resize-none focus:outline-none"
                 />
+
                 <div className="flex justify-end pt-2 border-t border-white/10 mt-2">
                   <button 
                     type="submit"

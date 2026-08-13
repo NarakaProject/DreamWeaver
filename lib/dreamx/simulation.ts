@@ -48,8 +48,21 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
   };
   flatten(posts);
 
-  // 3. Select a candidate AI profile using mention-aware candidate weighting
-  const candidate = selectWeightedCandidate(profiles, allPosts);
+  // 3. Scan for High-Urgency Social Events (e.g. human replies or mentions)
+  const urgencyEvents = evaluateSocialUrgencyEvents(profiles, allPosts);
+  const topUrgencyEvent = urgencyEvents.length > 0 ? urgencyEvents[0] : null;
+
+  let candidate: DreamXProfile;
+  let targetPost: DreamXPost | null = null;
+  let isUrgencyEvent = false;
+
+  if (topUrgencyEvent && topUrgencyEvent.score >= 3.0) {
+    candidate = topUrgencyEvent.candidate;
+    targetPost = topUrgencyEvent.targetPost;
+    isUrgencyEvent = true;
+  } else {
+    candidate = selectWeightedCandidate(profiles, allPosts);
+  }
 
   // Check if candidate AI is explicitly mentioned in any feed post
   const normCandidateHandle = candidate.handle.toLowerCase().replace(/^@/, '');
@@ -64,9 +77,65 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
   // 4. Decide on an action type (LIKE, REPLY, POST, NO_ACTION)
   const actionChoice = Math.random();
 
-  // If candidate is explicitly mentioned, boost REPLY action threshold to 0.85
+  // --- HIGH-VALUE EVENT OVERRIDE PATH ---
+  if (isUrgencyEvent && targetPost) {
+    if (actionChoice < 0.70 && (options.keys.geminiKey || options.keys.groqKey || options.keys.openrouterKey)) {
+      const { text, validation } = await generateDreamXReply(
+        candidate,
+        targetPost,
+        targetPost.author_name || 'User',
+        targetPost.author_handle || '@user',
+        options,
+        topUrgencyEvent?.isMention || isCandidateMentioned
+      );
+
+      if (!validation.isValid) {
+        await logActivity({
+          action_type: 'no_action',
+          actor_id: candidate.id,
+          reason: `Rejected high-urgency reply output: ${validation.reason}`
+        });
+        return { outcome: 'NO_ACTION', details: `Rejected reply generation: ${validation.reason}` };
+      }
+
+      const saved = await savePost({
+        author_id: candidate.id,
+        author_type: 'ai',
+        content: text,
+        reply_to_post_id: targetPost.id
+      });
+
+      await logActivity({
+        action_type: 'reply',
+        actor_id: candidate.id,
+        target_post_id: targetPost.id,
+        reason: `Event-driven response to ${targetPost.author_handle} (Urgency: ${topUrgencyEvent?.score.toFixed(1)})`
+      });
+
+      return { outcome: 'REPLY_CREATED', details: { post: saved } };
+    } else if (actionChoice < 0.85) {
+      const result = await ensureLike(targetPost.id, candidate.id, 'ai');
+      await logActivity({
+        action_type: result.newlyAdded ? 'like' : 'no_action',
+        actor_id: candidate.id,
+        target_post_id: targetPost.id,
+        reason: `Event-driven like for ${targetPost.author_handle}'s post`
+      });
+      return { outcome: result.newlyAdded ? 'LIKE_CREATED' : 'NO_ACTION', details: { actor: candidate.handle, postId: targetPost.id } };
+    } else {
+      await logActivity({
+        action_type: 'no_action',
+        actor_id: candidate.id,
+        reason: `High urgency event present but candidate ${candidate.handle} chose silence.`
+      });
+      return { outcome: 'NO_ACTION', details: 'Candidate chose silence on social event.' };
+    }
+  }
+
+  // If candidate is explicitly mentioned in ordinary browsing, boost REPLY action threshold to 0.85
   const replyThreshold = isCandidateMentioned ? 0.85 : 0.70;
   const likeThreshold = isCandidateMentioned ? 0.20 : 0.35;
+
 
 
   // --- OPTION A: AI LIKE (Deterministic, NO LLM CALL) ---
@@ -253,3 +322,112 @@ export function selectWeightedCandidate(profiles: DreamXProfile[], allPosts: Dre
 
   return profiles[0];
 }
+
+export interface SocialUrgencyEvent {
+  candidate: DreamXProfile;
+  targetPost: DreamXPost;
+  score: number;
+  isDirectHumanInteraction: boolean;
+  isMention: boolean;
+}
+
+/**
+ * Calculates personality propensity factor for an AI profile (0.5 to 1.5 multiplier).
+ */
+export function calculatePersonalityPropensity(profile: DreamXProfile): number {
+  const text = [
+    profile.personality || '',
+    profile.traits || '',
+    profile.speaking_style || ''
+  ].join(' ').toLowerCase();
+
+  let score = 1.0;
+
+  if (/\b(social|talkative|argumentative|confrontational|expressive|bold|witty|passionate)\b/.test(text)) {
+    score += 0.3;
+  }
+  if (/\b(reserved|quiet|passive|shy|introverted|silent|calm)\b/.test(text)) {
+    score -= 0.3;
+  }
+
+  return Math.min(1.5, Math.max(0.5, score));
+}
+
+/**
+ * Scans allPosts to find high-value social urgency events for AI profiles.
+ */
+export function evaluateSocialUrgencyEvents(profiles: DreamXProfile[], allPosts: DreamXPost[]): SocialUrgencyEvent[] {
+  const events: SocialUrgencyEvent[] = [];
+  const now = Date.now();
+  const postMap = new Map<string, DreamXPost>();
+  for (const p of allPosts) {
+    postMap.set(p.id, p);
+  }
+
+  for (const candidate of profiles) {
+    const normHandle = candidate.handle.toLowerCase().replace(/^@/, '');
+    const propensity = calculatePersonalityPropensity(candidate);
+
+    for (const post of allPosts) {
+      if (post.author_id === candidate.id) continue;
+
+      // Check if candidate has ALREADY replied to this exact post
+      const alreadyReplied = post.replies?.some(r => r.author_id === candidate.id && r.author_type === 'ai');
+      if (alreadyReplied) continue;
+
+      let rawScore = 0;
+      let isDirectHuman = false;
+      let isMention = false;
+
+      const mentions = extractMentions(post.content).map(m => m.toLowerCase());
+      const mentionsCandidate = mentions.includes(normHandle);
+
+      // Check direct parent post if post is a reply
+      const parentPost = post.reply_to_post_id ? postMap.get(post.reply_to_post_id) : null;
+      const isParentByCandidate = parentPost && parentPost.author_id === candidate.id;
+
+      if (post.author_type === 'human') {
+        if (isParentByCandidate) {
+          // Human directly replied to candidate's post!
+          rawScore += 10.0;
+          isDirectHuman = true;
+        }
+        if (mentionsCandidate) {
+          // Human explicitly mentioned candidate!
+          rawScore += 8.0;
+          isDirectHuman = true;
+          isMention = true;
+        }
+      } else if (post.author_type === 'ai') {
+        if (isParentByCandidate) {
+          rawScore += 4.0;
+        }
+        if (mentionsCandidate) {
+          rawScore += 4.0;
+          isMention = true;
+        }
+      }
+
+      if (rawScore > 0) {
+        // Recency decay (within last 30 minutes gets full score)
+        const ageMs = now - post.created_at;
+        const ageMinutes = ageMs / (1000 * 60);
+        const recencyMultiplier = ageMinutes <= 30 ? 1.0 : Math.max(0.1, 1.0 - (ageMinutes - 30) / 120);
+
+        const finalScore = rawScore * propensity * recencyMultiplier;
+        if (finalScore > 1.0) {
+          events.push({
+            candidate,
+            targetPost: post,
+            score: finalScore,
+            isDirectHumanInteraction: isDirectHuman,
+            isMention
+          });
+        }
+      }
+    }
+  }
+
+  return events.sort((a, b) => b.score - a.score);
+}
+

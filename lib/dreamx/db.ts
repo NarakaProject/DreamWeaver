@@ -227,6 +227,8 @@ export async function getPost(id: string): Promise<DreamXPost | undefined> {
   return populatePostMetadata(raw);
 }
 
+let lastPostCreatedAt = 0;
+
 export async function savePost(post: { 
   id?: string;
   author_id: string; 
@@ -236,7 +238,12 @@ export async function savePost(post: {
 }): Promise<DreamXPost> {
   const db = getDreamXDb();
   const id = post.id || generateId('dx-post');
-  const now = Date.now();
+  let now = Date.now();
+  if (now <= lastPostCreatedAt) {
+    now = lastPostCreatedAt + 1;
+  }
+  lastPostCreatedAt = now;
+
 
   const fullPost: DreamXPost = {
     id,
@@ -254,8 +261,12 @@ export async function savePost(post: {
       id, author_id, author_type, content, reply_to_post_id, likes_count, reposts_count, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
-      content = excluded.content
+      author_id = excluded.author_id,
+      author_type = excluded.author_type,
+      content = excluded.content,
+      reply_to_post_id = excluded.reply_to_post_id
   `, [
+
     fullPost.id,
     fullPost.author_id,
     fullPost.author_type,
