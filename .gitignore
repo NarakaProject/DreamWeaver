@@ -44,3 +44,12 @@ next-env.d.ts
 /public/uploads/*
 !/public/uploads/.gitkeep
 
+# database & local user sessions
+/data/*.db*
+
+# user generated & imported scenarios (preserve built-in sample scenarios)
+/data/scenarios/*
+!/data/scenarios/eldoria/
+!/data/scenarios/static-in-the-synapse/
+!/data/scenarios/under-the-ginkgo-tree/
+
