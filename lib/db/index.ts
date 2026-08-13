@@ -25,6 +25,12 @@ interface DbAdapter {
   saveMemory(memory: DbMemory): Promise<void>;
   deleteMemory(id: string): Promise<void>;
   clearMemories(sessionId: string): Promise<void>;
+  
+  // Generic methods for isolated subsystems (e.g. DreamX)
+  queryAll<T>(sql: string, args?: any[]): Promise<T[]>;
+  queryFirst<T>(sql: string, args?: any[]): Promise<T | undefined>;
+  execute(sql: string, args?: any[]): Promise<void>;
+  batchExecute(statements: Array<{ sql: string; args?: any[] }>): Promise<void>;
 }
 
 class BetterSqliteAdapter implements DbAdapter {
@@ -39,6 +45,27 @@ class BetterSqliteAdapter implements DbAdapter {
 
   exec(sql: string): void {
     this.db.exec(sql);
+  }
+
+  async queryAll<T>(sql: string, args: any[] = []): Promise<T[]> {
+    return this.db.prepare(sql).all(...args) as T[];
+  }
+
+  async queryFirst<T>(sql: string, args: any[] = []): Promise<T | undefined> {
+    return this.db.prepare(sql).get(...args) as T | undefined;
+  }
+
+  async execute(sql: string, args: any[] = []): Promise<void> {
+    this.db.prepare(sql).run(...args);
+  }
+
+  async batchExecute(statements: Array<{ sql: string; args?: any[] }>): Promise<void> {
+    const txn = this.db.transaction(() => {
+      for (const stmt of statements) {
+        this.db.prepare(stmt.sql).run(...(stmt.args || []));
+      }
+    });
+    txn();
   }
 
   async getSessions(): Promise<DbSession[]> {
@@ -415,6 +442,26 @@ class LibSqlAdapter implements DbAdapter {
   async clearMemories(sessionId: string): Promise<void> {
     await this.client.execute({ sql: 'DELETE FROM memories WHERE session_id = ?', args: [sessionId] });
   }
+
+  async queryAll<T>(sql: string, args: any[] = []): Promise<T[]> {
+    const res = await this.client.execute({ sql, args });
+    // Convert rows array to object array
+    return res.rows as unknown as T[];
+  }
+
+  async queryFirst<T>(sql: string, args: any[] = []): Promise<T | undefined> {
+    const res = await this.client.execute({ sql, args });
+    return (res.rows[0] as unknown as T) || undefined;
+  }
+
+  async execute(sql: string, args: any[] = []): Promise<void> {
+    await this.client.execute({ sql, args });
+  }
+
+  async batchExecute(statements: Array<{ sql: string; args?: any[] }>): Promise<void> {
+    const batchStmts = statements.map(s => ({ sql: s.sql, args: s.args || [] }));
+    await this.client.batch(batchStmts);
+  }
 }
 
 let dbInstance: DbAdapter;
@@ -477,6 +524,44 @@ export function getDatabase(): DbAdapter {
     dbInstance.exec('ALTER TABLE messages ADD COLUMN speaker TEXT;');
   } catch {
     // speaker column already exists, safe migration fallback
+  }
+
+  // Initialize DreamX Schema (Hard Feature Isolation)
+  // These tables have NO foreign keys pointing to DreamWeaver tables.
+  const dreamxInitSql = `
+    CREATE TABLE IF NOT EXISTS dreamx_profiles (
+      id TEXT PRIMARY KEY,
+      display_name TEXT NOT NULL,
+      handle TEXT NOT NULL,
+      avatar_url TEXT,
+      bio TEXT,
+      personality TEXT,
+      traits TEXT,
+      interests TEXT,
+      speaking_style TEXT,
+      beliefs TEXT,
+      background TEXT,
+      posting_guidelines TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS dreamx_posts (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      reply_to_post_id TEXT,
+      likes_count INTEGER DEFAULT 0,
+      reposts_count INTEGER DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY(profile_id) REFERENCES dreamx_profiles(id)
+    );
+  `;
+
+  try {
+    dbInstance.exec(dreamxInitSql);
+  } catch (err) {
+    console.error('Failed to initialize DreamX SQLite schema. DreamWeaver will continue unaffected:', err);
   }
 
   return dbInstance;

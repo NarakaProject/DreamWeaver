@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { FullScenario, PersonaTemplate } from '@/lib/scenarios/types';
 import { DbSession } from '@/lib/db';
 import {
@@ -18,6 +19,7 @@ import {
   User,
   PlusCircle,
   Upload,
+  Globe,
 } from 'lucide-react';
 
 export type SidebarNavView = 'discovery' | 'play' | 'scenarios' | 'saved_sessions';
@@ -127,6 +129,15 @@ export function Sidebar({
           <Home className="w-4 h-4 shrink-0" />
           {!collapsed && <span>Discovery & Home</span>}
         </button>
+
+        <Link
+          href="/dreamx"
+          className="w-full flex items-center gap-3 p-2.5 rounded-xl text-xs font-semibold text-left transition-all text-slate-300 hover:bg-[#151924] hover:text-white"
+          title="DreamX Social Network"
+        >
+          <Globe className="w-4 h-4 shrink-0 text-blue-400" />
+          {!collapsed && <span>DreamX Social</span>}
+        </Link>
 
         {activeSessionId && (
           <button
