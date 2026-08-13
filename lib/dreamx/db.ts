@@ -391,12 +391,12 @@ export async function getAiReplyEdges(): Promise<Set<string>> {
 }
 
 /**
- * Resolves the conversation root post for any post ID (root or reply)
- * and retrieves all descendant replies as a flat, chronologically ordered list.
+ * Resolves conversation root, ancestors chain, and direct children (replies) of the target post.
  */
 export async function getConversationFlat(postId: string): Promise<{
   root: DreamXPost;
   ancestors: DreamXPost[];
+  replies: DreamXPost[];
   conversation: DreamXPost[];
   target: DreamXPost;
 }> {
@@ -422,68 +422,25 @@ export async function getConversationFlat(postId: string): Promise<{
   
   const root = ancestors.length > 0 ? ancestors[0] : requestedPost;
 
-  // 2. Fetch all posts in DB with reply_to_post_id to find all descendants of target
-  const allRepliesRaw = await db.queryAll<any>('SELECT * FROM dreamx_posts WHERE reply_to_post_id IS NOT NULL');
+  // 2. Fetch ONLY direct children of requestedPost (reply_to_post_id === requestedPost.id)
+  const directChildrenRaw = await db.queryAll<any>(
+    'SELECT * FROM dreamx_posts WHERE reply_to_post_id = ? ORDER BY created_at ASC',
+    [requestedPost.id]
+  );
 
-  const descendantIds = new Set<string>([requestedPost.id]);
-  let added = true;
-  while (added) {
-    added = false;
-    for (const raw of allRepliesRaw) {
-      if (!descendantIds.has(raw.id) && raw.reply_to_post_id && descendantIds.has(raw.reply_to_post_id)) {
-        descendantIds.add(raw.id);
-        added = true;
-      }
-    }
+  const replies: DreamXPost[] = [];
+  for (const raw of directChildrenRaw) {
+    const post = await populatePostMetadata(raw, human?.id);
+    replies.push(post);
   }
 
-  // Exclude ancestors and target from the remaining conversation flat list
-  const excludedIds = new Set<string>(ancestors.map(a => a.id));
-  excludedIds.add(requestedPost.id);
-  
-  for (const id of excludedIds) {
-    descendantIds.delete(id);
-  }
-
-  // 3. Populate metadata for all descendant replies
-  const conversationUnsorted: DreamXPost[] = [];
-  for (const raw of allRepliesRaw) {
-    if (descendantIds.has(raw.id)) {
-      const populated = await populatePostMetadata(raw, human?.id);
-      conversationUnsorted.push(populated);
-    }
-  }
-
-  // 4. Sort descendants using Depth-First Search (DFS)
-  // We want to group threads continuously so visual connectors work correctly.
-  // First, sort all siblings by created_at ASC
-  conversationUnsorted.sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
-
-  // Build a map of parentId -> children array
-  const childrenMap = new Map<string, DreamXPost[]>();
-  for (const post of conversationUnsorted) {
-    if (!post.reply_to_post_id) continue;
-    if (!childrenMap.has(post.reply_to_post_id)) {
-      childrenMap.set(post.reply_to_post_id, []);
-    }
-    childrenMap.get(post.reply_to_post_id)!.push(post);
-  }
-
-  const conversation: DreamXPost[] = [];
-  
-  // DFS traversal function
-  const dfs = (parentId: string) => {
-    const children = childrenMap.get(parentId) || [];
-    for (const child of children) {
-      conversation.push(child);
-      dfs(child.id);
-    }
+  return { 
+    root, 
+    ancestors, 
+    replies, 
+    conversation: replies, 
+    target: requestedPost 
   };
-
-  // The root of the descendant tree is the requested target post
-  dfs(requestedPost.id);
-
-  return { root, ancestors, conversation, target: requestedPost };
 }
 
 

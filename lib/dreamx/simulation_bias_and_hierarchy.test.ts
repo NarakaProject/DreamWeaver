@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { 
   getConversationFlat, 
+  getPost,
   savePost, 
   saveProfile, 
   resetSimulationState, 
@@ -15,81 +16,73 @@ describe('DreamX v0.2 - Simulation Bias and Target-Aware Hierarchy', () => {
   });
 
   describe('Deep Reply Navigation and Target-Aware Resolution', () => {
-    it('resolves ancestors, target, and descendants correctly', async () => {
-      const root = await savePost({ author_id: 'u1', author_type: 'human', content: 'Root post', reply_to_post_id: null });
-      const replyA = await savePost({ author_id: 'u1', author_type: 'human', content: 'Reply A', reply_to_post_id: root.id });
-      const replyB = await savePost({ author_id: 'u1', author_type: 'human', content: 'Reply B', reply_to_post_id: replyA.id });
-      const replyC = await savePost({ author_id: 'u1', author_type: 'human', content: 'Reply C (TARGET)', reply_to_post_id: replyB.id });
-      const replyD = await savePost({ author_id: 'u1', author_type: 'human', content: 'Reply D', reply_to_post_id: replyC.id });
-      
-      // Sibling reply to B (should be in descendants)
-      const replySibling = await savePost({ author_id: 'u1', author_type: 'human', content: 'Reply Sibling', reply_to_post_id: replyB.id });
-
-      const result = await getConversationFlat(replyC.id);
-      
-      expect(result.target.id).toBe(replyC.id);
-      expect(result.root.id).toBe(root.id);
-      
-      // Test 1: Target = C
-      const resultC = await getConversationFlat(replyC.id);
-      expect(resultC.target.id).toBe(replyC.id);
-      expect(resultC.root.id).toBe(root.id);
-      expect(resultC.ancestors.map(a => a.id)).toEqual([root.id, replyA.id, replyB.id]);
-      
-      const convIdsC = resultC.conversation.map(p => p.id);
-      expect(convIdsC).toContain(replyD.id);
-      expect(convIdsC).not.toContain(replySibling.id);
-      expect(convIdsC).not.toContain(replyC.id);
-      expect(convIdsC).not.toContain(root.id);
-
-      // Verify overall UI sequence A -> B -> C -> D has no duplicates
-      const renderedSequenceC = [...resultC.ancestors, resultC.target, ...resultC.conversation].map(p => p.id);
-      const uniqueIdsC = new Set(renderedSequenceC);
-      expect(renderedSequenceC.length).toBe(uniqueIdsC.size); // No duplicates
-
-      // Test 2: Target = A (Root)
-      const resultA = await getConversationFlat(root.id);
-      expect(resultA.ancestors).toEqual([]);
-      expect(resultA.target.id).toBe(root.id);
-      const convIdsA = resultA.conversation.map(p => p.id);
-      expect(convIdsA).toContain(replyA.id);
-      expect(convIdsA).toContain(replyC.id);
-      expect(convIdsA).toContain(replyD.id);
-      expect(convIdsA).toContain(replySibling.id);
-      const renderedSequenceA = [...resultA.ancestors, resultA.target, ...resultA.conversation].map(p => p.id);
-      expect(renderedSequenceA.length).toBe(new Set(renderedSequenceA).size);
-
-      // Test 3: Target = D (Leaf)
-      const resultD = await getConversationFlat(replyD.id);
-      expect(resultD.ancestors.map(a => a.id)).toEqual([root.id, replyA.id, replyB.id, replyC.id]);
-      expect(resultD.target.id).toBe(replyD.id);
-      expect(resultD.conversation).toEqual([]); // D has no descendants
-      const renderedSequenceD = [...resultD.ancestors, resultD.target, ...resultD.conversation].map(p => p.id);
-      expect(renderedSequenceD.length).toBe(new Set(renderedSequenceD).size);
-    });
-
-    it('sorts descendant replies using Depth-First Search to properly visualize branching threads', async () => {
+    it('enforces direct-child thread semantics and deep navigation matrix (Round 4)', async () => {
       // Tree:
-      // A
-      // ├── B
-      // │   └── C
-      // │       └── D
-      // └── E
-      //     └── F
-      const rootA = await savePost({ author_id: 'u1', author_type: 'human', content: 'A', reply_to_post_id: null });
-      const replyB = await savePost({ author_id: 'u1', author_type: 'human', content: 'B', reply_to_post_id: rootA.id });
-      const replyC = await savePost({ author_id: 'u1', author_type: 'human', content: 'C', reply_to_post_id: replyB.id });
-      const replyD = await savePost({ author_id: 'u1', author_type: 'human', content: 'D', reply_to_post_id: replyC.id });
-      
-      const replyE = await savePost({ author_id: 'u1', author_type: 'human', content: 'E', reply_to_post_id: rootA.id });
-      const replyF = await savePost({ author_id: 'u1', author_type: 'human', content: 'F', reply_to_post_id: replyE.id });
+      // ROOT
+      // ├── A
+      // │   └── A.A
+      // └── B
+      //     └── B.A
+      const root = await savePost({ author_id: 'u1', author_type: 'human', content: 'ROOT', reply_to_post_id: null });
+      const postA = await savePost({ author_id: 'u1', author_type: 'human', content: 'A', reply_to_post_id: root.id });
+      const postAA = await savePost({ author_id: 'u1', author_type: 'human', content: 'A.A', reply_to_post_id: postA.id });
+      const postB = await savePost({ author_id: 'u1', author_type: 'human', content: 'B', reply_to_post_id: root.id });
+      const postBA = await savePost({ author_id: 'u1', author_type: 'human', content: 'B.A', reply_to_post_id: postB.id });
 
-      const result = await getConversationFlat(rootA.id);
-      
-      const expectedOrder = [replyB.id, replyC.id, replyD.id, replyE.id, replyF.id];
-      const actualOrder = result.conversation.map(p => p.id);
-      
-      expect(actualOrder).toEqual(expectedOrder);
+      // 1. Target = ROOT
+      const resROOT = await getConversationFlat(root.id);
+      expect(resROOT.ancestors).toEqual([]);
+      expect(resROOT.target.id).toBe(root.id);
+      expect(resROOT.replies.map(p => p.id)).toEqual([postA.id, postB.id]);
+      expect(resROOT.replies.map(p => p.id)).not.toContain(postAA.id);
+      expect(resROOT.replies.map(p => p.id)).not.toContain(postBA.id);
+
+      // Verify no duplicates
+      const seqROOT = [...resROOT.ancestors, resROOT.target, ...resROOT.replies].map(p => p.id);
+      expect(seqROOT.length).toBe(new Set(seqROOT).size);
+
+      // 2. Target = A
+      const resA = await getConversationFlat(postA.id);
+      expect(resA.ancestors.map(a => a.id)).toEqual([root.id]);
+      expect(resA.target.id).toBe(postA.id);
+      expect(resA.replies.map(p => p.id)).toEqual([postAA.id]);
+      expect(resA.replies.map(p => p.id)).not.toContain(postB.id);
+      expect(resA.replies.map(p => p.id)).not.toContain(postBA.id);
+
+      // 3. Target = A.A
+      const resAA = await getConversationFlat(postAA.id);
+      expect(resAA.ancestors.map(a => a.id)).toEqual([root.id, postA.id]);
+      expect(resAA.target.id).toBe(postAA.id);
+      expect(resAA.replies).toEqual([]);
+      expect(resAA.ancestors.map(a => a.id)).not.toContain(postB.id);
+
+      // 4. Target = B
+      const resB = await getConversationFlat(postB.id);
+      expect(resB.ancestors.map(a => a.id)).toEqual([root.id]);
+      expect(resB.target.id).toBe(postB.id);
+      expect(resB.replies.map(p => p.id)).toEqual([postBA.id]);
+      expect(resB.replies.map(p => p.id)).not.toContain(postA.id);
+      expect(resB.replies.map(p => p.id)).not.toContain(postAA.id);
+
+      // 5. Target = B.A
+      const resBA = await getConversationFlat(postBA.id);
+      expect(resBA.ancestors.map(a => a.id)).toEqual([root.id, postB.id]);
+      expect(resBA.target.id).toBe(postBA.id);
+      expect(resBA.replies).toEqual([]);
+      expect(resBA.ancestors.map(a => a.id)).not.toContain(postA.id);
+
+      // Verify Interaction Counters (direct reply count)
+      const populatedRoot = await getPost(root.id);
+      const populatedA = await getPost(postA.id);
+      const populatedAA = await getPost(postAA.id);
+      const populatedB = await getPost(postB.id);
+      const populatedBA = await getPost(postBA.id);
+
+      expect(populatedRoot?.reply_count).toBe(2);
+      expect(populatedA?.reply_count).toBe(1);
+      expect(populatedAA?.reply_count).toBe(0);
+      expect(populatedB?.reply_count).toBe(1);
+      expect(populatedBA?.reply_count).toBe(0);
     });
   });
 

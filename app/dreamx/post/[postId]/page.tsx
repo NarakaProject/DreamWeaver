@@ -162,13 +162,13 @@ export default function PostConversationPage() {
               </form>
             </div>
 
-            {/* DFS ORDERED REPLIES TIMELINE */}
+            {/* DIRECT CHILDREN REPLIES TIMELINE */}
             <div className="flex-1">
-              {replies.map((reply, i) => (
+              {replies.map((reply) => (
                 <div key={reply.id} className="transition-colors">
                   <DreamXPost 
                     post={reply}
-                    hasThreadConnector={replies[i + 1]?.reply_to_post_id === reply.id}
+                    hasThreadConnector={false}
                     onInteraction={loadConversation}
                   />
                 </div>
