@@ -17,12 +17,13 @@ export async function GET(req: NextRequest) {
     const profileType = (searchParams.get('profile_type') as 'human' | 'ai') || 'ai';
 
     if (threadId) {
-      let root = await getPost(threadId);
-      if (!root) {
+      const requestedPost = await getPost(threadId);
+      if (!requestedPost) {
         return NextResponse.json({ error: 'Thread post not found' }, { status: 404 });
       }
 
       // Resolve replies to their actual thread root post
+      let root = requestedPost;
       let depth = 0;
       while (root.reply_to_post_id && depth < 10) {
         const parent = await getPost(root.reply_to_post_id);
@@ -32,8 +33,9 @@ export async function GET(req: NextRequest) {
       }
 
       const replies = await getRepliesTree(root.id);
-      return NextResponse.json({ root, replies });
+      return NextResponse.json({ root, replies, target: requestedPost });
     }
+
 
 
     if (profileId) {

@@ -28,8 +28,11 @@ export function DreamXThreadModal({ threadId, onClose, onPostCreated }: DreamXTh
         const data = await res.json();
         setRoot(data.root);
         setReplies(data.replies || []);
-        if (data.root && !replyTarget) {
-          setReplyTarget({ id: data.root.id, handle: data.root.author_handle || '@user' });
+        if (!replyTarget) {
+          const targetPost = data.target || data.root;
+          if (targetPost) {
+            setReplyTarget({ id: targetPost.id, handle: targetPost.author_handle || '@user' });
+          }
         }
       }
     } catch (err) {
@@ -40,9 +43,11 @@ export function DreamXThreadModal({ threadId, onClose, onPostCreated }: DreamXTh
   };
 
   useEffect(() => {
+    setReplyTarget(null);
     loadThread();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId]);
+
 
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,10 +102,11 @@ export function DreamXThreadModal({ threadId, onClose, onPostCreated }: DreamXTh
                 onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
                 onInteraction={loadThread}
                 isThreadView
+                hideReplies
               />
 
               {/* Replies Tree */}
-              <div className="pl-4 border-l-2 border-white/10 space-y-3">
+              <div className="pl-4 sm:pl-6 border-l-2 border-white/10 space-y-3">
                 {replies.length === 0 ? (
                   <p className="text-sm text-white/30 italic py-4">No replies yet. Be the first to respond!</p>
                 ) : (
@@ -111,10 +117,12 @@ export function DreamXThreadModal({ threadId, onClose, onPostCreated }: DreamXTh
                       onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
                       onInteraction={loadThread}
                       isThreadView
+                      depth={1}
                     />
                   ))
                 )}
               </div>
+
             </div>
           ) : (
             <p className="text-white/40 text-center p-4">Thread not found.</p>

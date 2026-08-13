@@ -128,21 +128,27 @@ export async function generateDreamXReply(
   targetPost: DreamXPost,
   targetAuthorName: string,
   targetAuthorHandle: string,
-  options: GenerationOptions
+  options: GenerationOptions,
+  isMentioned: boolean = false
 ): Promise<{ text: string; validation: SocialOutputValidation }> {
   const systemInstruction = buildDreamXSystemInstruction(profile);
   
-  const userPrompt = `You are replying to a post by ${targetAuthorName} (${targetAuthorHandle}).
+  let userPrompt = `You are replying to a post by ${targetAuthorName} (${targetAuthorHandle}).
   
 Original Post:
-"${targetPost.content}"
+"${targetPost.content}"`;
 
-Generate your reply to this post in character. You may agree, disagree, ask a question, make a joke, or add a sarcastic observation as fits your persona.`;
+  if (isMentioned) {
+    userPrompt += `\n\nNOTE: This post explicitly mentions your handle (${profile.handle}). Treat this as a direct social interaction and respond naturally in character. Do not mechanically acknowledge the mention unless it fits your personality.`;
+  }
+
+  userPrompt += `\n\nGenerate your reply to this post in character. You may agree, disagree, ask a question, make a joke, or add a sarcastic observation as fits your persona.`;
 
   const { rawText, finishReason } = await executeDreamXStream(systemInstruction, userPrompt, options);
   const validation = validateSocialOutput(rawText, finishReason);
   return { text: validation.normalizedText, validation };
 }
+
 
 async function executeDreamXStream(
   systemInstruction: string,

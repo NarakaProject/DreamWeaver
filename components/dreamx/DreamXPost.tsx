@@ -10,9 +10,19 @@ interface DreamXPostProps {
   onSelectReplyTarget?: (id: string, handle: string) => void;
   onInteraction?: () => void;
   isThreadView?: boolean;
+  hideReplies?: boolean;
+  depth?: number;
 }
 
-export function DreamXPost({ post, onSelectReplyTarget, onInteraction, isThreadView = false }: DreamXPostProps) {
+export function DreamXPost({ 
+  post, 
+  onSelectReplyTarget, 
+  onInteraction, 
+  isThreadView = false,
+  hideReplies = false,
+  depth = 0
+}: DreamXPostProps) {
+
   const [liked, setLiked] = useState(post.user_liked || false);
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
   const [reposted, setReposted] = useState(post.user_reposted || false);
@@ -159,15 +169,17 @@ export function DreamXPost({ post, onSelectReplyTarget, onInteraction, isThreadV
         </div>
       </div>
 
-      {/* Nested Replies Rendering (for Thread Tree in Feed / Modal) */}
-      {!isThreadView && post.replies && post.replies.length > 0 && (
-        <div className="mt-3 pl-6 border-l-2 border-white/10 space-y-2">
+      {/* Nested Replies Rendering (Recursive Tree for Feed & Thread View) */}
+      {!hideReplies && post.replies && post.replies.length > 0 && (
+        <div className={`mt-3 space-y-2 ${depth < 4 ? 'pl-4 sm:pl-6 border-l-2 border-white/10' : 'pl-2 border-l border-white/5'}`}>
           {post.replies.map(child => (
             <DreamXPost 
               key={child.id} 
               post={child} 
               onSelectReplyTarget={onSelectReplyTarget}
               onInteraction={onInteraction}
+              isThreadView={isThreadView}
+              depth={depth + 1}
             />
           ))}
         </div>
@@ -175,3 +187,4 @@ export function DreamXPost({ post, onSelectReplyTarget, onInteraction, isThreadV
     </div>
   );
 }
+

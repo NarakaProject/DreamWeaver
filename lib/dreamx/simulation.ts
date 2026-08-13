@@ -9,8 +9,10 @@ import {
   getPost
 } from './db';
 import { generateDreamXPost, generateDreamXReply } from './engine';
+import { extractMentions } from './mentions';
 import type { DreamXProfile, DreamXPost } from './types';
 import type { ProviderKeys, AIProvider } from '@/lib/ai/provider-router';
+
 
 interface SimulationOptions {
   provider?: AIProvider;
@@ -46,15 +48,33 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
   };
   flatten(posts);
 
-  // 3. Select a random candidate AI profile
-  const candidate = profiles[Math.floor(Math.random() * profiles.length)];
+  // 3. Select a candidate AI profile using mention-aware candidate weighting
+  const candidate = selectWeightedCandidate(profiles, allPosts);
+
+  // Check if candidate AI is explicitly mentioned in any feed post
+  const normCandidateHandle = candidate.handle.toLowerCase().replace(/^@/, '');
+  const mentioningPosts = allPosts.filter(p => {
+    if (p.author_id === candidate.id) return false;
+    const mentions = extractMentions(p.content).map(m => m.toLowerCase());
+    return mentions.includes(normCandidateHandle);
+  });
+
+  const isCandidateMentioned = mentioningPosts.length > 0;
 
   // 4. Decide on an action type (LIKE, REPLY, POST, NO_ACTION)
   const actionChoice = Math.random();
 
+  // If candidate is explicitly mentioned, boost REPLY action threshold to 0.85
+  const replyThreshold = isCandidateMentioned ? 0.85 : 0.70;
+  const likeThreshold = isCandidateMentioned ? 0.20 : 0.35;
+
+
   // --- OPTION A: AI LIKE (Deterministic, NO LLM CALL) ---
-  if (actionChoice < 0.35 && allPosts.length > 0) {
-    const targetPost = allPosts[Math.floor(Math.random() * allPosts.length)];
+  if (actionChoice < likeThreshold && allPosts.length > 0) {
+    const targetPost = isCandidateMentioned 
+      ? mentioningPosts[Math.floor(Math.random() * mentioningPosts.length)]
+      : allPosts[Math.floor(Math.random() * allPosts.length)];
+
     
     // Deterministic interest evaluation
     const contentLower = targetPost.content.toLowerCase();
@@ -100,8 +120,10 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
   }
 
   // --- OPTION B: AI REPLY ---
-  if (actionChoice < 0.70 && allPosts.length > 0 && (options.keys.geminiKey || options.keys.groqKey || options.keys.openrouterKey)) {
-    const targetPost = allPosts[Math.floor(Math.random() * allPosts.length)];
+  if (actionChoice < replyThreshold && allPosts.length > 0 && (options.keys.geminiKey || options.keys.groqKey || options.keys.openrouterKey)) {
+    const targetPost = isCandidateMentioned 
+      ? mentioningPosts[Math.floor(Math.random() * mentioningPosts.length)]
+      : allPosts[Math.floor(Math.random() * allPosts.length)];
 
     const alreadyReplied = targetPost.replies?.some(r => r.author_id === candidate.id && r.author_type === 'ai');
 
@@ -112,8 +134,10 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
         targetPost,
         targetPost.author_name || 'User',
         targetPost.author_handle || '@user',
-        options
+        options,
+        isCandidateMentioned
       );
+
 
       if (!validation.isValid) {
         await logActivity({
@@ -183,7 +207,49 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
   await logActivity({
     action_type: 'no_action',
     actor_id: candidate.id,
-    reason: `Candidate ${candidate.handle} evaluated context and chose silence.`
+    reason: `Chose no action (random choice: ${actionChoice.toFixed(2)})`
   });
-  return { outcome: 'NO_ACTION', details: 'Silence evaluated as valid choice.' };
+
+  return { outcome: 'NO_ACTION', details: 'No action performed.' };
+}
+
+/**
+ * Calculates candidate selection weights based on mentions in current feed posts.
+ * Base weight = 1.0. If profile's handle is mentioned in any post, weight = 2.5.
+ */
+export function calculateCandidateWeights(profiles: DreamXProfile[], allPosts: DreamXPost[]): { profile: DreamXProfile; weight: number }[] {
+  const mentionedHandles = new Set<string>();
+  for (const post of allPosts) {
+    const mentions = extractMentions(post.content);
+    for (const m of mentions) {
+      mentionedHandles.add(m.toLowerCase());
+    }
+  }
+
+  return profiles.map(profile => {
+    const handleNorm = profile.handle.toLowerCase().replace(/^@/, '');
+    const isMentioned = mentionedHandles.has(handleNorm);
+    return {
+      profile,
+      weight: isMentioned ? 2.5 : 1.0
+    };
+  });
+}
+
+/**
+ * Selects a candidate AI profile using weighted random selection.
+ */
+export function selectWeightedCandidate(profiles: DreamXProfile[], allPosts: DreamXPost[]): DreamXProfile {
+  const weighted = calculateCandidateWeights(profiles, allPosts);
+  const totalWeight = weighted.reduce((acc, w) => acc + w.weight, 0);
+  let random = Math.random() * totalWeight;
+
+  for (const item of weighted) {
+    if (random <= item.weight) {
+      return item.profile;
+    }
+    random -= item.weight;
+  }
+
+  return profiles[0];
 }
