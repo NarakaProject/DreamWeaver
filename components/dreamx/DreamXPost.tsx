@@ -120,7 +120,7 @@ export function DreamXPost({
           
           {/* Vertical Thread Connector */}
           {isContextAncestor && (
-            <div className="absolute top-10 bottom-[-32px] w-[2px] bg-white/15 z-0" />
+            <div className="flex-1 w-[2px] bg-white/15 mt-1 -mb-[33px] z-0" />
           )}
         </div>
 

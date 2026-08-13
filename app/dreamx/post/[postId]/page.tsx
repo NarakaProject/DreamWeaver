@@ -19,8 +19,7 @@ export default function PostConversationPage() {
   const [replies, setReplies] = useState<DreamXPostType[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Target reply state
-  const [replyTarget, setReplyTarget] = useState<{ id: string; handle: string } | null>(null);
+  // Composer state
   const [replyContent, setReplyContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -42,12 +41,6 @@ export default function PostConversationPage() {
         setAncestors(data.ancestors || []);
         setTarget(data.target || data.root);
         setReplies(data.conversation || data.replies || []);
-        if (!replyTarget) {
-          const t = data.target || data.root;
-          if (t) {
-            setReplyTarget({ id: t.id, handle: t.author_handle || '@user' });
-          }
-        }
       }
     } catch (err) {
       console.error('Failed to load conversation:', err);
@@ -65,7 +58,7 @@ export default function PostConversationPage() {
 
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!replyContent.trim() || !replyTarget) return;
+    if (!replyContent.trim() || !target) return;
 
     setIsSubmitting(true);
     try {
@@ -74,7 +67,7 @@ export default function PostConversationPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: replyContent.trim(),
-          reply_to_post_id: replyTarget.id
+          reply_to_post_id: target.id
         })
       });
 
@@ -97,7 +90,7 @@ export default function PostConversationPage() {
     );
   }
 
-  const targetHandle = replyTarget?.handle || target?.author_handle || root?.author_handle || '@user';
+  const targetHandle = target?.author_handle || root?.author_handle || '@user';
 
   return (
     <div className="min-h-screen bg-[#090a0f] text-[#e2e8f0] flex flex-col">
@@ -118,7 +111,6 @@ export default function PostConversationPage() {
                 key={ancestor.id}
                 post={ancestor}
                 isContextAncestor={true}
-                onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
                 onInteraction={loadConversation}
               />
             ))}
@@ -127,23 +119,16 @@ export default function PostConversationPage() {
             <DreamXPost 
               post={target}
               isContextTarget={true}
-              onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
               onInteraction={loadConversation}
             />
 
             {/* REPLY COMPOSER — Positioned immediately BELOW target post */}
-            <div className="p-4 border-b border-white/10 bg-black/20">
-              <div className="text-xs text-white/50 mb-2 font-medium flex items-center justify-between">
+            <div className="p-4 border-b border-white/10 bg-black/20 relative">
+              {/* Connector from target to composer */}
+              <div className="absolute left-[35px] top-0 bottom-auto h-4 w-[2px] bg-white/15" />
+              
+              <div className="text-xs text-white/50 mb-2 font-medium flex items-center justify-between ml-14">
                 <span>Replying to <span className="text-blue-400 font-bold">{targetHandle}</span></span>
-                {replyTarget && target && replyTarget.id !== target.id && (
-                  <button 
-                    type="button"
-                    onClick={() => setReplyTarget({ id: target.id, handle: target.author_handle || '@user' })}
-                    className="text-[10px] text-white/40 hover:text-white underline"
-                  >
-                    Reply to Target
-                  </button>
-                )}
               </div>
 
               <form onSubmit={handleSendReply} className="flex gap-3">
@@ -181,15 +166,9 @@ export default function PostConversationPage() {
             {/* FLAT CHRONOLOGICAL REPLIES TIMELINE */}
             <div className="flex-1">
               {replies.map((reply) => (
-                <div 
-                  key={reply.id}
-                  className={`transition-colors ${
-                    replyTarget?.id === reply.id ? 'bg-blue-500/5' : ''
-                  }`}
-                >
+                <div key={reply.id} className="transition-colors">
                   <DreamXPost 
                     post={reply}
-                    onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
                     onInteraction={loadConversation}
                   />
                 </div>

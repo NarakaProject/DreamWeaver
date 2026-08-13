@@ -1,7 +1,7 @@
 import { 
   claimSimulationSlot, 
   getProfiles, 
-  getFeedTree, 
+  getRecentSimulationPosts, 
   savePost, 
   toggleLike, 
   ensureLike,
@@ -36,16 +36,7 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
     return { outcome: 'NO_ACTION', details: 'No AI profiles exist' };
   }
 
-  const posts = await getFeedTree();
-  
-  const allPosts: DreamXPost[] = [];
-  const flatten = (pts: DreamXPost[]) => {
-    for (const p of pts) {
-      allPosts.push(p);
-      if (p.replies) flatten(p.replies);
-    }
-  };
-  flatten(posts);
+  const allPosts = await getRecentSimulationPosts(100);
 
   // 3. Scan for High-Urgency Social Events (e.g. human replies or mentions)
   const urgencyEvents = evaluateSocialUrgencyEvents(profiles, allPosts);
@@ -298,12 +289,12 @@ export function calculateCandidateWeights(profiles: DreamXProfile[], allPosts: D
     else if (recentPostsCount >= 2 && recentPostsCount <= 3) activityMultiplier = 0.5;
     else if (recentPostsCount >= 4) activityMultiplier = 0.1;
 
-    // 3. Category Opportunity Adjustment (Modest modifier)
+    // 3. Category Opportunity Adjustment
     let categoryMultiplier = 1.0;
-    if (profile.verification_type === 'gold' || profile.verification_type === 'gray') {
-      categoryMultiplier = 0.7; // Modest penalty to allow more ordinary users
+    if (profile.verification_type === 'gold' || profile.verification_type === 'gray' || profile.verification_type === 'blue') {
+      categoryMultiplier = 0.5; // Strong penalty to famous/gov/corp
     } else if (profile.verification_type === 'none' || !profile.verification_type) {
-      categoryMultiplier = 1.2; // Slight boost to unverified ordinary users
+      categoryMultiplier = 1.5; // Significant boost to unverified ordinary users
     }
 
     weight = weight * activityMultiplier * categoryMultiplier;
@@ -507,10 +498,10 @@ export function evaluateSocialUrgencyEvents(profiles: DreamXProfile[], allPosts:
         else if (recentPostsCount >= 4) activityMultiplier = 0.2;
 
         let categoryMultiplier = 1.0;
-        if (candidate.verification_type === 'gold' || candidate.verification_type === 'gray') {
-          categoryMultiplier = 0.8;
+        if (candidate.verification_type === 'gold' || candidate.verification_type === 'gray' || candidate.verification_type === 'blue') {
+          categoryMultiplier = 0.5;
         } else if (candidate.verification_type === 'none' || !candidate.verification_type) {
-          categoryMultiplier = 1.1;
+          categoryMultiplier = 1.5;
         }
 
         finalScore = finalScore * activityMultiplier * categoryMultiplier;

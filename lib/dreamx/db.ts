@@ -338,6 +338,25 @@ export async function getFeedTree(): Promise<DreamXPost[]> {
 }
 
 /**
+ * Returns recent posts from the DreamX timeline regardless of root/reply status, used for simulation awareness.
+ */
+export async function getRecentSimulationPosts(limit: number = 100): Promise<DreamXPost[]> {
+  const db = getDreamXDb();
+  const rawPosts = await db.queryAll<any>(
+    'SELECT * FROM dreamx_posts ORDER BY created_at DESC LIMIT ?',
+    [limit]
+  );
+  
+  const posts: DreamXPost[] = [];
+  const human = await getUserProfile();
+  for (const raw of rawPosts) {
+    const post = await populatePostMetadata(raw, human?.id);
+    posts.push(post);
+  }
+  return posts;
+}
+
+/**
  * Returns replies attached to a post, ordered created_at ASC.
  */
 export async function getRepliesTree(postId: string, humanId?: string): Promise<DreamXPost[]> {
@@ -389,10 +408,10 @@ export async function getConversationFlat(postId: string): Promise<{
   
   const root = ancestors.length > 0 ? ancestors[0] : requestedPost;
 
-  // 2. Fetch all posts in DB with reply_to_post_id to find all descendants of root
+  // 2. Fetch all posts in DB with reply_to_post_id to find all descendants of target
   const allRepliesRaw = await db.queryAll<any>('SELECT * FROM dreamx_posts WHERE reply_to_post_id IS NOT NULL');
 
-  const descendantIds = new Set<string>([root.id]);
+  const descendantIds = new Set<string>([requestedPost.id]);
   let added = true;
   while (added) {
     added = false;
