@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatOpenAIMessages, DEFAULT_MODELS } from './provider-router';
+import { formatOpenAIMessages, DEFAULT_MODELS, GROQ_MODELS, PROVIDER_MODEL_PRESETS } from './provider-router';
 
 describe('Multi-Provider Router Helpers', () => {
   it('formats system instruction and user/model messages into OpenAI format', () => {
@@ -16,9 +16,13 @@ describe('Multi-Provider Router Helpers', () => {
     expect(formatted[2]).toEqual({ role: 'assistant', content: 'Welcome to the realm.' });
   });
 
-  it('defines default models for all 3 supported AI providers', () => {
-    expect(DEFAULT_MODELS.gemini).toContain('gemini');
+  it('defines model-aware defaults and presets for all 3 supported AI providers', () => {
+    expect(DEFAULT_MODELS.gemini).toBe('gemini-3.6-flash');
     expect(DEFAULT_MODELS.groq).toBe('llama-3.3-70b-versatile');
-    expect(DEFAULT_MODELS.openrouter).toBe('meta-llama/llama-3.3-70b-instruct:free');
+    expect(DEFAULT_MODELS.openrouter).toBe('openrouter/free');
+
+    expect(GROQ_MODELS).toContain('llama-3.3-70b-versatile');
+    expect(GROQ_MODELS).toContain('llama-3.1-8b-instant');
+    expect(PROVIDER_MODEL_PRESETS.openrouter[0].id).toBe('openrouter/free');
   });
 });

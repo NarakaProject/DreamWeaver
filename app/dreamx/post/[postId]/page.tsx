@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import type { DreamXPost as DreamXPostType, DreamXUserProfile } from '@/lib/dreamx/types';
-import { ArrowLeft, MessageSquare, Loader2, Send, Sparkles } from 'lucide-react';
+import { ArrowLeft, Loader2, Send } from 'lucide-react';
 import Link from 'next/link';
 import { DreamXPost } from '@/components/dreamx/DreamXPost';
 import { DreamXMentionComposer } from '@/components/dreamx/DreamXMentionComposer';
@@ -93,105 +93,99 @@ export default function PostConversationPage() {
     );
   }
 
+  const targetHandle = replyTarget?.handle || root?.author_handle || '@user';
+
   return (
     <div className="min-h-screen bg-[#090a0f] text-[#e2e8f0] flex flex-col">
       {/* Top Bar Header */}
-      <div className="h-14 border-b border-white/10 flex items-center px-6 gap-4 bg-black/40 sticky top-0 z-20 backdrop-blur-md">
+      <div className="h-14 border-b border-white/10 flex items-center px-4 gap-4 bg-black/40 sticky top-0 z-20 backdrop-blur-md">
         <Link href="/dreamx" className="p-2 hover:bg-white/10 rounded-full transition-colors text-white">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-blue-400" />
-          <h1 className="font-bold text-lg text-white">Post Conversation</h1>
-        </div>
+        <h1 className="font-bold text-lg text-white">Post</h1>
       </div>
 
-      <div className="flex-1 max-w-2xl w-full mx-auto p-4 flex flex-col space-y-4 pb-28">
+      <div className="flex-1 max-w-2xl w-full mx-auto border-x border-white/10 bg-black/20 flex flex-col min-h-screen">
         {root ? (
           <>
-            {/* Root Post Card */}
-            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden shadow-lg">
-              <DreamXPost 
-                post={root}
-                onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
-                onInteraction={loadConversation}
-              />
+            {/* ROOT POST — Continuous timeline surface */}
+            <DreamXPost 
+              post={root}
+              onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
+              onInteraction={loadConversation}
+            />
+
+            {/* REPLY COMPOSER — Positioned immediately BELOW root post and ABOVE replies */}
+            <div className="p-4 border-b border-white/10 bg-black/20">
+              <div className="text-xs text-white/50 mb-2 font-medium flex items-center justify-between">
+                <span>Replying to <span className="text-blue-400 font-bold">{targetHandle}</span></span>
+                {replyTarget && root && replyTarget.id !== root.id && (
+                  <button 
+                    type="button"
+                    onClick={() => setReplyTarget({ id: root.id, handle: root.author_handle || '@user' })}
+                    className="text-[10px] text-white/40 hover:text-white underline"
+                  >
+                    Reply to Root Post
+                  </button>
+                )}
+              </div>
+
+              <form onSubmit={handleSendReply} className="flex gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-500/20 border border-blue-500/30 flex-shrink-0 flex items-center justify-center font-bold text-blue-400 text-base">
+                  {humanUser?.avatar_url ? (
+                    <img src={humanUser.avatar_url} alt={humanUser.display_name} className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    humanUser?.display_name?.charAt(0) || 'U'
+                  )}
+                </div>
+
+                <div className="flex-1">
+                  <DreamXMentionComposer
+                    value={replyContent}
+                    onChange={setReplyContent}
+                    placeholder="Post your reply"
+                    rows={2}
+                    className="w-full bg-transparent border-none text-white text-base placeholder-white/30 resize-none focus:outline-none min-h-[60px]"
+                  />
+
+                  <div className="flex justify-end items-center pt-2 border-t border-white/10 mt-2">
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !replyContent.trim()}
+                      className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-full transition-colors flex items-center gap-2 disabled:opacity-50 text-sm shadow-md"
+                    >
+                      {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      Reply
+                    </button>
+                  </div>
+                </div>
+              </form>
             </div>
 
-            {/* Replies Timeline */}
-            <div className="space-y-3">
-              {replies.length > 0 && (
-                <div className="text-xs text-white/40 font-bold px-2 py-1 uppercase tracking-wider">
-                  Replies ({replies.length})
+            {/* FLAT CHRONOLOGICAL REPLIES TIMELINE */}
+            <div className="flex-1">
+              {replies.map((reply) => (
+                <div 
+                  key={reply.id}
+                  className={`transition-colors ${
+                    replyTarget?.id === reply.id ? 'bg-blue-500/5' : ''
+                  }`}
+                >
+                  <DreamXPost 
+                    post={reply}
+                    onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
+                    onInteraction={loadConversation}
+                  />
                 </div>
-              )}
-
-
-              {replies.length === 0 ? (
-                <p className="text-sm text-white/30 italic py-6 text-center bg-white/5 rounded-xl border border-white/5">
-                  No replies yet in this conversation. Be the first to respond!
-                </p>
-              ) : (
-                replies.map((reply) => (
-                  <div 
-                    key={reply.id}
-                    className={`bg-white/5 rounded-xl border border-white/10 overflow-hidden transition-all ${
-                      replyTarget?.id === reply.id ? 'ring-1 ring-blue-500 bg-blue-500/10 border-blue-500/30' : ''
-                    }`}
-                  >
-                    <DreamXPost 
-                      post={reply}
-                      onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
-                      onInteraction={loadConversation}
-                    />
-                  </div>
-                ))
-              )}
+              ))}
             </div>
           </>
         ) : (
-          <div className="text-center text-white/40 py-12">
-            Post conversation not found.
+          <div className="text-center text-white/40 py-12 p-4">
+            Post not found.
           </div>
         )}
       </div>
-
-      {/* Floating Bottom Reply Composer */}
-      {replyTarget && (
-        <div className="fixed bottom-0 left-0 right-0 border-t border-white/10 bg-[#0f111a]/95 backdrop-blur-md p-4 z-30">
-          <div className="max-w-2xl mx-auto w-full">
-            <div className="text-xs text-blue-400 mb-2 font-medium flex items-center justify-between">
-              <span>Replying to <span className="font-bold">{replyTarget.handle}</span></span>
-              {root && replyTarget.id !== root.id && (
-                <button 
-                  onClick={() => setReplyTarget({ id: root.id, handle: root.author_handle || '@user' })}
-                  className="text-[10px] text-white/40 hover:text-white underline"
-                >
-                  Reply to Root Post
-                </button>
-              )}
-            </div>
-            <form onSubmit={handleSendReply} className="flex gap-2">
-              <DreamXMentionComposer
-                value={replyContent}
-                onChange={setReplyContent}
-                isTextArea={false}
-                placeholder="Post your reply..."
-                className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-white/30 focus:outline-none focus:border-blue-500 text-sm"
-              />
-
-              <button
-                type="submit"
-                disabled={isSubmitting || !replyContent.trim()}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50 text-sm shadow-md"
-              >
-                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                Reply
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

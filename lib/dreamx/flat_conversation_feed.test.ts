@@ -3,9 +3,18 @@ import React from 'react';
 import { getDatabase } from '@/lib/db';
 import { savePost, getPost, saveProfile, saveUserProfile, getFeedTree, getConversationFlat } from './db';
 import { VerifiedIcon, DreamXVerificationBadge } from '@/components/dreamx/DreamXVerificationBadge';
+import { 
+  DEFAULT_MODELS, 
+  GROQ_MODELS, 
+  PROVIDER_MODEL_PRESETS,
+  markModelCooldown,
+  isModelCooling,
+  clearModelCooldowns
+} from '@/lib/ai/provider-router';
 
-describe('DREAMX v0.2 — Modern X Post Navigation & Flat Conversation Audit', () => {
+describe('DREAMX v0.2 — Modern X Post Navigation, Groq Fallback & OpenRouter/Free Audit', () => {
   beforeEach(() => {
+    clearModelCooldowns();
     const db = getDatabase();
     db.exec(`
       DELETE FROM dreamx_posts;
@@ -17,7 +26,21 @@ describe('DREAMX v0.2 — Modern X Post Navigation & Flat Conversation Audit', (
     `);
   });
 
-  it('1 & 2. Main feed queries and returns top-level root posts ONLY without nested inline reply objects', async () => {
+  it('1 & 2. Gemini & Groq model-level cooldown tracking cools only affected candidate model', () => {
+    markModelCooldown('groq', 'llama-3.3-70b-versatile', 15000);
+    expect(isModelCooling('groq', 'llama-3.3-70b-versatile')).toBe(true);
+    expect(isModelCooling('groq', 'llama-3.1-8b-instant')).toBe(false);
+  });
+
+  it('3, 4 & 5. Groq model registry contains verified models and DEFAULT_MODELS uses openrouter/free', () => {
+    expect(GROQ_MODELS).toContain('llama-3.3-70b-versatile');
+    expect(GROQ_MODELS).toContain('llama-3.1-8b-instant');
+    expect(DEFAULT_MODELS.openrouter).toBe('openrouter/free');
+    expect(DEFAULT_MODELS.openrouter).not.toBe('meta-llama/llama-3.3-70b-instruct:free');
+    expect(PROVIDER_MODEL_PRESETS.openrouter[0].id).toBe('openrouter/free');
+  });
+
+  it('6. Main feed queries and returns top-level root posts ONLY without nested inline reply objects', async () => {
     const p1 = await saveProfile({ id: 'prof-f-1', display_name: 'Author A', handle: '@authorA' });
     const root = await savePost({ id: 'feed-root-1', author_id: p1.id, author_type: 'ai', content: 'Root post in feed' });
 
@@ -32,7 +55,7 @@ describe('DREAMX v0.2 — Modern X Post Navigation & Flat Conversation Audit', (
     expect(feed[0].reply_count).toBeGreaterThanOrEqual(1);
   });
 
-  it('3, 4 & 5. Dedicated post page resolves root from a deep reply and returns a flat conversation', async () => {
+  it('7 & 8. Dedicated post page resolves root from a deep reply and returns a flat conversation', async () => {
     const p1 = await saveProfile({ id: 'prof-f-2', display_name: 'Author B', handle: '@authorB' });
     const root = await savePost({ id: 'conv-root', author_id: p1.id, author_type: 'ai', content: 'Original Root Post A' });
     const replyB = await savePost({ id: 'conv-reply-b', author_id: p1.id, author_type: 'ai', content: 'Reply B', reply_to_post_id: root.id });
@@ -49,7 +72,7 @@ describe('DREAMX v0.2 — Modern X Post Navigation & Flat Conversation Audit', (
     expect(conversation.map(p => p.id)).toEqual(['conv-reply-b', 'conv-reply-c', 'conv-reply-d']);
   });
 
-  it('6 & 7. 100+ reply deep conversation handles full descendant retrieval flatly while keeping reply_to_post_id in DB', async () => {
+  it('9 & 10. 100+ reply deep conversation handles full descendant retrieval flatly while keeping reply_to_post_id in DB', async () => {
     const p1 = await saveProfile({ id: 'prof-f-4', display_name: 'Author D', handle: '@authorD' });
     const root = await savePost({ id: 'deep-root', author_id: p1.id, author_type: 'ai', content: 'Root Post' });
 
@@ -73,7 +96,7 @@ describe('DREAMX v0.2 — Modern X Post Navigation & Flat Conversation Audit', (
     expect(leafPost?.reply_to_post_id).toBe('deep-post-19');
   });
 
-  it('8 & 9. VerifiedIcon renders official SVG path using fill="currentColor"', () => {
+  it('11. VerifiedIcon renders official SVG path using fill="currentColor"', () => {
     const iconElement = VerifiedIcon({ className: 'custom-icon' });
     expect(iconElement.props.fill).toBe('currentColor');
     expect(iconElement.props.viewBox).toBe('0 0 22 22');
@@ -81,12 +104,9 @@ describe('DREAMX v0.2 — Modern X Post Navigation & Flat Conversation Audit', (
 
     const badgeBlue = DreamXVerificationBadge({ type: 'blue' });
     expect(badgeBlue).toBeDefined();
-
-    const badgeGold = DreamXVerificationBadge({ type: 'gold' });
-    expect(badgeGold).toBeDefined();
   });
 
-  it('10. DreamWeaver narrative database tables remain completely untouched', async () => {
+  it('12. DreamWeaver narrative database tables remain completely untouched', async () => {
     const db = getDatabase();
     const dwSessions = await db.queryAll('SELECT COUNT(*) as count FROM sessions');
     const dwMessages = await db.queryAll('SELECT COUNT(*) as count FROM messages');

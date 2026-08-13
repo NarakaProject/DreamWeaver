@@ -23,10 +23,17 @@ export const GEMINI_MODELS = [
   'gemini-3.1-flash-lite',
 ];
 
+export const GROQ_MODELS = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
+  'mixtral-8x7b-32768',
+  'qwen-2.5-72b-instruct',
+];
+
 export const DEFAULT_MODELS: Record<AIProvider, string> = {
   gemini: 'gemini-3.6-flash',
   groq: 'llama-3.3-70b-versatile',
-  openrouter: 'meta-llama/llama-3.3-70b-instruct:free',
+  openrouter: 'openrouter/free',
 };
 
 export interface ProviderModelPreset {
@@ -43,13 +50,12 @@ export const PROVIDER_MODEL_PRESETS: Record<AIProvider, ProviderModelPreset[]> =
   ],
   groq: [
     { id: 'llama-3.3-70b-versatile', displayName: 'llama-3.3-70b:versatile (Default)' },
+    { id: 'llama-3.1-8b-instant', displayName: 'llama-3.1-8b:instant' },
     { id: 'mixtral-8x7b-32768', displayName: 'mixtral-8x7b-32768' },
     { id: 'qwen-2.5-72b-instruct', displayName: 'qwen-2.5-72b-instruct' },
   ],
   openrouter: [
-    { id: 'meta-llama/llama-3.3-70b-instruct:free', displayName: 'llama-3.3-70b:free (Default)' },
-    { id: 'deepseek/deepseek-r1:free', displayName: 'deepseek-r1:free' },
-    { id: 'mistralai/mistral-7b-instruct:free', displayName: 'mistral-7b-instruct:free' },
+    { id: 'openrouter/free', displayName: 'openrouter/free (Auto Free Router)' },
   ],
 };
 
@@ -356,7 +362,7 @@ async function executeSingleModelAttempt(
 
 /**
  * Executes a streaming chat request with Intelligent Model-Aware Provider Fallback:
- * Model A -> Model B (same provider) -> Provider 2 -> Model C -> Model D.
+ * Gemini models -> Groq models -> OpenRouter (openrouter/free).
  */
 export async function routeChatStream(
   options: StreamChatOptions,
