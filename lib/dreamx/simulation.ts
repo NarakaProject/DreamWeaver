@@ -287,9 +287,33 @@ export function calculateCandidateWeights(profiles: DreamXProfile[], allPosts: D
   return profiles.map(profile => {
     const handleNorm = profile.handle.toLowerCase().replace(/^@/, '');
     const isMentioned = mentionedHandles.has(handleNorm);
+    
+    // 1. Base Weight
+    let weight = isMentioned ? 2.5 : 1.0;
+
+    // 2. Recent Activity / Exposure Decay
+    const recentPostsCount = allPosts.filter(p => p.author_id === profile.id).length;
+    let activityMultiplier = 1.0;
+    if (recentPostsCount === 1) activityMultiplier = 0.8;
+    else if (recentPostsCount >= 2 && recentPostsCount <= 3) activityMultiplier = 0.5;
+    else if (recentPostsCount >= 4) activityMultiplier = 0.1;
+
+    // 3. Category Opportunity Adjustment (Modest modifier)
+    let categoryMultiplier = 1.0;
+    if (profile.verification_type === 'gold' || profile.verification_type === 'gray') {
+      categoryMultiplier = 0.7; // Modest penalty to allow more ordinary users
+    } else if (profile.verification_type === 'none' || !profile.verification_type) {
+      categoryMultiplier = 1.2; // Slight boost to unverified ordinary users
+    }
+
+    weight = weight * activityMultiplier * categoryMultiplier;
+    
+    // 4. Minimum Opportunity Floor
+    weight = Math.max(0.05, weight);
+
     return {
       profile,
-      weight: isMentioned ? 2.5 : 1.0
+      weight
     };
   });
 }
@@ -473,7 +497,24 @@ export function evaluateSocialUrgencyEvents(profiles: DreamXProfile[], allPosts:
           }
         }
 
-        const finalScore = rawScore * propensity * recencyMultiplier * saturationMultiplier;
+        let finalScore = rawScore * propensity * recencyMultiplier * saturationMultiplier;
+
+        // Apply recent activity exposure decay
+        const recentPostsCount = allPosts.filter(p => p.author_id === candidate.id).length;
+        let activityMultiplier = 1.0;
+        if (recentPostsCount === 1) activityMultiplier = 0.85;
+        else if (recentPostsCount >= 2 && recentPostsCount <= 3) activityMultiplier = 0.6;
+        else if (recentPostsCount >= 4) activityMultiplier = 0.2;
+
+        let categoryMultiplier = 1.0;
+        if (candidate.verification_type === 'gold' || candidate.verification_type === 'gray') {
+          categoryMultiplier = 0.8;
+        } else if (candidate.verification_type === 'none' || !candidate.verification_type) {
+          categoryMultiplier = 1.1;
+        }
+
+        finalScore = finalScore * activityMultiplier * categoryMultiplier;
+
         if (finalScore > 1.0) {
           events.push({
             candidate,

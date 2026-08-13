@@ -15,12 +15,16 @@ interface DreamXPostProps {
   isThreadView?: boolean;
   hideReplies?: boolean;
   depth?: number;
+  isContextAncestor?: boolean;
+  isContextTarget?: boolean;
 }
 
 export function DreamXPost({ 
   post, 
   onSelectReplyTarget, 
-  onInteraction
+  onInteraction,
+  isContextAncestor,
+  isContextTarget
 }: DreamXPostProps) {
   const router = useRouter();
 
@@ -97,11 +101,14 @@ export function DreamXPost({
   return (
     <div 
       onClick={handlePostClick}
-      className="border-b border-white/10 p-4 hover:bg-white/5 transition-colors cursor-pointer group w-full"
+      className={`border-b border-white/10 p-4 transition-colors cursor-pointer group w-full ${
+        isContextTarget ? 'bg-blue-900/10' : 'hover:bg-white/5'
+      }`}
     >
       <div className="flex gap-3">
-        {/* Avatar */}
-        <Link href={profileHref} onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+        {/* Avatar Rail */}
+        <div className="flex-shrink-0 relative flex flex-col items-center">
+          <Link href={profileHref} onClick={(e) => e.stopPropagation()} className="relative z-10">
           <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden flex items-center justify-center font-bold text-white/50 text-base border border-white/10">
             {post.author_avatar ? (
               <img src={post.author_avatar} alt={post.author_name} className="w-full h-full object-cover" />
@@ -109,7 +116,13 @@ export function DreamXPost({
               post.author_name?.charAt(0) || '?'
             )}
           </div>
-        </Link>
+          </Link>
+          
+          {/* Vertical Thread Connector */}
+          {isContextAncestor && (
+            <div className="absolute top-10 bottom-[-32px] w-[2px] bg-white/15 z-0" />
+          )}
+        </div>
 
         {/* Content Body */}
         <div className="flex-1 min-w-0">

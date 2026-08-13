@@ -14,6 +14,8 @@ export default function PostConversationPage() {
 
   const [humanUser, setHumanUser] = useState<DreamXUserProfile | null>(null);
   const [root, setRoot] = useState<DreamXPostType | null>(null);
+  const [ancestors, setAncestors] = useState<DreamXPostType[]>([]);
+  const [target, setTarget] = useState<DreamXPostType | null>(null);
   const [replies, setReplies] = useState<DreamXPostType[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -37,11 +39,13 @@ export default function PostConversationPage() {
       if (postRes.ok) {
         const data = await postRes.json();
         setRoot(data.root);
+        setAncestors(data.ancestors || []);
+        setTarget(data.target || data.root);
         setReplies(data.conversation || data.replies || []);
         if (!replyTarget) {
-          const targetPost = data.target || data.root;
-          if (targetPost) {
-            setReplyTarget({ id: targetPost.id, handle: targetPost.author_handle || '@user' });
+          const t = data.target || data.root;
+          if (t) {
+            setReplyTarget({ id: t.id, handle: t.author_handle || '@user' });
           }
         }
       }
@@ -93,7 +97,7 @@ export default function PostConversationPage() {
     );
   }
 
-  const targetHandle = replyTarget?.handle || root?.author_handle || '@user';
+  const targetHandle = replyTarget?.handle || target?.author_handle || root?.author_handle || '@user';
 
   return (
     <div className="min-h-screen bg-[#090a0f] text-[#e2e8f0] flex flex-col">
@@ -106,26 +110,38 @@ export default function PostConversationPage() {
       </div>
 
       <div className="flex-1 max-w-2xl w-full mx-auto border-x border-white/10 bg-black/20 flex flex-col min-h-screen">
-        {root ? (
+        {target ? (
           <>
-            {/* ROOT POST — Continuous timeline surface */}
+            {/* ANCESTORS TIMELINE */}
+            {ancestors.map((ancestor) => (
+              <DreamXPost 
+                key={ancestor.id}
+                post={ancestor}
+                isContextAncestor={true}
+                onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
+                onInteraction={loadConversation}
+              />
+            ))}
+
+            {/* TARGET POST */}
             <DreamXPost 
-              post={root}
+              post={target}
+              isContextTarget={true}
               onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
               onInteraction={loadConversation}
             />
 
-            {/* REPLY COMPOSER — Positioned immediately BELOW root post and ABOVE replies */}
+            {/* REPLY COMPOSER — Positioned immediately BELOW target post */}
             <div className="p-4 border-b border-white/10 bg-black/20">
               <div className="text-xs text-white/50 mb-2 font-medium flex items-center justify-between">
                 <span>Replying to <span className="text-blue-400 font-bold">{targetHandle}</span></span>
-                {replyTarget && root && replyTarget.id !== root.id && (
+                {replyTarget && target && replyTarget.id !== target.id && (
                   <button 
                     type="button"
-                    onClick={() => setReplyTarget({ id: root.id, handle: root.author_handle || '@user' })}
+                    onClick={() => setReplyTarget({ id: target.id, handle: target.author_handle || '@user' })}
                     className="text-[10px] text-white/40 hover:text-white underline"
                   >
-                    Reply to Root Post
+                    Reply to Target
                   </button>
                 )}
               </div>

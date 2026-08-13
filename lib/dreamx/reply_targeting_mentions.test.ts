@@ -138,7 +138,7 @@ describe('DreamX Deep Reply Targeting & Mention System Audit', () => {
     const joshWeight = weighted.find(w => w.profile.id === 'ai-1')?.weight;
     const mariaWeight = weighted.find(w => w.profile.id === 'ai-2')?.weight;
 
-    expect(joshWeight).toBe(1.0);
-    expect(mariaWeight).toBe(2.5);
+    expect(joshWeight).toBe(1.2);
+    expect(mariaWeight).toBe(3.0);
   });
 });

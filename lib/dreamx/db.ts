@@ -363,8 +363,9 @@ export async function getRepliesTree(postId: string, humanId?: string): Promise<
  */
 export async function getConversationFlat(postId: string): Promise<{
   root: DreamXPost;
+  ancestors: DreamXPost[];
   conversation: DreamXPost[];
-  target?: DreamXPost;
+  target: DreamXPost;
 }> {
   const db = getDreamXDb();
   const human = await getUserProfile();
@@ -374,15 +375,19 @@ export async function getConversationFlat(postId: string): Promise<{
     throw new Error(`Post not found: ${postId}`);
   }
 
-  // 1. Resolve conversation root post by traversing parent links
-  let root = requestedPost;
+  // 1. Resolve conversation ancestors by traversing parent links
+  const ancestors: DreamXPost[] = [];
+  let current = requestedPost;
   let depth = 0;
-  while (root.reply_to_post_id && depth < 50) {
-    const parent = await getPost(root.reply_to_post_id);
+  while (current.reply_to_post_id && depth < 50) {
+    const parent = await getPost(current.reply_to_post_id);
     if (!parent) break;
-    root = parent;
+    ancestors.unshift(parent);
+    current = parent;
     depth++;
   }
+  
+  const root = ancestors.length > 0 ? ancestors[0] : requestedPost;
 
   // 2. Fetch all posts in DB with reply_to_post_id to find all descendants of root
   const allRepliesRaw = await db.queryAll<any>('SELECT * FROM dreamx_posts WHERE reply_to_post_id IS NOT NULL');
@@ -399,8 +404,13 @@ export async function getConversationFlat(postId: string): Promise<{
     }
   }
 
-  // Exclude root post itself from descendant set
-  descendantIds.delete(root.id);
+  // Exclude ancestors and target from the remaining conversation flat list
+  const excludedIds = new Set<string>(ancestors.map(a => a.id));
+  excludedIds.add(requestedPost.id);
+  
+  for (const id of excludedIds) {
+    descendantIds.delete(id);
+  }
 
   // 3. Populate metadata for all descendant replies
   const conversation: DreamXPost[] = [];
@@ -414,7 +424,7 @@ export async function getConversationFlat(postId: string): Promise<{
   // 4. Stable flat chronological ordering: created_at ASC, id ASC
   conversation.sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
 
-  return { root, conversation, target: requestedPost };
+  return { root, ancestors, conversation, target: requestedPost };
 }
 
 
