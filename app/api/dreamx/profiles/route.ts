@@ -1,8 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProfiles, saveProfile, deleteProfile } from '@/lib/dreamx/db';
+import { getProfiles, getProfile, getProfileByHandle, saveProfile, deleteProfile } from '@/lib/dreamx/db';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    const handle = searchParams.get('handle');
+
+    if (handle) {
+      const profile = await getProfileByHandle(handle);
+      if (!profile) {
+        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      }
+      return NextResponse.json({ profile });
+    }
+
+    if (id) {
+      const profile = await getProfile(id);
+      if (!profile) {
+        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      }
+      return NextResponse.json({ profile });
+    }
+
     const profiles = await getProfiles();
     return NextResponse.json({ profiles });
   } catch (err: any) {
@@ -17,12 +37,6 @@ export async function POST(req: NextRequest) {
     if (!body.display_name || !body.handle) {
       return NextResponse.json({ error: 'display_name and handle are required' }, { status: 400 });
     }
-    
-    // Ensure handle starts with @ and has no spaces
-    if (!body.handle.startsWith('@')) {
-      body.handle = '@' + body.handle;
-    }
-    body.handle = body.handle.replace(/\s+/g, '');
 
     const profile = await saveProfile(body);
     return NextResponse.json({ success: true, profile });

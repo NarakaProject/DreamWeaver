@@ -1,10 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import type { DreamXProfile, DreamXPost } from '@/lib/dreamx/types';
+import type { DreamXProfile, DreamXPost, DreamXUserProfile } from '@/lib/dreamx/types';
 import { DreamXFeed } from './DreamXFeed';
 import { DreamXCharacterManager } from './DreamXCharacterManager';
-import { Sparkles, Send, Loader2 } from 'lucide-react';
+import { DreamXOnboarding } from './DreamXOnboarding';
+import { DreamXThreadModal } from './DreamXThreadModal';
+import { Sparkles, Send, Loader2, ShieldAlert } from 'lucide-react';
+import Link from 'next/link';
 
 interface DreamXProps {
   apiKeys: any;
@@ -12,73 +15,103 @@ interface DreamXProps {
 }
 
 export function DreamX({ apiKeys, selectedModel }: DreamXProps) {
+  const [humanUser, setHumanUser] = useState<DreamXUserProfile | null>(null);
   const [profiles, setProfiles] = useState<DreamXProfile[]>([]);
   const [posts, setPosts] = useState<DreamXPost[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Composer state
-  const [selectedProfileId, setSelectedProfileId] = useState<string>('');
-  const [postContext, setPostContext] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
+  // Composer state (Human User ONLY)
+  const [postContent, setPostContent] = useState('');
+  const [isPosting, setIsPosting] = useState(false);
+
+  // Thread Modal state
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
-      const [profRes, feedRes] = await Promise.all([
+      const [userRes, profRes, feedRes] = await Promise.all([
+        fetch('/api/dreamx/user'),
         fetch('/api/dreamx/profiles'),
         fetch('/api/dreamx/posts')
       ]);
+
+      if (userRes.ok) {
+        const { user } = await userRes.json();
+        setHumanUser(user || null);
+      }
+
       if (profRes.ok) {
         const { profiles } = await profRes.json();
         setProfiles(profiles || []);
-        if (profiles.length > 0 && !selectedProfileId) {
-          setSelectedProfileId(profiles[0].id);
-        }
       }
+
       if (feedRes.ok) {
         const { feed } = await feedRes.json();
         setPosts(feed || []);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load DreamX data:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleGeneratePost = async () => {
-    if (!selectedProfileId) return;
-    setIsGenerating(true);
+  // Trigger background autonomous simulation (respects 60s atomic cooldown)
+  const triggerSimulation = async () => {
     try {
-      const res = await fetch('/api/dreamx/generate', {
+      await fetch('/api/dreamx/simulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'post',
-          profile_id: selectedProfileId,
-          context: postContext,
           provider: 'gemini',
           model: selectedModel,
           keys: apiKeys
         })
       });
+    } catch (err) {
+      // Non-blocking
+    }
+  };
+
+  useEffect(() => {
+    loadData().then(() => {
+      triggerSimulation();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleCreateHumanPost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!postContent.trim() || isPosting) return;
+
+    setIsPosting(true);
+    try {
+      const res = await fetch('/api/dreamx/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: postContent.trim()
+        })
+      });
+
       if (res.ok) {
-        setPostContext('');
+        setPostContent('');
         await loadData();
       }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to post as human user:', err);
     } finally {
-      setIsGenerating(false);
+      setIsPosting(false);
     }
   };
 
   if (loading) {
     return <div className="flex-1 flex items-center justify-center text-white/50"><Loader2 className="w-8 h-8 animate-spin" /></div>;
+  }
+
+  // 1. First-Run Onboarding Gate
+  if (!humanUser) {
+    return <DreamXOnboarding onComplete={(user) => { setHumanUser(user); loadData(); }} />;
   }
 
   return (
@@ -89,64 +122,71 @@ export function DreamX({ apiKeys, selectedModel }: DreamXProps) {
           <Sparkles className="w-5 h-5 text-blue-400" />
           <h1 className="font-bold text-lg text-white tracking-tight">DreamX</h1>
         </div>
-        <div className="text-sm text-white/40">Isolated Subsystem Network</div>
+        <div className="flex items-center gap-4">
+          <div className="text-xs text-white/50 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            Signed in as <strong className="text-white">{humanUser.display_name}</strong> ({humanUser.handle})
+          </div>
+          <Link href="/dreamx/control" className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold rounded-lg hover:bg-amber-500/20 transition-colors flex items-center gap-1.5" title="Dev Control Panel">
+            <ShieldAlert className="w-3.5 h-3.5" />
+            Control Panel
+          </Link>
+        </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Main Feed Area */}
+        {/* Main Timeline Area */}
         <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full">
-          {/* Composer */}
+          {/* Human User Post Composer (No AI Character Selector!) */}
           <div className="p-4 border-x border-b border-white/10 bg-black/20">
-            <div className="flex gap-4">
-              <div className="w-12 h-12 rounded-full bg-white/5 flex-shrink-0" />
+            <form onSubmit={handleCreateHumanPost} className="flex gap-4">
+              <div className="w-11 h-11 rounded-full bg-blue-500/20 border border-blue-500/30 flex-shrink-0 flex items-center justify-center font-bold text-blue-400 text-lg">
+                {humanUser.avatar_url ? <img src={humanUser.avatar_url} alt={humanUser.display_name} className="w-full h-full rounded-full object-cover" /> : humanUser.display_name.charAt(0)}
+              </div>
               <div className="flex-1">
-                <select 
-                  value={selectedProfileId}
-                  onChange={e => setSelectedProfileId(e.target.value)}
-                  className="bg-black/50 border border-white/10 rounded px-3 py-2 text-white w-full mb-3"
-                >
-                  <option value="" disabled>Select a profile to post as...</option>
-                  {profiles.map(p => (
-                    <option key={p.id} value={p.id}>{p.display_name} ({p.handle})</option>
-                  ))}
-                </select>
-                
                 <textarea 
-                  value={postContext}
-                  onChange={e => setPostContext(e.target.value)}
-                  placeholder="What should this character post about? (Leave blank for random)"
-                  className="w-full bg-transparent border-none text-white text-lg placeholder-white/30 resize-none focus:outline-none min-h-[80px]"
+                  value={postContent}
+                  onChange={e => setPostContent(e.target.value)}
+                  placeholder="What's happening?"
+                  rows={2}
+                  className="w-full bg-transparent border-none text-white text-base placeholder-white/30 resize-none focus:outline-none"
                 />
-                
                 <div className="flex justify-end pt-2 border-t border-white/10 mt-2">
                   <button 
-                    onClick={handleGeneratePost}
-                    disabled={!selectedProfileId || isGenerating}
-                    className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-full transition-colors flex items-center gap-2 disabled:opacity-50"
+                    type="submit"
+                    disabled={!postContent.trim() || isPosting}
+                    className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-5 rounded-full transition-all text-sm flex items-center gap-2 disabled:opacity-50 shadow-md"
                   >
-                    {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    Generate Post
+                    {isPosting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    Post
                   </button>
                 </div>
               </div>
-            </div>
+            </form>
           </div>
 
           <DreamXFeed 
             posts={posts} 
-            profiles={profiles} 
-            onReplyGenerated={loadData}
-            apiKeys={apiKeys}
-            selectedModel={selectedModel}
+            onOpenThread={(threadId) => setActiveThreadId(threadId)}
+            onFeedChanged={loadData}
           />
         </div>
 
-        {/* Right Sidebar - Character Manager */}
+        {/* Right Sidebar - AI Persona Manager */}
         <DreamXCharacterManager 
           profiles={profiles} 
           onProfilesChanged={loadData} 
         />
       </div>
+
+      {/* Dedicated Thread Modal */}
+      {activeThreadId && (
+        <DreamXThreadModal 
+          threadId={activeThreadId}
+          onClose={() => setActiveThreadId(null)}
+          onPostCreated={loadData}
+        />
+      )}
     </div>
   );
 }

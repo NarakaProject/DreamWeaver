@@ -35,13 +35,14 @@ export async function POST(req: NextRequest) {
       if (!targetPost) {
         return NextResponse.json({ error: 'Target post not found' }, { status: 404 });
       }
-      
-      const targetProfile = await getProfile(targetPost.profile_id);
-      if (!targetProfile) {
-        return NextResponse.json({ error: 'Target profile not found' }, { status: 404 });
-      }
 
-      generatedContent = await generateDreamXReply(profile, targetPost, targetProfile, options);
+      generatedContent = await generateDreamXReply(
+        profile, 
+        targetPost, 
+        targetPost.author_name || 'User', 
+        targetPost.author_handle || '@user', 
+        options
+      );
       replyToId = target_post_id;
     } else {
       return NextResponse.json({ error: 'Invalid action, must be "post" or "reply"' }, { status: 400 });
@@ -49,7 +50,8 @@ export async function POST(req: NextRequest) {
 
     // Save the generated post to the isolated database
     const post = await savePost({
-      profile_id: profile.id,
+      author_id: profile.id,
+      author_type: 'ai',
       content: generatedContent,
       reply_to_post_id: replyToId,
     });

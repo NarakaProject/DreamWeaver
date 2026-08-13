@@ -529,6 +529,19 @@ export function getDatabase(): DbAdapter {
   // Initialize DreamX Schema (Hard Feature Isolation)
   // These tables have NO foreign keys pointing to DreamWeaver tables.
   const dreamxInitSql = `
+    CREATE TABLE IF NOT EXISTS dreamx_user_profile (
+      id TEXT PRIMARY KEY,
+      display_name TEXT NOT NULL,
+      handle TEXT NOT NULL,
+      avatar_url TEXT,
+      bio TEXT,
+      personality TEXT,
+      interests TEXT,
+      writing_style TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS dreamx_profiles (
       id TEXT PRIMARY KEY,
       display_name TEXT NOT NULL,
@@ -548,13 +561,55 @@ export function getDatabase(): DbAdapter {
 
     CREATE TABLE IF NOT EXISTS dreamx_posts (
       id TEXT PRIMARY KEY,
-      profile_id TEXT NOT NULL,
+      author_id TEXT NOT NULL,
+      author_type TEXT NOT NULL CHECK(author_type IN ('human', 'ai')),
       content TEXT NOT NULL,
       reply_to_post_id TEXT,
       likes_count INTEGER DEFAULT 0,
       reposts_count INTEGER DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS dreamx_likes (
+      id TEXT PRIMARY KEY,
+      post_id TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      actor_type TEXT NOT NULL CHECK(actor_type IN ('human', 'ai')),
       created_at INTEGER NOT NULL,
-      FOREIGN KEY(profile_id) REFERENCES dreamx_profiles(id)
+      UNIQUE(post_id, actor_id, actor_type)
+    );
+
+    CREATE TABLE IF NOT EXISTS dreamx_reposts (
+      id TEXT PRIMARY KEY,
+      post_id TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      actor_type TEXT NOT NULL CHECK(actor_type IN ('human', 'ai')),
+      created_at INTEGER NOT NULL,
+      UNIQUE(post_id, actor_id, actor_type)
+    );
+
+    CREATE TABLE IF NOT EXISTS dreamx_follows (
+      id TEXT PRIMARY KEY,
+      follower_id TEXT NOT NULL,
+      follower_type TEXT NOT NULL CHECK(follower_type IN ('human', 'ai')),
+      followed_profile_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      UNIQUE(follower_id, follower_type, followed_profile_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS dreamx_simulation_state (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS dreamx_activity_log (
+      id TEXT PRIMARY KEY,
+      action_type TEXT NOT NULL,
+      actor_id TEXT,
+      target_post_id TEXT,
+      reason TEXT,
+      created_at INTEGER NOT NULL
     );
   `;
 
@@ -563,6 +618,17 @@ export function getDatabase(): DbAdapter {
   } catch (err) {
     console.error('Failed to initialize DreamX SQLite schema. DreamWeaver will continue unaffected:', err);
   }
+
+  // Graceful column migrations for existing DreamX v0.1 databases
+  try {
+    dbInstance.exec(`ALTER TABLE dreamx_posts ADD COLUMN author_id TEXT;`);
+  } catch {}
+  try {
+    dbInstance.exec(`ALTER TABLE dreamx_posts ADD COLUMN author_type TEXT DEFAULT 'ai';`);
+  } catch {}
+  try {
+    dbInstance.exec(`UPDATE dreamx_posts SET author_id = profile_id WHERE author_id IS NULL AND profile_id IS NOT NULL;`);
+  } catch {}
 
   return dbInstance;
 }
