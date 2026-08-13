@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       model,
       sessionId,
       userMessage,        // { id, content, speaker, timestamp }
-      aiMessageBaseId: inputAiBaseId, // client-authoritative base ID for AI response section(s)
+      aiMessageBaseId: inputAiBaseId, // optional base ID suggestion
       narratorDirectives,
       settingLore,
       plotHooks,
@@ -39,9 +39,11 @@ export async function POST(req: NextRequest) {
       maxOutputTokens = 2048,
     } = body;
 
+    // Server-authoritative AI message base ID
     const aiMessageBaseId = inputAiBaseId || generateId('msg');
 
     // ─── 1. Persist user message server-side BEFORE starting AI stream ────────
+    // INVARIANT (Finding #1): If SQLite rejects user message, turn MUST NOT start!
     if (sessionId && userMessage?.id && userMessage?.content) {
       try {
         const db = getDatabase();
@@ -54,8 +56,12 @@ export async function POST(req: NextRequest) {
           speaker: userMessage.speaker || characterName || 'Player',
           timestamp: userMessage.timestamp || Date.now(),
         });
-      } catch (err) {
-        console.error('[chat/route] Failed to persist user message:', err);
+      } catch (err: any) {
+        console.error('[chat/route] FATAL: Failed to persist user message to database:', err);
+        return NextResponse.json(
+          { error: `Database persistence failure: Could not save user turn (${err.message || err})` },
+          { status: 500 }
+        );
       }
     }
 
@@ -148,6 +154,7 @@ export async function POST(req: NextRequest) {
 
     const customStream = new ReadableStream({
       async start(controller) {
+        let hasError = false;
         try {
           while (true) {
             const { done, value } = await upstreamReader.read();
@@ -164,7 +171,7 @@ export async function POST(req: NextRequest) {
             const sections = splitMultiSpeakerText(fullText, defaultSpeaker, characterName);
             const ts = Date.now();
 
-            // ── A. Persist AI section(s) with canonical shared message ID ─────
+            // ── A. Persist AI section(s) with server-authoritative IDs ────────
             for (let i = 0; i < sections.length; i++) {
               const sec = sections[i];
               if (!sec.content || !sec.content.trim()) continue;
@@ -186,56 +193,68 @@ export async function POST(req: NextRequest) {
             await db.updateSession(sessionId, { updated_at: ts });
 
             // ── B. Canonical Server-Side ELTM Memory Indexing ───────────────
-            if (userMessage?.content) {
-              const userTurnNum = messages.length;
-              const userKw = extractKeywords(userMessage.content).join(',');
+            // Auxiliary memory processing: catch errors cleanly so they don't break chat persistence
+            try {
+              if (userMessage?.content) {
+                const userTurnNum = messages.length;
+                const userKw = extractKeywords(userMessage.content).join(',');
+                await db.saveMemory({
+                  id: `mem_${userMessage.timestamp || ts - 1}_user`,
+                  session_id: sessionId,
+                  turn_number: userTurnNum,
+                  speaker: userMessage.speaker || characterName || 'Player',
+                  content: userMessage.content,
+                  keywords: userKw,
+                  is_summary: 0,
+                  timestamp: userMessage.timestamp || ts - 1,
+                });
+              }
+
+              const totalTurns = messages.length + 1;
+              const aiKw = extractKeywords(fullText).join(',');
               await db.saveMemory({
-                id: `mem_${userMessage.timestamp || ts - 1}_user`,
+                id: `mem_${ts}_ai`,
                 session_id: sessionId,
-                turn_number: userTurnNum,
-                speaker: userMessage.speaker || characterName || 'Player',
-                content: userMessage.content,
-                keywords: userKw,
+                turn_number: totalTurns,
+                speaker: defaultSpeaker,
+                content: fullText,
+                keywords: aiKw,
                 is_summary: 0,
-                timestamp: userMessage.timestamp || ts - 1,
-              }).catch(() => {});
-            }
+                timestamp: ts,
+              });
 
-            const totalTurns = messages.length + 1;
-            const aiKw = extractKeywords(fullText).join(',');
-            await db.saveMemory({
-              id: `mem_${ts}_ai`,
-              session_id: sessionId,
-              turn_number: totalTurns,
-              speaker: defaultSpeaker,
-              content: fullText,
-              keywords: aiKw,
-              is_summary: 0,
-              timestamp: ts,
-            }).catch(() => {});
-
-            // ── C. Auto-Summarization Milestone ─────────────────────────────
-            if (shouldSummarize(totalTurns)) {
-              const recentTurns = messages.slice(-15).map((m: any, idx: number) => ({
-                speaker: m.speaker || (m.role === 'user' ? characterName || 'Player' : 'Narrator'),
-                content: m.content || '',
-                turnNumber: Math.max(1, totalTurns - 15 + idx),
-              }));
-              await summarizeTurnChunk(sessionId, recentTurns, totalTurns).catch(() => {});
+              // ── C. Auto-Summarization Milestone ─────────────────────────────
+              if (shouldSummarize(totalTurns)) {
+                const recentTurns = messages.slice(-15).map((m: any, idx: number) => ({
+                  speaker: m.speaker || (m.role === 'user' ? characterName || 'Player' : 'Narrator'),
+                  content: m.content || '',
+                  turnNumber: Math.max(1, totalTurns - 15 + idx),
+                }));
+                await summarizeTurnChunk(sessionId, recentTurns, totalTurns);
+              }
+            } catch (eltmErr) {
+              console.error('[chat/route] Auxiliary ELTM indexing error (non-fatal):', eltmErr);
             }
           }
         } catch (err) {
+          hasError = true;
           console.error('[chat/route] Error during stream reading or persistence:', err);
           controller.error(err);
           return;
         } finally {
-          controller.close();
+          // INVARIANT (Finding #2): Do NOT call controller.close() if stream was errored!
+          if (!hasError) {
+            controller.close();
+          }
         }
       },
     });
 
+    const responseHeaders = new Headers(upstreamResponse.headers);
+    responseHeaders.set('x-ai-message-id', aiMessageBaseId);
+
     return new Response(customStream, {
-      headers: upstreamResponse.headers,
+      headers: responseHeaders,
       status: upstreamResponse.status,
     });
   } catch (err: any) {

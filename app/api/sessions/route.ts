@@ -36,6 +36,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { action, session, message } = body;
 
+    if (action === 'createSessionWithMessage' && session && message) {
+      await db.saveSessionWithMessage(session, message, Boolean(body.indexMemory));
+      return NextResponse.json({ success: true, session, message });
+    }
+
     if (action === 'saveSession' && session) {
       await db.saveSession(session);
       return NextResponse.json({ success: true, session });

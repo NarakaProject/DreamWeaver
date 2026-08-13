@@ -571,7 +571,7 @@ export default function Home() {
     setIsStreaming(true);
     setStreamingContent('');
 
-    const aiMessageBaseId = inputAiMessageBaseId || `msg-${Date.now()}-ai`;
+    const suggestedAiBaseId = inputAiMessageBaseId || `msg-${Date.now()}-ai`;
 
     try {
       const res = await fetch('/api/chat', {
@@ -595,7 +595,7 @@ export default function Home() {
                 timestamp: pendingUserMessage.timestamp,
               }
             : undefined,
-          aiMessageBaseId,
+          aiMessageBaseId: suggestedAiBaseId,
           narratorDirectives: activeWorldBuilding?.narrator,
           settingLore: activeWorldBuilding?.setting,
           plotHooks: activeWorldBuilding?.plot,
@@ -614,8 +614,11 @@ export default function Home() {
 
       if (!res.ok) {
         const errJson = await res.json();
-        throw new Error(errJson.error || 'Failed to stream response from Gemini');
+        throw new Error(errJson.error || 'Failed to stream response from AI engine');
       }
+
+      // Read server-authoritative AI message base ID from response header if supplied
+      const serverAiBaseId = res.headers.get('x-ai-message-id') || suggestedAiBaseId;
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -654,7 +657,7 @@ export default function Home() {
           sec.speaker === '{{user}}'
         ) continue;
 
-        const sectionMsgId = sections.length === 1 ? aiMessageBaseId : `${aiMessageBaseId}-${i}`;
+        const sectionMsgId = sections.length === 1 ? serverAiBaseId : `${serverAiBaseId}-${i}`;
 
         const aiMsg: ChatMessage = {
           id: sectionMsgId,
@@ -671,6 +674,12 @@ export default function Home() {
       setStreamingContent('');
     } catch (err: any) {
       console.error('Streaming error:', err);
+
+      // Rollback unpersisted user message from React state if persistence/stream failed
+      if (pendingUserMessage) {
+        setMessages((prev) => prev.filter((m) => m.id !== pendingUserMessage.id));
+      }
+
       const errorMsg: ChatMessage = {
         id: `err-${Date.now()}`,
         role: 'model',
@@ -724,13 +733,16 @@ export default function Home() {
   };
 
   const handleEditMessage = async (index: number, newContent: string) => {
+    const targetMsg = messages[index];
+    if (!targetMsg || !targetMsg.id || !activeSessionId) return;
+
+    const originalContent = targetMsg.content;
     const updated = [...messages];
-    updated[index].content = newContent;
+    updated[index] = { ...targetMsg, content: newContent };
     setMessages(updated);
 
-    const targetMsg = updated[index];
-    if (targetMsg.id && activeSessionId) {
-      await fetch('/api/sessions', {
+    try {
+      const res = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -746,6 +758,22 @@ export default function Home() {
           },
         }),
       });
+
+      if (!res.ok) {
+        console.error('Failed to save edited message to SQLite. Reverting UI state.');
+        setMessages((prev) => {
+          const reverted = [...prev];
+          if (reverted[index]) reverted[index] = { ...targetMsg, content: originalContent };
+          return reverted;
+        });
+      }
+    } catch (err) {
+      console.error('Failed to edit message:', err);
+      setMessages((prev) => {
+        const reverted = [...prev];
+        if (reverted[index]) reverted[index] = { ...targetMsg, content: originalContent };
+        return reverted;
+      });
     }
   };
 
@@ -754,9 +782,14 @@ export default function Home() {
 
     if (messageId) {
       try {
-        await fetch(`/api/sessions?messageId=${messageId}`, { method: 'DELETE' });
+        const res = await fetch(`/api/sessions?messageId=${messageId}`, { method: 'DELETE' });
+        if (!res.ok) {
+          console.error('Failed to delete message from SQLite.');
+          return;
+        }
       } catch (err) {
         console.error('Failed to delete message:', err);
+        return;
       }
     }
 
@@ -779,7 +812,9 @@ export default function Home() {
     if (activeSessionId) {
       discardedMsgs.forEach((m) => {
         if (m.id) {
-          fetch(`/api/sessions?messageId=${m.id}`, { method: 'DELETE' }).catch(() => {});
+          fetch(`/api/sessions?messageId=${m.id}`, { method: 'DELETE' }).then((res) => {
+            if (!res.ok) console.error('Failed to delete discarded message:', m.id);
+          }).catch(() => {});
         }
       });
       triggerStreamingResponse(trimmedHistory, activeSessionId);

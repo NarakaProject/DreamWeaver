@@ -15,6 +15,7 @@ interface DbAdapter {
   exec(sql: string): Promise<void> | void;
   getSessions(): Promise<DbSession[]>;
   saveSession(session: DbSession): Promise<void>;
+  saveSessionWithMessage(session: DbSession, message: DbMessage, indexMemory?: boolean): Promise<void>;
   updateSession(id: string, fields: Partial<DbSession>): Promise<void>;
   deleteSession(id: string): Promise<void>;
   getMessages(sessionId: string): Promise<DbMessage[]>;
@@ -54,6 +55,58 @@ class BetterSqliteAdapter implements DbAdapter {
         updated_at = excluded.updated_at
     `);
     stmt.run(session);
+  }
+
+  async saveSessionWithMessage(session: DbSession, message: DbMessage, indexMemory?: boolean): Promise<void> {
+    const txn = this.db.transaction(() => {
+      this.db.prepare(`
+        INSERT INTO sessions (id, title, world_id, character_id, system_instruction, created_at, updated_at)
+        VALUES (@id, @title, @world_id, @character_id, @system_instruction, @created_at, @updated_at)
+        ON CONFLICT(id) DO UPDATE SET
+          title = excluded.title,
+          updated_at = excluded.updated_at
+      `).run(session);
+
+      this.db.prepare(`
+        INSERT INTO messages (id, session_id, role, content, type, speaker, timestamp)
+        VALUES (@id, @session_id, @role, @content, @type, @speaker, @timestamp)
+        ON CONFLICT(id) DO UPDATE SET
+          content = excluded.content,
+          speaker = excluded.speaker,
+          timestamp = excluded.timestamp
+      `).run({
+        id: message.id,
+        session_id: message.session_id,
+        role: message.role,
+        content: message.content,
+        type: message.type || null,
+        speaker: message.speaker || null,
+        timestamp: message.timestamp,
+      });
+
+      if (indexMemory && message.content) {
+        const words = message.content.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
+        const kwStr = Array.from(new Set(words)).slice(0, 10).join(',');
+        this.db.prepare(`
+          INSERT INTO memories (id, session_id, turn_number, speaker, content, keywords, is_summary, timestamp)
+          VALUES (@id, @session_id, @turn_number, @speaker, @content, @keywords, @is_summary, @timestamp)
+          ON CONFLICT(id) DO UPDATE SET
+            content = excluded.content,
+            keywords = excluded.keywords,
+            timestamp = excluded.timestamp
+        `).run({
+          id: `mem_${message.timestamp}_init`,
+          session_id: message.session_id,
+          turn_number: 1,
+          speaker: message.speaker || 'Narrator',
+          content: message.content,
+          keywords: kwStr,
+          is_summary: 0,
+          timestamp: message.timestamp,
+        });
+      }
+    });
+    txn();
   }
 
   async deleteSession(id: string): Promise<void> {
@@ -187,6 +240,61 @@ class LibSqlAdapter implements DbAdapter {
         session.updated_at,
       ],
     });
+  }
+
+  async saveSessionWithMessage(session: DbSession, message: DbMessage, indexMemory?: boolean): Promise<void> {
+    const statements: any[] = [
+      {
+        sql: `INSERT INTO sessions (id, title, world_id, character_id, system_instruction, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at`,
+        args: [
+          session.id,
+          session.title,
+          session.world_id,
+          session.character_id,
+          session.system_instruction || null,
+          session.created_at,
+          session.updated_at,
+        ],
+      },
+      {
+        sql: `INSERT INTO messages (id, session_id, role, content, type, speaker, timestamp)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET content = excluded.content, speaker = excluded.speaker, timestamp = excluded.timestamp`,
+        args: [
+          message.id,
+          message.session_id,
+          message.role,
+          message.content,
+          message.type || null,
+          message.speaker || null,
+          message.timestamp,
+        ],
+      },
+    ];
+
+    if (indexMemory && message.content) {
+      const words = message.content.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
+      const kwStr = Array.from(new Set(words)).slice(0, 10).join(',');
+      statements.push({
+        sql: `INSERT INTO memories (id, session_id, turn_number, speaker, content, keywords, is_summary, timestamp)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET content = excluded.content, keywords = excluded.keywords, timestamp = excluded.timestamp`,
+        args: [
+          `mem_${message.timestamp}_init`,
+          message.session_id,
+          1,
+          message.speaker || 'Narrator',
+          message.content,
+          kwStr,
+          0,
+          message.timestamp,
+        ],
+      });
+    }
+
+    await this.client.batch(statements);
   }
 
   async deleteSession(id: string): Promise<void> {
