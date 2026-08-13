@@ -4,6 +4,7 @@ import {
   getFeedTree, 
   savePost, 
   toggleLike, 
+  ensureLike,
   logActivity,
   getPost
 } from './db';
@@ -35,6 +36,15 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
   }
 
   const posts = await getFeedTree();
+  
+  const allPosts: DreamXPost[] = [];
+  const flatten = (pts: DreamXPost[]) => {
+    for (const p of pts) {
+      allPosts.push(p);
+      if (p.replies) flatten(p.replies);
+    }
+  };
+  flatten(posts);
 
   // 3. Select a random candidate AI profile
   const candidate = profiles[Math.floor(Math.random() * profiles.length)];
@@ -43,10 +53,43 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
   const actionChoice = Math.random();
 
   // --- OPTION A: AI LIKE (Deterministic, NO LLM CALL) ---
-  if (actionChoice < 0.35 && posts.length > 0) {
-    const targetPost = posts[Math.floor(Math.random() * posts.length)];
-    // Toggle like deterministically
-    const result = await toggleLike(targetPost.id, candidate.id, 'ai');
+  if (actionChoice < 0.35 && allPosts.length > 0) {
+    const targetPost = allPosts[Math.floor(Math.random() * allPosts.length)];
+    
+    // Deterministic interest evaluation
+    const contentLower = targetPost.content.toLowerCase();
+    const interests = (candidate.interests || '').toLowerCase();
+    const traits = (candidate.traits || '').toLowerCase();
+    const personality = (candidate.personality || '').toLowerCase();
+    
+    // Simple relevance check: do any words > 4 chars in interests/traits/personality appear in the post?
+    const candidateKeywords = [interests, traits, personality]
+      .join(' ')
+      .split(/[\\s,]+/)
+      .filter(w => w.length > 4);
+      
+    const isRelevant = candidateKeywords.some(kw => contentLower.includes(kw));
+    
+    // Fallback: 10% chance to like anyway to simulate arbitrary browsing
+    if (!isRelevant && Math.random() > 0.1) {
+       await logActivity({
+          action_type: 'no_action',
+          actor_id: candidate.id,
+          reason: `Evaluated post ${targetPost.id} but found no relevance to interests.`
+       });
+       return { outcome: 'NO_ACTION', details: 'Post not relevant for liking.' };
+    }
+
+    const result = await ensureLike(targetPost.id, candidate.id, 'ai');
+    if (!result.newlyAdded) {
+       await logActivity({
+          action_type: 'no_action',
+          actor_id: candidate.id,
+          reason: `Already liked post ${targetPost.id}, skipping.`
+       });
+       return { outcome: 'NO_ACTION', details: 'Already liked.' };
+    }
+
     await logActivity({
       action_type: 'like',
       actor_id: candidate.id,
@@ -57,11 +100,13 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
   }
 
   // --- OPTION B: AI REPLY ---
-  if (actionChoice < 0.70 && posts.length > 0 && (options.keys.geminiKey || options.keys.groqKey || options.keys.openrouterKey)) {
-    const targetPost = posts[Math.floor(Math.random() * posts.length)];
+  if (actionChoice < 0.70 && allPosts.length > 0 && (options.keys.geminiKey || options.keys.groqKey || options.keys.openrouterKey)) {
+    const targetPost = allPosts[Math.floor(Math.random() * allPosts.length)];
 
-    // Ensure candidate doesn't reply to their own post
-    if (targetPost.author_id !== candidate.id) {
+    const alreadyReplied = targetPost.replies?.some(r => r.author_id === candidate.id && r.author_type === 'ai');
+
+    // Ensure candidate doesn't reply to their own post and hasn't already replied
+    if (targetPost.author_id !== candidate.id && !alreadyReplied) {
       const generatedReply = await generateDreamXReply(
         candidate,
         targetPost,
@@ -87,6 +132,13 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
 
         return { outcome: 'REPLY_CREATED', details: { post: saved } };
       }
+    } else {
+       await logActivity({
+          action_type: 'no_action',
+          actor_id: candidate.id,
+          reason: alreadyReplied ? `Already replied to post ${targetPost.id}` : `Cannot reply to own post ${targetPost.id}`
+       });
+       return { outcome: 'NO_ACTION', details: 'Duplicate or self-reply blocked.' };
     }
   }
 

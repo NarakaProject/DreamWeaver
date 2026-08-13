@@ -603,6 +603,8 @@ export function getDatabase(): DbAdapter {
       updated_at INTEGER NOT NULL
     );
 
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_dreamx_ai_reply_dedup ON dreamx_posts(author_id, reply_to_post_id) WHERE author_type = 'ai' AND reply_to_post_id IS NOT NULL;
+
     CREATE TABLE IF NOT EXISTS dreamx_activity_log (
       id TEXT PRIMARY KEY,
       action_type TEXT NOT NULL,

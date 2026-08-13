@@ -26,12 +26,13 @@ export async function saveUserProfile(profile: Partial<DreamXUserProfile> & { di
   const id = profile.id || existing?.id || generateId('dx-user');
   const now = Date.now();
 
-  const handle = profile.handle.startsWith('@') ? profile.handle : `@${profile.handle}`;
+  const cleanHandle = (profile.handle || 'user').replace(/^@+/, '').replace(/[^a-zA-Z0-9_]/g, '');
+  const handle = `@${cleanHandle || 'user'}`;
   
   const fullProfile: DreamXUserProfile = {
     id,
-    display_name: profile.display_name,
-    handle: handle.replace(/\s+/g, ''),
+    display_name: profile.display_name || 'User',
+    handle,
     avatar_url: profile.avatar_url || undefined,
     bio: profile.bio || undefined,
     personality: profile.personality || undefined,
@@ -95,12 +96,13 @@ export async function saveProfile(profile: Partial<DreamXProfile> & { display_na
   const id = profile.id || generateId('dx-prof');
   const now = Date.now();
   
-  const handle = profile.handle.startsWith('@') ? profile.handle : `@${profile.handle}`;
+  const cleanHandle = (profile.handle || 'user').replace(/^@+/, '').replace(/[^a-zA-Z0-9_]/g, '');
+  const handle = `@${cleanHandle || 'user'}`;
 
   const fullProfile: DreamXProfile = {
     id,
-    display_name: profile.display_name,
-    handle: handle.replace(/\s+/g, ''),
+    display_name: profile.display_name || 'AI Profile',
+    handle,
     avatar_url: profile.avatar_url || undefined,
     bio: profile.bio || undefined,
     personality: profile.personality || undefined,
@@ -460,6 +462,28 @@ export async function toggleLike(postId: string, actorId: string, actorType: Act
 
   const res = await db.queryFirst<{ count: number }>('SELECT COUNT(*) as count FROM dreamx_likes WHERE post_id = ?', [postId]);
   return { liked: !existing, count: res?.count || 0 };
+}
+
+export async function ensureLike(postId: string, actorId: string, actorType: ActorType): Promise<{ liked: boolean; newlyAdded: boolean; count: number }> {
+  const db = getDatabase();
+  const existing = await db.queryFirst<{ id: string }>(
+    'SELECT id FROM dreamx_likes WHERE post_id = ? AND actor_id = ? AND actor_type = ?',
+    [postId, actorId, actorType]
+  );
+
+  if (existing) {
+    const res = await db.queryFirst<{ count: number }>('SELECT COUNT(*) as count FROM dreamx_likes WHERE post_id = ?', [postId]);
+    return { liked: true, newlyAdded: false, count: res?.count || 0 };
+  }
+
+  const id = generateId('dx-like');
+  await db.execute(
+    'INSERT INTO dreamx_likes (id, post_id, actor_id, actor_type, created_at) VALUES (?, ?, ?, ?, ?)',
+    [id, postId, actorId, actorType, Date.now()]
+  );
+  
+  const res = await db.queryFirst<{ count: number }>('SELECT COUNT(*) as count FROM dreamx_likes WHERE post_id = ?', [postId]);
+  return { liked: true, newlyAdded: true, count: res?.count || 0 };
 }
 
 export async function toggleRepost(postId: string, actorId: string, actorType: ActorType): Promise<{ reposted: boolean; count: number }> {
