@@ -119,7 +119,8 @@ export function DreamXPost({ post, onSelectReplyTarget, onInteraction, isThreadV
           </p>
 
           {/* Social Interaction Bar */}
-          <div className="flex items-center justify-between text-white/40 max-w-md pt-1">
+          <div className="flex items-center gap-8 text-white/40 pt-1">
+
             <button 
               onClick={handleReplyClick}
               className="flex items-center gap-2 hover:text-blue-400 transition-colors text-xs"

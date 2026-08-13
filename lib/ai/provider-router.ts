@@ -131,6 +131,12 @@ async function fetchOpenAICompatibleStream(
             if (chunkText) {
               controller.enqueue(encoder.encode(chunkText));
             }
+            const finishReason = json.choices?.[0]?.finish_reason;
+            if (finishReason === 'length') {
+              controller.enqueue(encoder.encode('\n__FINISH_REASON__:length'));
+            } else if (finishReason === 'stop') {
+              controller.enqueue(encoder.encode('\n__FINISH_REASON__:stop'));
+            }
           } catch {
             // ignore non-json SSE lines
           }
@@ -195,6 +201,12 @@ async function fetchGeminiStream(
             const chunkText = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
             if (chunkText) {
               controller.enqueue(encoder.encode(chunkText));
+            }
+            const finishReason = json.candidates?.[0]?.finishReason;
+            if (finishReason === 'MAX_TOKENS') {
+              controller.enqueue(encoder.encode('\n__FINISH_REASON__:length'));
+            } else if (finishReason === 'STOP') {
+              controller.enqueue(encoder.encode('\n__FINISH_REASON__:stop'));
             }
           } catch {
             // ignore non-json SSE lines

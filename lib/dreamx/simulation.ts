@@ -107,7 +107,7 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
 
     // Ensure candidate doesn't reply to their own post and hasn't already replied
     if (targetPost.author_id !== candidate.id && !alreadyReplied) {
-      const generatedReply = await generateDreamXReply(
+      const { text, validation } = await generateDreamXReply(
         candidate,
         targetPost,
         targetPost.author_name || 'User',
@@ -115,23 +115,30 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
         options
       );
 
-      if (generatedReply && generatedReply.length > 3) {
-        const saved = await savePost({
-          author_id: candidate.id,
-          author_type: 'ai',
-          content: generatedReply,
-          reply_to_post_id: targetPost.id
-        });
-
+      if (!validation.isValid) {
         await logActivity({
-          action_type: 'reply',
+          action_type: 'no_action',
           actor_id: candidate.id,
-          target_post_id: targetPost.id,
-          reason: `Autonomous in-character reply by ${candidate.handle}`
+          reason: `Rejected AI reply output: ${validation.reason}`
         });
-
-        return { outcome: 'REPLY_CREATED', details: { post: saved } };
+        return { outcome: 'NO_ACTION', details: `Rejected reply generation: ${validation.reason}` };
       }
+
+      const saved = await savePost({
+        author_id: candidate.id,
+        author_type: 'ai',
+        content: text,
+        reply_to_post_id: targetPost.id
+      });
+
+      await logActivity({
+        action_type: 'reply',
+        actor_id: candidate.id,
+        target_post_id: targetPost.id,
+        reason: `Autonomous in-character reply by ${candidate.handle}`
+      });
+
+      return { outcome: 'REPLY_CREATED', details: { post: saved } };
     } else {
        await logActivity({
           action_type: 'no_action',
@@ -140,28 +147,37 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
        });
        return { outcome: 'NO_ACTION', details: 'Duplicate or self-reply blocked.' };
     }
+
   }
 
   // --- OPTION C: AI POST ---
   if (actionChoice < 0.85 && (options.keys.geminiKey || options.keys.groqKey || options.keys.openrouterKey)) {
-    const generatedPost = await generateDreamXPost(candidate, '', options);
-    if (generatedPost && generatedPost.length > 3) {
-      const saved = await savePost({
-        author_id: candidate.id,
-        author_type: 'ai',
-        content: generatedPost,
-        reply_to_post_id: null
-      });
-
+    const { text, validation } = await generateDreamXPost(candidate, '', options);
+    if (!validation.isValid) {
       await logActivity({
-        action_type: 'post',
+        action_type: 'no_action',
         actor_id: candidate.id,
-        reason: `Autonomous standalone post by ${candidate.handle}`
+        reason: `Rejected AI post output: ${validation.reason}`
       });
-
-      return { outcome: 'POST_CREATED', details: { post: saved } };
+      return { outcome: 'NO_ACTION', details: `Rejected post generation: ${validation.reason}` };
     }
+
+    const saved = await savePost({
+      author_id: candidate.id,
+      author_type: 'ai',
+      content: text,
+      reply_to_post_id: null
+    });
+
+    await logActivity({
+      action_type: 'post',
+      actor_id: candidate.id,
+      reason: `Autonomous standalone post by ${candidate.handle}`
+    });
+
+    return { outcome: 'POST_CREATED', details: { post: saved } };
   }
+
 
   // --- OPTION D: NO_ACTION (Silence is valid outcome!) ---
   await logActivity({

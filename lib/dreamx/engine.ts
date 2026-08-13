@@ -36,6 +36,54 @@ export function normalizeSocialOutput(rawText: string): string {
   return cleaned;
 }
 
+export interface SocialOutputValidation {
+  isValid: boolean;
+  reason?: string;
+  normalizedText: string;
+}
+
+export function validateSocialOutput(rawText: string, finishReason?: string): SocialOutputValidation {
+  if (!rawText || !rawText.trim()) {
+    return { isValid: false, reason: 'Empty response from provider', normalizedText: '' };
+  }
+
+  if (finishReason === 'length' || finishReason === 'MAX_TOKENS') {
+    return { isValid: false, reason: 'Truncated by provider max_tokens limit', normalizedText: '' };
+  }
+
+  const normalized = normalizeSocialOutput(rawText);
+  if (!normalized || normalized.length < 5) {
+    return { isValid: false, reason: 'Output empty or too short after normalization', normalizedText: normalized };
+  }
+
+  // Dangling prepositions, conjunctions, articles, or incomplete words at sentence end
+  const danglingEndingsRegex = /\b(and|or|but|the|a|an|in|of|to|with|for|on|at|by|from|about|into|through|during|before|after|above|below|between|under|again|further|then|once|here|there|when|where|why|how|all|any|both|each|few|more|most|other|some|such|no|nor|not|only|own|same|so|than|too|very|s|t|can|will|just|should|now|find|if|is|are|was|were|be|been|being|have|has|had|do|does|did|would|could)\s*$/i;
+
+  if (danglingEndingsRegex.test(normalized)) {
+    return { isValid: false, reason: 'Incomplete sentence ending in dangling word or preposition', normalizedText: normalized };
+  }
+
+  // Trailing incomplete punctuation
+  if (/[,:\-;\(\[\{]\s*$/.test(normalized)) {
+    return { isValid: false, reason: 'Incomplete sentence ending in dangling punctuation', normalizedText: normalized };
+  }
+
+  // Unclosed quotes or brackets
+  const doubleQuotes = (normalized.match(/"/g) || []).length;
+  if (doubleQuotes % 2 !== 0) {
+    return { isValid: false, reason: 'Unclosed quotation mark in output', normalizedText: normalized };
+  }
+
+  const openParens = (normalized.match(/\(/g) || []).length;
+  const closeParens = (normalized.match(/\)/g) || []).length;
+  if (openParens !== closeParens) {
+    return { isValid: false, reason: 'Unclosed parenthesis in output', normalizedText: normalized };
+  }
+
+  return { isValid: true, normalizedText: normalized };
+}
+
+
 function buildDreamXSystemInstruction(profile: DreamXProfile): string {
   return `You are ${profile.handle}, an independent fictional social-media personality on DreamX.
   
@@ -62,7 +110,7 @@ export async function generateDreamXPost(
   profile: DreamXProfile,
   context: string = '',
   options: GenerationOptions
-): Promise<string> {
+): Promise<{ text: string; validation: SocialOutputValidation }> {
   const systemInstruction = buildDreamXSystemInstruction(profile);
   
   let userPrompt = 'Generate a standalone social media post.';
@@ -70,8 +118,9 @@ export async function generateDreamXPost(
     userPrompt += `\nTopic or context for this post: ${context}`;
   }
 
-  const raw = await executeDreamXStream(systemInstruction, userPrompt, options);
-  return normalizeSocialOutput(raw);
+  const { rawText, finishReason } = await executeDreamXStream(systemInstruction, userPrompt, options);
+  const validation = validateSocialOutput(rawText, finishReason);
+  return { text: validation.normalizedText, validation };
 }
 
 export async function generateDreamXReply(
@@ -80,7 +129,7 @@ export async function generateDreamXReply(
   targetAuthorName: string,
   targetAuthorHandle: string,
   options: GenerationOptions
-): Promise<string> {
+): Promise<{ text: string; validation: SocialOutputValidation }> {
   const systemInstruction = buildDreamXSystemInstruction(profile);
   
   const userPrompt = `You are replying to a post by ${targetAuthorName} (${targetAuthorHandle}).
@@ -90,15 +139,16 @@ Original Post:
 
 Generate your reply to this post in character. You may agree, disagree, ask a question, make a joke, or add a sarcastic observation as fits your persona.`;
 
-  const raw = await executeDreamXStream(systemInstruction, userPrompt, options);
-  return normalizeSocialOutput(raw);
+  const { rawText, finishReason } = await executeDreamXStream(systemInstruction, userPrompt, options);
+  const validation = validateSocialOutput(rawText, finishReason);
+  return { text: validation.normalizedText, validation };
 }
 
 async function executeDreamXStream(
   systemInstruction: string,
   userPrompt: string,
   options: GenerationOptions
-): Promise<string> {
+): Promise<{ rawText: string; finishReason?: string }> {
   const provider = options.provider || 'gemini';
   const model = options.model || DEFAULT_MODELS[provider];
 
@@ -116,7 +166,7 @@ async function executeDreamXStream(
     },
     generationConfig: {
       temperature: 0.85,
-      maxOutputTokens: 300,
+      maxOutputTokens: 500,
     }
   };
 
@@ -128,7 +178,7 @@ async function executeDreamXStream(
       systemInstruction,
       messages,
       temperature: 0.85,
-      maxOutputTokens: 300,
+      maxOutputTokens: 500,
     },
     geminiPayload
   );
@@ -147,5 +197,13 @@ async function executeDreamXStream(
     fullText += decoder.decode(value, { stream: true });
   }
 
-  return fullText.trim();
+  let finishReason: string | undefined = undefined;
+  const reasonMatch = fullText.match(/\n__FINISH_REASON__:(length|stop)/);
+  if (reasonMatch) {
+    finishReason = reasonMatch[1];
+    fullText = fullText.replace(/\n__FINISH_REASON__:(length|stop)/g, '');
+  }
+
+  return { rawText: fullText.trim(), finishReason };
 }
+

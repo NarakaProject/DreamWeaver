@@ -21,11 +21,14 @@ export async function POST(req: NextRequest) {
     }
 
     const options = { provider, model, keys };
-    let generatedContent = '';
+    let text = '';
+    let validation;
     let replyToId = null;
 
     if (action === 'post') {
-      generatedContent = await generateDreamXPost(profile, context, options);
+      const res = await generateDreamXPost(profile, context, options);
+      text = res.text;
+      validation = res.validation;
     } else if (action === 'reply') {
       if (!target_post_id) {
         return NextResponse.json({ error: 'target_post_id is required for replies' }, { status: 400 });
@@ -36,25 +39,32 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Target post not found' }, { status: 404 });
       }
 
-      generatedContent = await generateDreamXReply(
+      const res = await generateDreamXReply(
         profile, 
         targetPost, 
         targetPost.author_name || 'User', 
         targetPost.author_handle || '@user', 
         options
       );
+      text = res.text;
+      validation = res.validation;
       replyToId = target_post_id;
     } else {
       return NextResponse.json({ error: 'Invalid action, must be "post" or "reply"' }, { status: 400 });
+    }
+
+    if (!validation.isValid) {
+      return NextResponse.json({ error: `Generation rejected: ${validation.reason}` }, { status: 422 });
     }
 
     // Save the generated post to the isolated database
     const post = await savePost({
       author_id: profile.id,
       author_type: 'ai',
-      content: generatedContent,
+      content: text,
       reply_to_post_id: replyToId,
     });
+
 
     return NextResponse.json({ success: true, post });
   } catch (err: any) {

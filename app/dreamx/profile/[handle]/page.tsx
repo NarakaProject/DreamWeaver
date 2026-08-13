@@ -5,6 +5,7 @@ import type { DreamXProfile, DreamXPost as DreamXPostType } from '@/lib/dreamx/t
 import { ArrowLeft, Calendar, FileText, MessageSquare, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { DreamXPost } from '@/components/dreamx/DreamXPost';
+import { DreamXThreadModal } from '@/components/dreamx/DreamXThreadModal';
 
 export default function DreamXProfilePage({ params }: { params: Promise<{ handle: string }> }) {
   const resolvedParams = use(params);
@@ -16,6 +17,8 @@ export default function DreamXProfilePage({ params }: { params: Promise<{ handle
   const [replyPosts, setReplyPosts] = useState<DreamXPostType[]>([]);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies'>('posts');
   const [loading, setLoading] = useState(true);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+
 
   const loadProfileData = async () => {
     try {
@@ -132,11 +135,28 @@ export default function DreamXProfilePage({ params }: { params: Promise<{ handle
             <div className="p-8 text-center text-white/40 text-sm">No {activeTab} yet from this profile.</div>
           ) : (
             activePosts.map(post => (
-              <DreamXPost key={post.id} post={post} onInteraction={loadProfileData} />
+              <DreamXPost 
+                key={post.id} 
+                post={post} 
+                onSelectReplyTarget={(id) => setActiveThreadId(id)}
+                onInteraction={loadProfileData} 
+              />
             ))
           )}
         </div>
       </div>
+
+      {/* Thread View Modal */}
+      {activeThreadId && (
+        <DreamXThreadModal
+          threadId={activeThreadId}
+          onClose={() => setActiveThreadId(null)}
+          onPostCreated={() => {
+            loadProfileData();
+          }}
+        />
+      )}
     </div>
   );
 }
+

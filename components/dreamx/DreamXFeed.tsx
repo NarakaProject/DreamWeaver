@@ -31,9 +31,10 @@ export function DreamXFeed({ posts, onOpenThread, onFeedChanged }: DreamXFeedPro
           <DreamXPost
             key={post.id}
             post={post}
-            onSelectReplyTarget={(id) => onOpenThread(post.id)}
+            onSelectReplyTarget={(id) => onOpenThread(id)}
             onInteraction={onFeedChanged}
           />
+
         ))}
       </div>
     </div>
