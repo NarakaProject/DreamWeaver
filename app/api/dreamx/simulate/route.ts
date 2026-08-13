@@ -8,17 +8,26 @@ export async function POST(req: NextRequest) {
       body = await req.json();
     } catch {}
     
-    const { provider, model, keys, forceBypassCooldown } = body as any;
+    const { provider, model, keys, forceBypassCooldown, count } = body as any;
+    const stepsToRun = Math.min(Math.max(1, Number(count) || 1), 50);
 
-    // Server-side endpoint awaits full simulation lifecycle
-    const result = await runAutonomousActivityStep({
-      provider,
-      model,
-      keys: keys || {},
-      forceBypassCooldown: !!forceBypassCooldown
+    const results = [];
+    for (let i = 0; i < stepsToRun; i++) {
+      const result = await runAutonomousActivityStep({
+        provider,
+        model,
+        keys: keys || {},
+        forceBypassCooldown: !!forceBypassCooldown || stepsToRun > 1
+      });
+      results.push(result);
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      result: results[results.length - 1], 
+      results 
     });
 
-    return NextResponse.json({ success: true, result });
   } catch (err: any) {
     console.error('Simulation step failed:', err);
     // Non-blocking error response

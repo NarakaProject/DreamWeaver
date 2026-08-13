@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProfiles, getProfile, getProfileByHandle, saveProfile, deleteProfile } from '@/lib/dreamx/db';
+import { getProfiles, getProfile, getProfileByHandle, saveProfile, deleteProfile, getUserProfile } from '@/lib/dreamx/db';
 import { validateProfileImportPayload, executeProfileImport } from '@/lib/dreamx/import_export';
+
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,11 +11,19 @@ export async function GET(req: NextRequest) {
 
     if (handle) {
       const profile = await getProfileByHandle(handle);
-      if (!profile) {
-        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      if (profile) {
+        return NextResponse.json({ profile });
       }
-      return NextResponse.json({ profile });
+
+      // Fallback: Check human user profile
+      const user = await getUserProfile();
+      if (user && user.handle && user.handle.toLowerCase() === (handle.startsWith('@') ? handle.toLowerCase() : `@${handle.toLowerCase()}`)) {
+        return NextResponse.json({ profile: { ...user, is_human: true, isHuman: true } });
+      }
+
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
+
 
     if (id) {
       const profile = await getProfile(id);
@@ -74,15 +83,26 @@ export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
-    
-    if (!id) {
-      return NextResponse.json({ error: 'Missing id parameter' }, { status: 400 });
+
+    let body: any = null;
+    try {
+      body = await req.json();
+    } catch {}
+
+    const idsToDelete: string[] = Array.isArray(body?.ids) ? body.ids : (id ? [id] : []);
+
+    if (idsToDelete.length === 0) {
+      return NextResponse.json({ error: 'Missing id or ids parameter' }, { status: 400 });
     }
 
-    await deleteProfile(id);
-    return NextResponse.json({ success: true });
+    for (const deleteId of idsToDelete) {
+      await deleteProfile(deleteId);
+    }
+
+    return NextResponse.json({ success: true, deletedCount: idsToDelete.length });
   } catch (err: any) {
     console.error('Failed to delete DreamX profile:', err);
     return NextResponse.json({ error: 'Failed to delete profile' }, { status: 500 });
   }
 }
+

@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { DreamXProfile, DreamXActivityLog } from '@/lib/dreamx/types';
+import type { DreamXProfile } from '@/lib/dreamx/types';
 import { ValidationReport, exportAIProfilesJSON } from '@/lib/dreamx/import_export';
-import { DreamXVerificationBadge } from '@/components/dreamx/DreamXVerificationBadge';
 import { DreamXCharacterManager } from '@/components/dreamx/DreamXCharacterManager';
 import {
   ShieldAlert,
@@ -18,7 +17,8 @@ import {
   AlertTriangle,
   XCircle,
   Users,
-  Cpu
+  Cpu,
+  Zap
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -31,6 +31,10 @@ export default function DreamXControlPage() {
   const [selectedProfileId, setSelectedProfileId] = useState('');
   const [postContext, setPostContext] = useState('');
   const [isExecuting, setIsExecuting] = useState(false);
+
+  // Simulation Burst state
+  const [burstCount, setBurstCount] = useState<number>(10);
+  const [burstResults, setBurstResults] = useState<any[]>([]);
 
   // Import / Export state
   const [jsonText, setJsonText] = useState('');
@@ -76,16 +80,48 @@ export default function DreamXControlPage() {
         body: JSON.stringify({
           provider: 'gemini',
           keys: apiKeys,
-          forceBypassCooldown: force
+          forceBypassCooldown: force,
+          count: 1
         })
       });
       if (res.ok) {
         const data = await res.json();
-        alert(`Simulation Step Finished: ${data.result?.outcome}`);
+        setBurstResults(data.results || (data.result ? [data.result] : []));
         await loadData();
       }
     } catch (err) {
       console.error(err);
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const handleRunBurstSimulation = async (count: number) => {
+    setIsExecuting(true);
+    try {
+      const apiKeys = {
+        geminiKey: localStorage.getItem('dreamweaver_gemini_key') || '',
+        groqKey: localStorage.getItem('dreamweaver_groq_key') || '',
+        openrouterKey: localStorage.getItem('dreamweaver_openrouter_key') || ''
+      };
+
+      const res = await fetch('/api/dreamx/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'gemini',
+          keys: apiKeys,
+          forceBypassCooldown: true,
+          count: count
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBurstResults(data.results || (data.result ? [data.result] : []));
+        await loadData();
+      }
+    } catch (err) {
+      console.error('Burst simulation failed:', err);
     } finally {
       setIsExecuting(false);
     }
@@ -237,7 +273,7 @@ export default function DreamXControlPage() {
         </div>
       </div>
 
-      <div className="flex-1 max-w-5xl w-full mx-auto p-6 space-y-6 flex flex-col">
+      <div className="flex-1 max-w-6xl w-full mx-auto p-6 space-y-6 flex flex-col">
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-xs text-amber-300">
           <strong>Developer Boundary Warning:</strong> This control panel is isolated from public social UI. Controls operate strictly on `dreamx_*` tables and never touch DreamWeaver narrative systems or session state.
         </div>
@@ -285,10 +321,10 @@ export default function DreamXControlPage() {
             <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
               <h2 className="font-bold text-white flex items-center gap-2">
                 <Play className="w-5 h-5 text-blue-400" />
-                Autonomous Step Trigger
+                Standard Autonomous Step
               </h2>
               <p className="text-xs text-white/50">
-                Triggers the simulation decision engine. Respects 60s cooldown unless forced. Evaluates 1 bounded candidate action (Post, Reply, Like, or NO_ACTION).
+                Triggers 1 single simulation step. Evaluates 1 bounded candidate action (Post, Reply, Like, or NO_ACTION).
               </p>
               <div className="flex gap-2">
                 <button
@@ -297,14 +333,7 @@ export default function DreamXControlPage() {
                   className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors text-xs flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isExecuting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                  Run Step (Standard)
-                </button>
-                <button
-                  onClick={() => handleRunSimulationStep(true)}
-                  disabled={isExecuting}
-                  className="py-2.5 px-4 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl transition-colors text-xs flex items-center gap-2 disabled:opacity-50"
-                >
-                  Force Step
+                  Run 1 Step
                 </button>
               </div>
             </div>
@@ -312,7 +341,7 @@ export default function DreamXControlPage() {
             <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
               <h2 className="font-bold text-white flex items-center gap-2">
                 <RefreshCw className="w-5 h-5 text-purple-400" />
-                Force AI Character Post
+                Force Single AI Character Post
               </h2>
               <select
                 value={selectedProfileId}
@@ -338,194 +367,271 @@ export default function DreamXControlPage() {
                 Force Generate Post
               </button>
             </div>
+
+            {/* Sequential Simulation Burst Test Runner */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4 col-span-full">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-bold text-white flex items-center gap-2 text-base">
+                    <Zap className="w-5 h-5 text-amber-400" />
+                    Sequential Simulation Burst Test Runner
+                  </h2>
+                  <p className="text-xs text-white/50 mt-1">
+                    Executes N sequential simulation steps automatically in developer test mode. Runs actions sequentially using existing single-step logic (bypassing 60s cooldown for developer testing).
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 bg-black/40 border border-white/10 rounded-xl p-3">
+                <span className="text-xs text-white/70 font-medium">Select Burst Count:</span>
+                {[1, 5, 10, 25, 50].map(count => (
+                  <button
+                    key={count}
+                    onClick={() => setBurstCount(count)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      burstCount === count
+                        ? 'bg-amber-500 text-black shadow-lg scale-105'
+                        : 'bg-white/10 text-white hover:bg-white/20'
+                    }`}
+                  >
+                    {count} {count === 1 ? 'Step' : 'Steps'}
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => handleRunBurstSimulation(burstCount)}
+                  disabled={isExecuting}
+                  className="ml-auto px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-black font-extrabold rounded-xl transition-all text-xs flex items-center gap-2 shadow-lg disabled:opacity-50"
+                >
+                  {isExecuting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-black" />}
+                  Run {burstCount} {burstCount === 1 ? 'Step' : 'Steps'} Burst
+                </button>
+              </div>
+
+              {/* Execution Results Summary & Step Log */}
+              {burstResults.length > 0 && (
+                <div className="bg-black/60 border border-white/10 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                    <h3 className="font-bold text-white text-xs flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-emerald-400" />
+                      Burst Simulation Results ({burstResults.length} Steps Executed)
+                    </h3>
+                    <button 
+                      onClick={() => setBurstResults([])}
+                      className="text-[11px] text-white/40 hover:text-white underline"
+                    >
+                      Clear Log
+                    </button>
+                  </div>
+
+                  <div className="max-h-60 overflow-y-auto space-y-1.5 pr-2 font-mono text-xs">
+                    {burstResults.map((res, idx) => (
+                      <div 
+                        key={idx} 
+                        className="flex items-center justify-between bg-white/5 border border-white/5 rounded-lg px-3 py-2 text-xs"
+                      >
+                        <span className="text-white/40 font-bold">Step {idx + 1}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            res.outcome === 'posted' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+                            res.outcome === 'replied' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
+                            res.outcome === 'liked' ? 'bg-pink-500/20 text-pink-300 border border-pink-500/30' :
+                            'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+                          }`}>
+                            {res.outcome?.toUpperCase()}
+                          </span>
+                          {res.action?.authorName && (
+                            <span className="text-white font-medium">{res.action.authorName}</span>
+                          )}
+                          {res.action?.targetAuthorName && (
+                            <span className="text-white/50 text-[11px]">→ @{res.action.targetAuthorName}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {/* TAB 2: AI PROFILES MANAGEMENT */}
         {activeTab === 'profiles' && (
-          <div className="flex-1 bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col min-h-[450px]">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h2 className="font-bold text-white text-base">AI Profiles Directory</h2>
-                <p className="text-xs text-white/50">Manage individual AI persona configurations and verified badges.</p>
-              </div>
-              <button
-                onClick={handleExportProfiles}
-                className="px-3 py-2 bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-bold hover:bg-emerald-600/30 transition-colors flex items-center gap-1.5"
-              >
-                <Download className="w-4 h-4" />
-                Export Profiles JSON
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-hidden">
-              <DreamXCharacterManager profiles={profiles} onProfilesChanged={loadData} />
-            </div>
+          <div className="flex-1 min-h-[500px]">
+            <DreamXCharacterManager profiles={profiles} onProfilesChanged={loadData} />
           </div>
         )}
 
         {/* TAB 3: BULK IMPORT & EXPORT */}
         {activeTab === 'import_export' && (
           <div className="space-y-6">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="font-bold text-white text-base flex items-center gap-2">
-                    <Upload className="w-5 h-5 text-emerald-400" />
-                    Bulk Import AI Profiles (JSON)
-                  </h2>
-                  <p className="text-xs text-white/50 mt-1">
-                    Upload or paste JSON matching the v1 profile schema. Atomic pre-flight validation protects existing social history.
-                  </p>
-                </div>
+            {/* Action Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-4 bg-white/5 border border-white/10 rounded-2xl p-5">
+              <div>
+                <h2 className="font-bold text-white text-base">Bulk AI Profile Management (JSON Schema v1)</h2>
+                <p className="text-xs text-white/50">Import multiple AI personas safely or export existing AI profiles.</p>
+              </div>
 
-                <div className="flex gap-2">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileUpload}
-                    accept=".json"
-                    className="hidden"
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Load JSON File
-                  </button>
-                  <button
-                    onClick={handleExportProfiles}
-                    className="px-3 py-2 bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-bold hover:bg-emerald-600/30 transition-colors flex items-center gap-1.5"
-                  >
-                    <Download className="w-4 h-4" />
-                    Export Current Profiles
-                  </button>
+              <div className="flex items-center gap-3">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept=".json"
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload JSON File
+                </button>
+                <button
+                  onClick={handleExportProfiles}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Export AI Profiles JSON
+                </button>
+              </div>
+            </div>
+
+            {/* Config & Editor Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Left Column: Import Controls & Options */}
+              <div className="space-y-4">
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
+                  <h3 className="font-bold text-white text-sm">Import Options</h3>
+
+                  <div>
+                    <label className="block text-xs text-white/50 mb-1.5 font-medium">Duplicate Handle Resolution Mode</label>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-xs text-white cursor-pointer">
+                        <input
+                          type="radio"
+                          name="duplicateMode"
+                          checked={duplicateMode === 'update'}
+                          onChange={() => setDuplicateMode('update')}
+                          className="accent-blue-500"
+                        />
+                        <span><strong>Update Mode</strong> (Overwrites config, preserves social history)</span>
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-white cursor-pointer">
+                        <input
+                          type="radio"
+                          name="duplicateMode"
+                          checked={duplicateMode === 'skip'}
+                          onChange={() => setDuplicateMode('skip')}
+                          className="accent-blue-500"
+                        />
+                        <span><strong>Skip Mode</strong> (Skips existing profiles)</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-white/10">
+                    <label className="flex items-center gap-2 text-xs text-amber-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={allowSkipInvalid}
+                        onChange={e => setAllowSkipInvalid(e.target.checked)}
+                        className="accent-amber-500"
+                      />
+                      <span>Allow partial import (skip invalid records)</span>
+                    </label>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={handleValidateJSON}
+                      disabled={isValidating || !jsonText.trim()}
+                      className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {isValidating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                      Validate Payload
+                    </button>
+                  </div>
+
+                  {validationReport && (
+                    <button
+                      onClick={handleExecuteImport}
+                      disabled={isImporting || (!validationReport.canImport && !allowSkipInvalid)}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg"
+                    >
+                      {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                      Execute Profile Import
+                    </button>
+                  )}
+
+                  {importStatus && (
+                    <div className="p-3 bg-black/40 border border-white/10 rounded-xl text-xs text-white/80 font-mono">
+                      {importStatus}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <textarea
-                value={jsonText}
-                onChange={e => {
-                  setJsonText(e.target.value);
-                  setValidationReport(null);
-                  setImportStatus(null);
-                }}
-                placeholder='Paste JSON here... Example: {"version":1,"profiles":[{"display_name":"Maria","handle":"@MariaEnoce","verification":{"type":"blue"}}]}'
-                rows={6}
-                className="w-full bg-black/60 border border-white/10 rounded-xl p-3 text-white text-xs font-mono resize-none focus:outline-none focus:border-emerald-500"
-              />
+              {/* Right Column: JSON Payload Editor */}
+              <div className="md:col-span-2 bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col space-y-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-bold text-white text-sm">JSON Payload Editor</h3>
+                  <a
+                    href="/docs/dreamx-ai-profiles.example.json"
+                    target="_blank"
+                    download="dreamx-ai-profiles.example.json"
+                    className="text-xs text-blue-400 hover:underline flex items-center gap-1"
+                  >
+                    Download Sample JSON
+                  </a>
+                </div>
 
-              <div className="flex gap-3 items-center">
-                <button
-                  onClick={handleValidateJSON}
-                  disabled={isValidating || !jsonText.trim()}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isValidating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                  1. Validate JSON
-                </button>
-
-                <button
-                  onClick={() => {
-                    setJsonText('');
+                <textarea
+                  value={jsonText}
+                  onChange={e => {
+                    setJsonText(e.target.value);
                     setValidationReport(null);
                     setImportStatus(null);
                   }}
-                  className="px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white/70 text-xs font-bold rounded-xl transition-colors"
-                >
-                  Clear / Reset
-                </button>
-              </div>
+                  placeholder='Paste JSON array or object here...'
+                  className="w-full flex-1 min-h-[300px] bg-black/50 border border-white/10 rounded-xl p-4 text-xs font-mono text-white/90 focus:outline-none focus:border-blue-500 resize-y"
+                />
 
-              {/* Validation Report & Preview */}
-              {validationReport && (
-                <div className="bg-black/50 border border-white/10 rounded-xl p-4 space-y-4">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                    <h3 className="font-bold text-white text-xs uppercase tracking-wider">
-                      Validation Preview & Pre-Flight Report
-                    </h3>
-                    <div className="flex gap-4 text-xs font-semibold">
-                      <span className="text-white/60">Total: {validationReport.total}</span>
-                      <span className="text-emerald-400">Valid: {validationReport.validCount}</span>
-                      <span className="text-amber-400">Duplicates: {validationReport.duplicateCount}</span>
-                      <span className="text-red-400">Invalid: {validationReport.invalidCount}</span>
+                {/* Pre-Flight Validation Report */}
+                {validationReport && (
+                  <div className="bg-black/60 border border-white/10 rounded-xl p-4 space-y-3 text-xs">
+                    <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                      <span className="font-bold text-white">Pre-Flight Validation Report</span>
+                      <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                        validationReport.canImport ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                      }`}>
+                        {validationReport.canImport ? 'PASSED & READY' : 'ERRORS DETECTED'}
+                      </span>
                     </div>
-                  </div>
 
-                  {/* Errors List if any */}
-                  {validationReport.invalidCount > 0 && (
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-xs text-red-300 space-y-1">
-                      <div className="font-bold flex items-center gap-1">
-                        <XCircle className="w-4 h-4" />
-                        Validation Errors Detected ({validationReport.invalidCount} records):
-                      </div>
-                      <ul className="list-disc list-inside space-y-0.5 font-mono text-[11px]">
-                        {validationReport.items.filter(i => !i.isValid).map((item, idx) => (
-                          <li key={idx}>
-                            Record #{idx + 1} ({item.raw?.handle || 'Unknown'}): {item.errors.join(', ')}
-                          </li>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <div className="bg-white/5 p-2 rounded-lg"><span className="block text-white/50 text-[10px]">Total</span><strong className="text-white text-sm">{validationReport.total}</strong></div>
+                      <div className="bg-emerald-500/10 p-2 rounded-lg"><span className="block text-emerald-400 text-[10px]">Valid</span><strong className="text-emerald-400 text-sm">{validationReport.validCount}</strong></div>
+                      <div className="bg-red-500/10 p-2 rounded-lg"><span className="block text-red-400 text-[10px]">Invalid</span><strong className="text-red-400 text-sm">{validationReport.invalidCount}</strong></div>
+                      <div className="bg-amber-500/10 p-2 rounded-lg"><span className="block text-amber-400 text-[10px]">Duplicates</span><strong className="text-amber-400 text-sm">{validationReport.duplicateCount}</strong></div>
+                    </div>
+
+                    {validationReport.items.some(i => i.errors.length > 0) && (
+                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                        <span className="font-bold text-red-400 text-[11px]">Validation Errors:</span>
+                        {validationReport.items.map((item, idx) => (
+                          item.errors.length > 0 && (
+                            <div key={idx} className="p-2 bg-red-500/10 border border-red-500/20 rounded text-red-300 text-[11px]">
+                              <strong>Item #{idx + 1} ({item.raw?.display_name || item.raw?.handle || 'Unknown'}):</strong> {item.errors.join(', ')}
+                            </div>
+                          )
                         ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Duplicate Mode & Import Controls */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-white/10">
-                    <div>
-                      <label className="block text-xs font-bold text-white/70 mb-1">
-                        Duplicate Handle Strategy:
-                      </label>
-                      <select
-                        value={duplicateMode}
-                        onChange={e => setDuplicateMode(e.target.value as 'update' | 'skip')}
-                        className="w-full bg-black/70 border border-white/20 rounded-lg px-3 py-1.5 text-white text-xs"
-                      >
-                        <option value="update">Update existing profile personality & config (Default)</option>
-                        <option value="skip">Skip existing profile if handle matches</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-white/70 mb-1">
-                        Invalid Record Handling:
-                      </label>
-                      <label className="flex items-center gap-2 text-xs text-white/80 cursor-pointer mt-1">
-                        <input
-                          type="checkbox"
-                          checked={allowSkipInvalid}
-                          onChange={e => setAllowSkipInvalid(e.target.checked)}
-                          className="rounded border-white/20"
-                        />
-                        <span>Skip invalid records and import remaining valid profiles</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="pt-2">
-                    <button
-                      onClick={handleExecuteImport}
-                      disabled={isImporting || (!allowSkipInvalid && validationReport.invalidCount > 0)}
-                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-40"
-                    >
-                      {isImporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-                      2. Execute Bulk AI Profile Import
-                    </button>
-                    {!allowSkipInvalid && validationReport.invalidCount > 0 && (
-                      <p className="text-[11px] text-red-400 mt-1.5 text-center">
-                        Import blocked because validation report contains invalid records. Fix JSON errors or enable &quot;Skip invalid records&quot;.
-                      </p>
+                      </div>
                     )}
                   </div>
-                </div>
-              )}
-
-              {/* Status Message */}
-              {importStatus && (
-                <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs font-bold text-blue-300">
-                  {importStatus}
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         )}

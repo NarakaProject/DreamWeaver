@@ -127,7 +127,11 @@ export function DreamX({ apiKeys, selectedModel }: DreamXProps) {
         <div className="flex items-center gap-4">
           <div className="text-xs text-white/50 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            Signed in as <strong className="text-white">{humanUser.display_name}</strong> ({humanUser.handle})
+            <span>Signed in as</span>
+            <Link href={`/dreamx/profile/${encodeURIComponent(humanUser.handle)}`} className="text-white font-bold hover:underline">
+              {humanUser.display_name}
+            </Link>
+            <span>({humanUser.handle})</span>
           </div>
           <Link href="/dreamx/control" className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold rounded-lg hover:bg-amber-500/20 transition-colors flex items-center gap-1.5" title="Dev Control Panel">
             <ShieldAlert className="w-3.5 h-3.5" />
@@ -142,9 +146,10 @@ export function DreamX({ apiKeys, selectedModel }: DreamXProps) {
           {/* Human User Post Composer (No AI Character Selector!) */}
           <div className="p-4 border-x border-b border-white/10 bg-black/20">
             <form onSubmit={handleCreateHumanPost} className="flex gap-4">
-              <div className="w-11 h-11 rounded-full bg-blue-500/20 border border-blue-500/30 flex-shrink-0 flex items-center justify-center font-bold text-blue-400 text-lg">
+              <Link href={`/dreamx/profile/${encodeURIComponent(humanUser.handle)}`} className="w-11 h-11 rounded-full bg-blue-500/20 border border-blue-500/30 flex-shrink-0 flex items-center justify-center font-bold text-blue-400 text-lg hover:opacity-80 transition-opacity">
                 {humanUser.avatar_url ? <img src={humanUser.avatar_url} alt={humanUser.display_name} className="w-full h-full rounded-full object-cover" /> : humanUser.display_name.charAt(0)}
-              </div>
+              </Link>
+
               <div className="flex-1">
                 <DreamXMentionComposer 
                   value={postContent}

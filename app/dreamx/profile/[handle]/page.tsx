@@ -2,25 +2,23 @@
 
 import React, { useState, useEffect, use } from 'react';
 import type { DreamXProfile, DreamXPost as DreamXPostType } from '@/lib/dreamx/types';
-import { ArrowLeft, Calendar, FileText, MessageSquare, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, FileText, MessageSquare, Loader2, User } from 'lucide-react';
 import Link from 'next/link';
 import { DreamXPost } from '@/components/dreamx/DreamXPost';
 import { DreamXThreadModal } from '@/components/dreamx/DreamXThreadModal';
 import { DreamXVerificationBadge } from '@/components/dreamx/DreamXVerificationBadge';
-
 
 export default function DreamXProfilePage({ params }: { params: Promise<{ handle: string }> }) {
   const resolvedParams = use(params);
   const rawHandle = decodeURIComponent(resolvedParams.handle);
   const handle = rawHandle.startsWith('@') ? rawHandle : `@${rawHandle}`;
 
-  const [profile, setProfile] = useState<DreamXProfile | null>(null);
+  const [profile, setProfile] = useState<(DreamXProfile & { is_human?: boolean; isHuman?: boolean }) | null>(null);
   const [originalPosts, setOriginalPosts] = useState<DreamXPostType[]>([]);
   const [replyPosts, setReplyPosts] = useState<DreamXPostType[]>([]);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies'>('posts');
   const [loading, setLoading] = useState(true);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-
 
   const loadProfileData = async () => {
     try {
@@ -30,7 +28,8 @@ export default function DreamXProfilePage({ params }: { params: Promise<{ handle
         setProfile(profile);
 
         if (profile) {
-          const postsRes = await fetch(`/api/dreamx/posts?profile_id=${profile.id}&profile_type=ai`);
+          const profileType = (profile.is_human || profile.isHuman) ? 'human' : 'ai';
+          const postsRes = await fetch(`/api/dreamx/posts?profile_id=${profile.id}&profile_type=${profileType}`);
           if (postsRes.ok) {
             const { original, replies } = await postsRes.json();
             setOriginalPosts(original || []);
@@ -58,12 +57,13 @@ export default function DreamXProfilePage({ params }: { params: Promise<{ handle
     return (
       <div className="min-h-screen bg-[#090a0f] text-white flex flex-col items-center justify-center p-4">
         <h1 className="text-2xl font-bold mb-2">Profile Not Found</h1>
-        <p className="text-white/50 mb-4">No DreamX AI persona exists with handle {handle}</p>
+        <p className="text-white/50 mb-4">No DreamX profile exists with handle {handle}</p>
         <Link href="/dreamx" className="px-4 py-2 bg-blue-600 rounded-lg text-sm font-bold">Return to DreamX</Link>
       </div>
     );
   }
 
+  const isHuman = Boolean(profile.is_human || profile.isHuman);
   const activePosts = activeTab === 'posts' ? originalPosts : replyPosts;
 
   return (
@@ -74,13 +74,17 @@ export default function DreamXProfilePage({ params }: { params: Promise<{ handle
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <div>
-          <h1 className="font-bold text-white leading-tight flex items-center gap-1">
+          <h1 className="font-bold text-white leading-tight flex items-center gap-1.5">
             <span>{profile.display_name}</span>
             <DreamXVerificationBadge type={profile.verification_type} />
+            {isHuman && (
+              <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-[10px] font-bold">
+                You
+              </span>
+            )}
           </h1>
           <p className="text-xs text-white/50">{originalPosts.length + replyPosts.length} posts</p>
         </div>
-
       </div>
 
       {/* Main Container */}
@@ -93,27 +97,24 @@ export default function DreamXProfilePage({ params }: { params: Promise<{ handle
         </div>
 
         {/* Profile Info */}
-        <div className="pt-12 px-6 pb-6 border-b border-white/10 space-y-4">
+        <div className="pt-12 px-6 pb-6 border-b border-white/10 space-y-3">
           <div>
-            <h2 className="text-xl font-bold text-white flex items-center gap-1.5">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
               <span>{profile.display_name}</span>
               <DreamXVerificationBadge type={profile.verification_type} className="w-5 h-5" />
+              {isHuman && (
+                <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-xs font-bold flex items-center gap-1">
+                  <User className="w-3 h-3" /> You
+                </span>
+              )}
             </h2>
             <p className="text-sm text-white/50">{profile.handle}</p>
           </div>
 
-
-          {profile.bio && <p className="text-sm text-white/90">{profile.bio}</p>}
-
-          <div className="grid grid-cols-2 gap-3 text-xs text-white/60 bg-white/5 p-3 rounded-xl">
-            {profile.personality && <div><span className="font-semibold text-white/80">Personality:</span> {profile.personality}</div>}
-            {profile.interests && <div><span className="font-semibold text-white/80">Interests:</span> {profile.interests}</div>}
-            {profile.speaking_style && <div><span className="font-semibold text-white/80">Speaking Style:</span> {profile.speaking_style}</div>}
-            {profile.posting_guidelines && <div><span className="font-semibold text-white/80">Guidelines:</span> {profile.posting_guidelines}</div>}
-          </div>
+          {profile.bio && <p className="text-sm text-white/90 leading-relaxed">{profile.bio}</p>}
 
           <div className="flex gap-4 text-xs text-white/50 pt-1">
-            <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> Joined {new Date(profile.created_at).toLocaleDateString()}</div>
+            <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> Joined {profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'DreamX'}</div>
           </div>
         </div>
 
@@ -169,4 +170,3 @@ export default function DreamXProfilePage({ params }: { params: Promise<{ handle
     </div>
   );
 }
-
