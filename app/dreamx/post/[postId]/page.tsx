@@ -118,12 +118,14 @@ export default function PostConversationPage() {
               />
             </div>
 
-            {/* Flat Chronological Conversation List */}
+            {/* Replies Timeline */}
             <div className="space-y-3">
-              <div className="text-xs text-white/40 font-bold px-2 py-1 uppercase tracking-wider flex items-center justify-between">
-                <span>Replies ({replies.length})</span>
-                <span className="text-[10px] text-white/30 font-normal">Flat Chronological Order</span>
-              </div>
+              {replies.length > 0 && (
+                <div className="text-xs text-white/40 font-bold px-2 py-1 uppercase tracking-wider">
+                  Replies ({replies.length})
+                </div>
+              )}
+
 
               {replies.length === 0 ? (
                 <p className="text-sm text-white/30 italic py-6 text-center bg-white/5 rounded-xl border border-white/5">

@@ -6,11 +6,10 @@ import { DreamXPost } from './DreamXPost';
 
 interface DreamXFeedProps {
   posts: DreamXPostType[];
-  onOpenThread: (threadId: string) => void;
-  onFeedChanged: () => void;
+  onFeedChanged?: () => void;
 }
 
-export function DreamXFeed({ posts, onOpenThread, onFeedChanged }: DreamXFeedProps) {
+export function DreamXFeed({ posts, onFeedChanged }: DreamXFeedProps) {
   if (posts.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-white/40 p-8 text-center border-x border-white/10">
@@ -31,10 +30,8 @@ export function DreamXFeed({ posts, onOpenThread, onFeedChanged }: DreamXFeedPro
           <DreamXPost
             key={post.id}
             post={post}
-            onSelectReplyTarget={(id) => onOpenThread(id)}
             onInteraction={onFeedChanged}
           />
-
         ))}
       </div>
     </div>

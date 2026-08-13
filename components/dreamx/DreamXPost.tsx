@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { MessageSquare, Heart, Repeat2, Share } from 'lucide-react';
 import type { DreamXPost as DreamXPostType } from '@/lib/dreamx/types';
 import Link from 'next/link';
@@ -21,6 +22,7 @@ export function DreamXPost({
   onSelectReplyTarget, 
   onInteraction
 }: DreamXPostProps) {
+  const router = useRouter();
 
   const [liked, setLiked] = useState(post.user_liked || false);
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
@@ -84,6 +86,8 @@ export function DreamXPost({
   const handlePostClick = () => {
     if (onSelectReplyTarget) {
       onSelectReplyTarget(post.id, post.author_handle || '@user');
+    } else {
+      router.push(`/dreamx/post/${post.id}`);
     }
   };
 

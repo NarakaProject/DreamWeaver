@@ -4,12 +4,10 @@ import React, { useState, useEffect } from 'react';
 import type { DreamXProfile, DreamXPost, DreamXUserProfile } from '@/lib/dreamx/types';
 import { DreamXFeed } from './DreamXFeed';
 import { DreamXOnboarding } from './DreamXOnboarding';
-import { DreamXThreadModal } from './DreamXThreadModal';
 
 import { Sparkles, Send, Loader2, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { DreamXMentionComposer } from './DreamXMentionComposer';
-
 
 interface DreamXProps {
   apiKeys: any;
@@ -25,9 +23,6 @@ export function DreamX({ apiKeys, selectedModel }: DreamXProps) {
   // Composer state (Human User ONLY)
   const [postContent, setPostContent] = useState('');
   const [isPosting, setIsPosting] = useState(false);
-
-  // Thread Modal state
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
@@ -111,7 +106,7 @@ export function DreamX({ apiKeys, selectedModel }: DreamXProps) {
     return <div className="flex-1 flex items-center justify-center text-white/50"><Loader2 className="w-8 h-8 animate-spin" /></div>;
   }
 
-  // 1. First-Run Onboarding Gate
+  // First-Run Onboarding Gate
   if (!humanUser) {
     return <DreamXOnboarding onComplete={(user) => { setHumanUser(user); loadData(); }} />;
   }
@@ -143,7 +138,7 @@ export function DreamX({ apiKeys, selectedModel }: DreamXProps) {
       <div className="flex-1 flex overflow-hidden">
         {/* Main Timeline Area */}
         <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full">
-          {/* Human User Post Composer (No AI Character Selector!) */}
+          {/* Human User Post Composer */}
           <div className="p-4 border-x border-b border-white/10 bg-black/20">
             <form onSubmit={handleCreateHumanPost} className="flex gap-4">
               <Link href={`/dreamx/profile/${encodeURIComponent(humanUser.handle)}`} className="w-11 h-11 rounded-full bg-blue-500/20 border border-blue-500/30 flex-shrink-0 flex items-center justify-center font-bold text-blue-400 text-lg hover:opacity-80 transition-opacity">
@@ -175,21 +170,10 @@ export function DreamX({ apiKeys, selectedModel }: DreamXProps) {
 
           <DreamXFeed 
             posts={posts} 
-            onOpenThread={(threadId) => setActiveThreadId(threadId)}
             onFeedChanged={loadData}
           />
         </div>
       </div>
-
-
-      {/* Dedicated Thread Modal */}
-      {activeThreadId && (
-        <DreamXThreadModal 
-          threadId={activeThreadId}
-          onClose={() => setActiveThreadId(null)}
-          onPostCreated={loadData}
-        />
-      )}
     </div>
   );
 }

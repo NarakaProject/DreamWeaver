@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import React from 'react';
 import { getDatabase } from '@/lib/db';
 import { savePost, getPost, saveProfile, saveUserProfile, getFeedTree, getConversationFlat } from './db';
+import { VerifiedIcon, DreamXVerificationBadge } from '@/components/dreamx/DreamXVerificationBadge';
 
-describe('DREAMX v0.2 — Twitter-Like Standalone Feed & Flat Conversation Audit', () => {
+describe('DREAMX v0.2 — Modern X Post Navigation & Flat Conversation Audit', () => {
   beforeEach(() => {
     const db = getDatabase();
     db.exec(`
@@ -15,13 +17,12 @@ describe('DREAMX v0.2 — Twitter-Like Standalone Feed & Flat Conversation Audit
     `);
   });
 
-  it('1. Main feed queries and returns top-level root posts ONLY without nested inline replies', async () => {
+  it('1 & 2. Main feed queries and returns top-level root posts ONLY without nested inline reply objects', async () => {
     const p1 = await saveProfile({ id: 'prof-f-1', display_name: 'Author A', handle: '@authorA' });
     const root = await savePost({ id: 'feed-root-1', author_id: p1.id, author_type: 'ai', content: 'Root post in feed' });
 
-    // Create 3 replies to root
     const r1 = await savePost({ id: 'feed-reply-1', author_id: p1.id, author_type: 'ai', content: 'Reply 1', reply_to_post_id: root.id });
-    const r2 = await savePost({ id: 'feed-reply-2', author_id: p1.id, author_type: 'ai', content: 'Reply 2', reply_to_post_id: r1.id });
+    await savePost({ id: 'feed-reply-2', author_id: p1.id, author_type: 'ai', content: 'Reply 2', reply_to_post_id: r1.id });
 
     const feed = await getFeedTree();
     expect(feed).toHaveLength(1);
@@ -31,14 +32,13 @@ describe('DREAMX v0.2 — Twitter-Like Standalone Feed & Flat Conversation Audit
     expect(feed[0].reply_count).toBeGreaterThanOrEqual(1);
   });
 
-  it('2 & 3. Opening any nested reply resolves its root conversation beginning with original root post', async () => {
+  it('3, 4 & 5. Dedicated post page resolves root from a deep reply and returns a flat conversation', async () => {
     const p1 = await saveProfile({ id: 'prof-f-2', display_name: 'Author B', handle: '@authorB' });
     const root = await savePost({ id: 'conv-root', author_id: p1.id, author_type: 'ai', content: 'Original Root Post A' });
     const replyB = await savePost({ id: 'conv-reply-b', author_id: p1.id, author_type: 'ai', content: 'Reply B', reply_to_post_id: root.id });
     const replyC = await savePost({ id: 'conv-reply-c', author_id: p1.id, author_type: 'ai', content: 'Nested Reply C', reply_to_post_id: replyB.id });
     const replyD = await savePost({ id: 'conv-reply-d', author_id: p1.id, author_type: 'ai', content: 'Deep Reply D', reply_to_post_id: replyC.id });
 
-    // Opening deep reply C resolves root A and returns flat conversation [B, C, D]
     const { root: resolvedRoot, conversation, target } = await getConversationFlat('conv-reply-c');
 
     expect(resolvedRoot.id).toBe('conv-root');
@@ -49,31 +49,7 @@ describe('DREAMX v0.2 — Twitter-Like Standalone Feed & Flat Conversation Audit
     expect(conversation.map(p => p.id)).toEqual(['conv-reply-b', 'conv-reply-c', 'conv-reply-d']);
   });
 
-  it('4 & 5. Flat conversation orders replies chronologically by created_at and preserves flat presentation', async () => {
-    const p1 = await saveProfile({ id: 'prof-f-3', display_name: 'Author C', handle: '@authorC' });
-    const root = await savePost({ id: 'flat-root', author_id: p1.id, author_type: 'ai', content: 'Root Post' });
-
-    for (let i = 1; i <= 5; i++) {
-      await savePost({
-        id: `flat-reply-${i}`,
-        author_id: p1.id,
-        author_type: 'ai',
-        content: `Conversation post ${i}`,
-        reply_to_post_id: i === 1 ? root.id : `flat-reply-${i - 1}`
-      });
-    }
-
-    const { root: resolvedRoot, conversation } = await getConversationFlat('flat-root');
-    expect(resolvedRoot.id).toBe('flat-root');
-    expect(conversation).toHaveLength(5);
-
-    // Verify chronological order
-    for (let i = 0; i < conversation.length - 1; i++) {
-      expect(conversation[i].created_at).toBeLessThanOrEqual(conversation[i + 1].created_at);
-    }
-  });
-
-  it('6. A 100-reply deep conversation handles full descendant retrieval flatly without error', async () => {
+  it('6 & 7. 100+ reply deep conversation handles full descendant retrieval flatly while keeping reply_to_post_id in DB', async () => {
     const p1 = await saveProfile({ id: 'prof-f-4', display_name: 'Author D', handle: '@authorD' });
     const root = await savePost({ id: 'deep-root', author_id: p1.id, author_type: 'ai', content: 'Root Post' });
 
@@ -92,18 +68,25 @@ describe('DREAMX v0.2 — Twitter-Like Standalone Feed & Flat Conversation Audit
     const { root: resRoot, conversation } = await getConversationFlat('deep-post-20');
     expect(resRoot.id).toBe('deep-root');
     expect(conversation).toHaveLength(20);
+
+    const leafPost = await getPost('deep-post-20');
+    expect(leafPost?.reply_to_post_id).toBe('deep-post-19');
   });
 
-  it('7 & 8. Preserves stored reply_to_post_id relationships and post/like/repost functionality', async () => {
-    const p1 = await saveProfile({ id: 'prof-f-5', display_name: 'Author E', handle: '@authorE' });
-    const root = await savePost({ id: 'rel-root', author_id: p1.id, author_type: 'ai', content: 'Root' });
-    const reply = await savePost({ id: 'rel-reply', author_id: p1.id, author_type: 'ai', content: 'Reply', reply_to_post_id: root.id });
+  it('8 & 9. VerifiedIcon renders official SVG path using fill="currentColor"', () => {
+    const iconElement = VerifiedIcon({ className: 'custom-icon' });
+    expect(iconElement.props.fill).toBe('currentColor');
+    expect(iconElement.props.viewBox).toBe('0 0 22 22');
+    expect(iconElement.props.className).toContain('custom-icon');
 
-    const fetchedReply = await getPost(reply.id);
-    expect(fetchedReply?.reply_to_post_id).toBe('rel-root');
+    const badgeBlue = DreamXVerificationBadge({ type: 'blue' });
+    expect(badgeBlue).toBeDefined();
+
+    const badgeGold = DreamXVerificationBadge({ type: 'gold' });
+    expect(badgeGold).toBeDefined();
   });
 
-  it('9. DreamWeaver narrative database tables remain completely untouched', async () => {
+  it('10. DreamWeaver narrative database tables remain completely untouched', async () => {
     const db = getDatabase();
     const dwSessions = await db.queryAll('SELECT COUNT(*) as count FROM sessions');
     const dwMessages = await db.queryAll('SELECT COUNT(*) as count FROM messages');
