@@ -465,6 +465,13 @@ class LibSqlAdapter implements DbAdapter {
 }
 
 let dbInstance: DbAdapter;
+let dreamxInitError: Error | null = null;
+
+export function assertDreamXAvailable(): void {
+  if (dreamxInitError) {
+    throw new Error(`DreamX Subsystem Unavailable: Database schema migration failed. (${dreamxInitError.message})`);
+  }
+}
 
 export function getDatabase(): DbAdapter {
   if (dbInstance) return dbInstance;
@@ -498,7 +505,7 @@ export function getDatabase(): DbAdapter {
           const hasReplyTo = tableInfo.some((col: any) => col.name === 'reply_to_post_id');
           const replyToSrc = hasReplyTo ? 'reply_to_post_id' : 'NULL';
 
-          // Atomic transaction
+          // Atomic transaction - if any statement fails, better-sqlite3 automatically rolls back
           rawDb.transaction(() => {
             // 1. Create target v0.2 table
             rawDb.prepare(`
@@ -546,15 +553,28 @@ export function getDatabase(): DbAdapter {
           console.log('DreamX schema migration completed successfully.');
         }
       }
-    } catch (migErr) {
+    } catch (migErr: any) {
       console.error('DreamX synchronous migration failed (rolling back automatically):', migErr);
+      dreamxInitError = migErr instanceof Error ? migErr : new Error(String(migErr));
     }
     // ---------------------------------------------------------
 
   } catch (e) {
     console.warn('Native better-sqlite3 initialization failed. Falling back to @libsql/client:', e);
     dbInstance = new LibSqlAdapter(dbPath);
+
+    // Documented libSQL fallback guard: Check for unmigrated legacy schema asynchronously
+    (async () => {
+      try {
+        const tableInfo = await dbInstance.queryAll<{ name: string }>("PRAGMA table_info(dreamx_posts);");
+        const hasProfileId = tableInfo.some(col => col.name === 'profile_id');
+        if (hasProfileId) {
+          dreamxInitError = new Error('DreamX subsystem unavailable under @libsql/client fallback with legacy schema. Native better-sqlite3 adapter required.');
+        }
+      } catch {}
+    })();
   }
+
 
   // Initialize Schema
   const initSql = `

@@ -1,4 +1,4 @@
-import { getDatabase } from '@/lib/db';
+import { getDatabase, assertDreamXAvailable } from '@/lib/db';
 import type { 
   DreamXUserProfile, 
   DreamXProfile, 
@@ -11,17 +11,22 @@ function generateId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 }
 
+function getDreamXDb() {
+  assertDreamXAvailable();
+  return getDatabase();
+}
+
 // ----------------------------------------------------
 // Human User Profile DAL
 // ----------------------------------------------------
 
 export async function getUserProfile(): Promise<DreamXUserProfile | undefined> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   return db.queryFirst<DreamXUserProfile>('SELECT * FROM dreamx_user_profile LIMIT 1');
 }
 
 export async function saveUserProfile(profile: Partial<DreamXUserProfile> & { display_name: string; handle: string }): Promise<DreamXUserProfile> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const existing = await getUserProfile();
   const id = profile.id || existing?.id || generateId('dx-user');
   const now = Date.now();
@@ -76,23 +81,23 @@ export async function saveUserProfile(profile: Partial<DreamXUserProfile> & { di
 // ----------------------------------------------------
 
 export async function getProfiles(): Promise<DreamXProfile[]> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   return db.queryAll<DreamXProfile>('SELECT * FROM dreamx_profiles ORDER BY updated_at DESC');
 }
 
 export async function getProfile(id: string): Promise<DreamXProfile | undefined> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   return db.queryFirst<DreamXProfile>('SELECT * FROM dreamx_profiles WHERE id = ?', [id]);
 }
 
 export async function getProfileByHandle(handle: string): Promise<DreamXProfile | undefined> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const normalizedHandle = handle.startsWith('@') ? handle : `@${handle}`;
   return db.queryFirst<DreamXProfile>('SELECT * FROM dreamx_profiles WHERE LOWER(handle) = LOWER(?)', [normalizedHandle]);
 }
 
 export async function saveProfile(profile: Partial<DreamXProfile> & { display_name: string; handle: string }): Promise<DreamXProfile> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const id = profile.id || generateId('dx-prof');
   const now = Date.now();
   
@@ -169,7 +174,7 @@ export async function saveProfile(profile: Partial<DreamXProfile> & { display_na
  * 10. Delete profile X.
  */
 export async function deleteProfile(id: string): Promise<void> {
-  const db = getDatabase();
+  const db = getDreamXDb();
 
   await db.batchExecute([
     {
@@ -216,7 +221,7 @@ export async function deleteProfile(id: string): Promise<void> {
 // ----------------------------------------------------
 
 export async function getPost(id: string): Promise<DreamXPost | undefined> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const raw = await db.queryFirst<any>('SELECT * FROM dreamx_posts WHERE id = ?', [id]);
   if (!raw) return undefined;
   return populatePostMetadata(raw);
@@ -229,7 +234,7 @@ export async function savePost(post: {
   content: string; 
   reply_to_post_id?: string | null 
 }): Promise<DreamXPost> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const id = post.id || generateId('dx-post');
   const now = Date.now();
 
@@ -265,7 +270,7 @@ export async function savePost(post: {
 }
 
 export async function deletePost(id: string): Promise<void> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   await db.batchExecute([
     {
       sql: `DELETE FROM dreamx_likes WHERE post_id = ?`,
@@ -292,7 +297,7 @@ export async function deletePost(id: string): Promise<void> {
  * Direct replies are attached recursively to each root post.
  */
 export async function getFeedTree(): Promise<DreamXPost[]> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const rootPostsRaw = await db.queryAll<any>(
     'SELECT * FROM dreamx_posts WHERE reply_to_post_id IS NULL ORDER BY created_at DESC LIMIT 50'
   );
@@ -313,7 +318,7 @@ export async function getFeedTree(): Promise<DreamXPost[]> {
  * Returns replies attached to a post, ordered created_at ASC.
  */
 export async function getRepliesTree(postId: string, humanId?: string): Promise<DreamXPost[]> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const repliesRaw = await db.queryAll<any>(
     'SELECT * FROM dreamx_posts WHERE reply_to_post_id = ? ORDER BY created_at ASC',
     [postId]
@@ -334,7 +339,7 @@ export async function getRepliesTree(postId: string, humanId?: string): Promise<
  * Gets authored posts for a specific profile page (AI or Human).
  */
 export async function getProfilePosts(authorId: string, authorType: ActorType): Promise<{ original: DreamXPost[]; replies: DreamXPost[] }> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const human = await getUserProfile();
 
   const originalRaw = await db.queryAll<any>(
@@ -361,7 +366,7 @@ export async function getProfilePosts(authorId: string, authorType: ActorType): 
 }
 
 async function populatePostMetadata(raw: any, currentHumanId?: string): Promise<DreamXPost> {
-  const db = getDatabase();
+  const db = getDreamXDb();
 
   let author_name = 'Unknown';
   let author_handle = '@unknown';
@@ -444,7 +449,7 @@ async function populatePostMetadata(raw: any, currentHumanId?: string): Promise<
 // ----------------------------------------------------
 
 export async function toggleLike(postId: string, actorId: string, actorType: ActorType): Promise<{ liked: boolean; count: number }> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const existing = await db.queryFirst<{ id: string }>(
     'SELECT id FROM dreamx_likes WHERE post_id = ? AND actor_id = ? AND actor_type = ?',
     [postId, actorId, actorType]
@@ -465,7 +470,7 @@ export async function toggleLike(postId: string, actorId: string, actorType: Act
 }
 
 export async function ensureLike(postId: string, actorId: string, actorType: ActorType): Promise<{ liked: boolean; newlyAdded: boolean; count: number }> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const existing = await db.queryFirst<{ id: string }>(
     'SELECT id FROM dreamx_likes WHERE post_id = ? AND actor_id = ? AND actor_type = ?',
     [postId, actorId, actorType]
@@ -487,7 +492,7 @@ export async function ensureLike(postId: string, actorId: string, actorType: Act
 }
 
 export async function toggleRepost(postId: string, actorId: string, actorType: ActorType): Promise<{ reposted: boolean; count: number }> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const existing = await db.queryFirst<{ id: string }>(
     'SELECT id FROM dreamx_reposts WHERE post_id = ? AND actor_id = ? AND actor_type = ?',
     [postId, actorId, actorType]
@@ -508,7 +513,7 @@ export async function toggleRepost(postId: string, actorId: string, actorType: A
 }
 
 export async function toggleFollow(followerId: string, followerType: ActorType, followedProfileId: string): Promise<{ following: boolean }> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const existing = await db.queryFirst<{ id: string }>(
     'SELECT id FROM dreamx_follows WHERE follower_id = ? AND follower_type = ? AND followed_profile_id = ?',
     [followerId, followerType, followedProfileId]
@@ -528,7 +533,7 @@ export async function toggleFollow(followerId: string, followerType: ActorType, 
 }
 
 export async function isFollowing(followerId: string, followerType: ActorType, followedProfileId: string): Promise<boolean> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const res = await db.queryFirst(
     'SELECT 1 FROM dreamx_follows WHERE follower_id = ? AND follower_type = ? AND followed_profile_id = ?',
     [followerId, followerType, followedProfileId]
@@ -546,7 +551,7 @@ export async function isFollowing(followerId: string, followerType: ActorType, f
  * Returns true if slot claimed successfully, false if cooldown is active.
  */
 export async function claimSimulationSlot(cooldownMs: number = 60000): Promise<boolean> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const now = Date.now();
   const cutoff = now - cooldownMs;
 
@@ -570,7 +575,7 @@ export async function claimSimulationSlot(cooldownMs: number = 60000): Promise<b
 }
 
 export async function logActivity(log: { action_type: 'post' | 'reply' | 'like' | 'no_action'; actor_id?: string; target_post_id?: string; reason?: string }) {
-  const db = getDatabase();
+  const db = getDreamXDb();
   const id = generateId('dx-log');
   await db.execute(
     'INSERT INTO dreamx_activity_log (id, action_type, actor_id, target_post_id, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -579,12 +584,12 @@ export async function logActivity(log: { action_type: 'post' | 'reply' | 'like' 
 }
 
 export async function getActivityLogs(): Promise<DreamXActivityLog[]> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   return db.queryAll<DreamXActivityLog>('SELECT * FROM dreamx_activity_log ORDER BY created_at DESC LIMIT 50');
 }
 
 export async function resetSimulationState(): Promise<void> {
-  const db = getDatabase();
+  const db = getDreamXDb();
   await db.batchExecute([
     { sql: 'DELETE FROM dreamx_posts' },
     { sql: 'DELETE FROM dreamx_likes' },
