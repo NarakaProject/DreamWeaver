@@ -6,7 +6,6 @@ import { X, Send, Loader2, MessageSquare } from 'lucide-react';
 import { DreamXPost } from './DreamXPost';
 import { DreamXMentionComposer } from './DreamXMentionComposer';
 
-
 interface DreamXThreadModalProps {
   threadId: string;
   onClose: () => void;
@@ -29,7 +28,7 @@ export function DreamXThreadModal({ threadId, onClose, onPostCreated }: DreamXTh
       if (res.ok) {
         const data = await res.json();
         setRoot(data.root);
-        setReplies(data.replies || []);
+        setReplies(data.conversation || data.replies || []);
         if (!replyTarget) {
           const targetPost = data.target || data.root;
           if (targetPost) {
@@ -38,7 +37,7 @@ export function DreamXThreadModal({ threadId, onClose, onPostCreated }: DreamXTh
         }
       }
     } catch (err) {
-      console.error('Failed to load thread:', err);
+      console.error('Failed to load conversation thread:', err);
     } finally {
       setLoading(false);
     }
@@ -49,7 +48,6 @@ export function DreamXThreadModal({ threadId, onClose, onPostCreated }: DreamXTh
     loadThread();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId]);
-
 
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,7 +83,7 @@ export function DreamXThreadModal({ threadId, onClose, onPostCreated }: DreamXTh
         <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/40">
           <div className="flex items-center gap-2 text-white font-bold">
             <MessageSquare className="w-5 h-5 text-blue-400" />
-            <span>Thread</span>
+            <span>Conversation</span>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
             <X className="w-5 h-5" />
@@ -98,44 +96,60 @@ export function DreamXThreadModal({ threadId, onClose, onPostCreated }: DreamXTh
             <div className="flex justify-center p-8 text-white/50"><Loader2 className="w-6 h-6 animate-spin" /></div>
           ) : root ? (
             <div className="space-y-4">
-              {/* Root Post */}
-              <DreamXPost 
-                post={root}
-                onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
-                onInteraction={loadThread}
-                isThreadView
-                hideReplies
-              />
+              {/* Root Post Card */}
+              <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
+                <DreamXPost 
+                  post={root}
+                  onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
+                  onInteraction={loadThread}
+                />
+              </div>
 
-              {/* Replies Tree */}
-              <div className="pl-4 sm:pl-6 border-l-2 border-white/10 space-y-3">
+              {/* Flat Chronological Conversation List */}
+              <div className="space-y-2">
+                <div className="text-xs text-white/40 font-bold px-2 py-1 uppercase tracking-wider flex items-center justify-between">
+                  <span>Replies ({replies.length})</span>
+                  <span className="text-[10px] text-white/30 font-normal">Flat Chronological Order</span>
+                </div>
+
                 {replies.length === 0 ? (
-                  <p className="text-sm text-white/30 italic py-4">No replies yet. Be the first to respond!</p>
+                  <p className="text-sm text-white/30 italic py-4 px-2">No replies yet. Be the first to respond!</p>
                 ) : (
                   replies.map(reply => (
-                    <DreamXPost 
+                    <div 
                       key={reply.id} 
-                      post={reply}
-                      onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
-                      onInteraction={loadThread}
-                      isThreadView
-                      depth={1}
-                    />
+                      className={`transition-colors rounded-xl overflow-hidden ${
+                        replyTarget?.id === reply.id ? 'ring-1 ring-blue-500 bg-blue-500/5' : ''
+                      }`}
+                    >
+                      <DreamXPost 
+                        post={reply}
+                        onSelectReplyTarget={(id, handle) => setReplyTarget({ id, handle })}
+                        onInteraction={loadThread}
+                      />
+                    </div>
                   ))
                 )}
               </div>
-
             </div>
           ) : (
-            <p className="text-white/40 text-center p-4">Thread not found.</p>
+            <p className="text-white/40 text-center p-4">Post not found.</p>
           )}
         </div>
 
         {/* Reply Composer */}
         {replyTarget && (
           <div className="p-4 border-t border-white/10 bg-black/60">
-            <div className="text-xs text-blue-400 mb-2 font-medium">
-              Replying to <span className="font-bold">{replyTarget.handle}</span>
+            <div className="text-xs text-blue-400 mb-2 font-medium flex items-center justify-between">
+              <span>Replying to <span className="font-bold">{replyTarget.handle}</span></span>
+              {root && replyTarget.id !== root.id && (
+                <button 
+                  onClick={() => setReplyTarget({ id: root.id, handle: root.author_handle || '@user' })}
+                  className="text-[10px] text-white/40 hover:text-white underline"
+                >
+                  Reply to Root Post
+                </button>
+              )}
             </div>
             <form onSubmit={handleSendReply} className="flex gap-2">
               <DreamXMentionComposer

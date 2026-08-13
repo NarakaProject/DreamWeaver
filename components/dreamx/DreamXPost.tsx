@@ -19,10 +19,7 @@ interface DreamXPostProps {
 export function DreamXPost({ 
   post, 
   onSelectReplyTarget, 
-  onInteraction, 
-  isThreadView = false,
-  hideReplies = false,
-  depth = 0
+  onInteraction
 }: DreamXPostProps) {
 
   const [liked, setLiked] = useState(post.user_liked || false);
@@ -38,7 +35,8 @@ export function DreamXPost({
     return `${Math.floor(seconds / 86400)}d`;
   };
 
-  const handleToggleLike = async () => {
+  const handleToggleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     const nextLiked = !liked;
     setLiked(nextLiked);
     setLikesCount(prev => nextLiked ? prev + 1 : Math.max(0, prev - 1));
@@ -60,7 +58,8 @@ export function DreamXPost({
     }
   };
 
-  const handleToggleRepost = async () => {
+  const handleToggleRepost = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     const nextReposted = !reposted;
     setReposted(nextReposted);
     setRepostsCount(prev => nextReposted ? prev + 1 : Math.max(0, prev - 1));
@@ -82,27 +81,23 @@ export function DreamXPost({
     }
   };
 
-  const handleReplyClick = () => {
+  const handlePostClick = () => {
     if (onSelectReplyTarget) {
       onSelectReplyTarget(post.id, post.author_handle || '@user');
     }
   };
 
   const cleanHandle = post.author_handle ? post.author_handle.replace(/^@/, '') : 'user';
-  const profileHref = post.author_type === 'ai' 
-    ? `/dreamx/profile/${encodeURIComponent(cleanHandle)}`
-    : `/dreamx/profile/${encodeURIComponent(cleanHandle)}`;
-
-  // In Feed View, limit inline replies to top 1 preview to keep main feed clean and compact
-  const repliesToRender = !isThreadView && post.replies && post.replies.length > 1
-    ? post.replies.slice(0, 1)
-    : post.replies;
+  const profileHref = `/dreamx/profile/${encodeURIComponent(cleanHandle)}`;
 
   return (
-    <div className="border-b border-white/10 p-4 hover:bg-white/5 transition-colors group">
+    <div 
+      onClick={handlePostClick}
+      className="border-b border-white/10 p-4 hover:bg-white/5 transition-colors cursor-pointer group w-full"
+    >
       <div className="flex gap-3">
         {/* Avatar */}
-        <Link href={profileHref} className="flex-shrink-0">
+        <Link href={profileHref} onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
           <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden flex items-center justify-center font-bold text-white/50 text-base border border-white/10">
             {post.author_avatar ? (
               <img src={post.author_avatar} alt={post.author_name} className="w-full h-full object-cover" />
@@ -115,7 +110,11 @@ export function DreamXPost({
         {/* Content Body */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <Link href={profileHref} className="font-bold text-white hover:underline truncate inline-flex items-center gap-1">
+            <Link 
+              href={profileHref} 
+              onClick={(e) => e.stopPropagation()} 
+              className="font-bold text-white hover:underline truncate inline-flex items-center gap-1"
+            >
               <span>{post.author_name || 'Unknown'}</span>
               <DreamXVerificationBadge type={post.author_verification} />
             </Link>
@@ -126,7 +125,11 @@ export function DreamXPost({
               </span>
             )}
 
-            <Link href={profileHref} className="text-white/40 text-xs hover:underline truncate">
+            <Link 
+              href={profileHref} 
+              onClick={(e) => e.stopPropagation()} 
+              className="text-white/40 text-xs hover:underline truncate"
+            >
               {post.author_handle || '@unknown'}
             </Link>
             <span className="text-white/30 text-xs">·</span>
@@ -137,15 +140,18 @@ export function DreamXPost({
             <DreamXPostContent content={post.content} />
           </p>
 
-          {/* Social Interaction Bar */}
+          {/* Engagement Interaction Bar */}
           <div className="flex items-center gap-8 text-white/40 pt-1">
             <button 
-              onClick={handleReplyClick}
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePostClick();
+              }}
               className="flex items-center gap-2 hover:text-blue-400 transition-colors text-xs"
               title="Reply"
             >
               <MessageSquare className="w-4 h-4" />
-              <span>{post.reply_count || (post.replies ? post.replies.length : 0)}</span>
+              <span>{post.reply_count || 0}</span>
             </button>
 
             <button 
@@ -170,39 +176,16 @@ export function DreamXPost({
               <span>{likesCount}</span>
             </button>
 
-            <button className="flex items-center gap-2 hover:text-blue-400 transition-colors text-xs" title="Share">
+            <button 
+              onClick={(e) => e.stopPropagation()} 
+              className="flex items-center gap-2 hover:text-blue-400 transition-colors text-xs" 
+              title="Share"
+            >
               <Share className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
-
-      {/* Capped Visual Indentation Reply Tree (Max offset capped at depth 2) */}
-      {!hideReplies && repliesToRender && repliesToRender.length > 0 && (
-        <div className={`mt-3 space-y-2 ${
-          depth === 0 ? 'pl-3 border-l border-white/10' : 'pl-3.5 border-l border-blue-500/20'
-        }`}>
-          {repliesToRender.map(child => (
-            <DreamXPost 
-              key={child.id} 
-              post={child} 
-              onSelectReplyTarget={onSelectReplyTarget}
-              onInteraction={onInteraction}
-              isThreadView={isThreadView}
-              depth={Math.min(depth + 1, 2)}
-            />
-          ))}
-
-          {!isThreadView && post.replies && post.replies.length > 1 && (
-            <button
-              onClick={handleReplyClick}
-              className="text-xs text-blue-400 font-bold hover:underline py-1 pl-2 flex items-center gap-1.5"
-            >
-              View full conversation ({post.replies.length} replies) →
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }

@@ -317,7 +317,7 @@ export async function deletePost(id: string): Promise<void> {
 /**
  * Main Feed Query:
  * Returns top-level posts ONLY (reply_to_post_id IS NULL), ordered created_at DESC.
- * Direct replies are attached recursively to each root post.
+ * Main feed presents standalone root posts without nested inline reply cards.
  */
 export async function getFeedTree(): Promise<DreamXPost[]> {
   const db = getDreamXDb();
@@ -330,7 +330,7 @@ export async function getFeedTree(): Promise<DreamXPost[]> {
   const posts: DreamXPost[] = [];
   for (const raw of rootPostsRaw) {
     const post = await populatePostMetadata(raw, human?.id);
-    post.replies = await getRepliesTree(post.id, human?.id);
+    post.replies = []; // Standalone root post presentation for main feed timeline
     posts.push(post);
   }
 
@@ -350,13 +350,73 @@ export async function getRepliesTree(postId: string, humanId?: string): Promise<
   const replies: DreamXPost[] = [];
   for (const raw of repliesRaw) {
     const post = await populatePostMetadata(raw, humanId);
-    // Support nested replies
     post.replies = await getRepliesTree(post.id, humanId);
     replies.push(post);
   }
 
   return replies;
 }
+
+/**
+ * Resolves the conversation root post for any post ID (root or reply)
+ * and retrieves all descendant replies as a flat, chronologically ordered list.
+ */
+export async function getConversationFlat(postId: string): Promise<{
+  root: DreamXPost;
+  conversation: DreamXPost[];
+  target?: DreamXPost;
+}> {
+  const db = getDreamXDb();
+  const human = await getUserProfile();
+
+  const requestedPost = await getPost(postId);
+  if (!requestedPost) {
+    throw new Error(`Post not found: ${postId}`);
+  }
+
+  // 1. Resolve conversation root post by traversing parent links
+  let root = requestedPost;
+  let depth = 0;
+  while (root.reply_to_post_id && depth < 50) {
+    const parent = await getPost(root.reply_to_post_id);
+    if (!parent) break;
+    root = parent;
+    depth++;
+  }
+
+  // 2. Fetch all posts in DB with reply_to_post_id to find all descendants of root
+  const allRepliesRaw = await db.queryAll<any>('SELECT * FROM dreamx_posts WHERE reply_to_post_id IS NOT NULL');
+
+  const descendantIds = new Set<string>([root.id]);
+  let added = true;
+  while (added) {
+    added = false;
+    for (const raw of allRepliesRaw) {
+      if (!descendantIds.has(raw.id) && raw.reply_to_post_id && descendantIds.has(raw.reply_to_post_id)) {
+        descendantIds.add(raw.id);
+        added = true;
+      }
+    }
+  }
+
+  // Exclude root post itself from descendant set
+  descendantIds.delete(root.id);
+
+  // 3. Populate metadata for all descendant replies
+  const conversation: DreamXPost[] = [];
+  for (const raw of allRepliesRaw) {
+    if (descendantIds.has(raw.id)) {
+      const populated = await populatePostMetadata(raw, human?.id);
+      conversation.push(populated);
+    }
+  }
+
+  // 4. Stable flat chronological ordering: created_at ASC, id ASC
+  conversation.sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+
+  return { root, conversation, target: requestedPost };
+}
+
 
 /**
  * Gets authored posts for a specific profile page (AI or Human).

@@ -6,7 +6,8 @@ import {
   getUserProfile, 
   getPost, 
   getRepliesTree,
-  getProfilePosts 
+  getProfilePosts,
+  getConversationFlat
 } from '@/lib/dreamx/db';
 
 export async function GET(req: NextRequest) {
@@ -17,26 +18,9 @@ export async function GET(req: NextRequest) {
     const profileType = (searchParams.get('profile_type') as 'human' | 'ai') || 'ai';
 
     if (threadId) {
-      const requestedPost = await getPost(threadId);
-      if (!requestedPost) {
-        return NextResponse.json({ error: 'Thread post not found' }, { status: 404 });
-      }
-
-      // Resolve replies to their actual thread root post
-      let root = requestedPost;
-      let depth = 0;
-      while (root.reply_to_post_id && depth < 10) {
-        const parent = await getPost(root.reply_to_post_id);
-        if (!parent) break;
-        root = parent;
-        depth++;
-      }
-
-      const replies = await getRepliesTree(root.id);
-      return NextResponse.json({ root, replies, target: requestedPost });
+      const { root, conversation, target } = await getConversationFlat(threadId);
+      return NextResponse.json({ root, replies: conversation, conversation, target });
     }
-
-
 
     if (profileId) {
       const posts = await getProfilePosts(profileId, profileType);
