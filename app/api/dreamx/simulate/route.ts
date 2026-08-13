@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
         });
         results.push(result);
       } catch (err: any) {
-        console.warn(`[SIMULATION BURST] Step ${i + 1} provider error:`, err?.message || err);
+        const logPrefix = stepsToRun > 1 ? `[SIMULATION BURST] Step ${i + 1}` : '[SIMULATION]';
+        console.warn(`${logPrefix} provider error:`, err?.message || err);
         results.push({
           outcome: 'NO_ACTION',
           reason: `Provider unavailable: ${err?.message || 'API error'}`,

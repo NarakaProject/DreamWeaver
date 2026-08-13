@@ -1,20 +1,22 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { getDatabase } from '@/lib/db';
-import { savePost, getPost, saveProfile, saveUserProfile, getProfiles } from './db';
+import { savePost, getPost, saveProfile, saveUserProfile } from './db';
 import { 
   routeChatStream, 
   markModelCooldown, 
   isModelCooling, 
   clearModelCooldowns,
-  isRateLimitError
+  isRateLimitError,
+  isModelUnavailableError,
+  DEFAULT_MODELS,
+  GEMINI_MODELS
 } from '@/lib/ai/provider-router';
 import { 
   evaluateSocialUrgencyEvents, 
   countReciprocalPingPong, 
-  countThreadReplies, 
   runAutonomousActivityStep 
 } from './simulation';
-import type { DreamXPost, DreamXProfile } from './types';
+import type { DreamXPost } from './types';
 
 describe('DREAMX v0.2 — Model-Aware Provider Fallback, Conversation Saturation & Flat UI Audit', () => {
   beforeEach(() => {
@@ -31,27 +33,42 @@ describe('DREAMX v0.2 — Model-Aware Provider Fallback, Conversation Saturation
   });
 
   // ----------------------------------------------------
-  // 1. PROVIDER ROUTER TESTS
+  // 1. PROVIDER ROUTER & GEMINI 3.X REGISTRY TESTS
   // ----------------------------------------------------
-  describe('Provider Router — Model-Aware Fallback & Cooldown', () => {
-    it('1. Correctly detects HTTP 429 and rate-limit / TPM signals', () => {
+  describe('Provider Router — Gemini 3.x Registry & Model-Aware Fallback', () => {
+    it('1. Default Gemini model is gemini-3.6-flash and Gemini 3.x registry is authoritative', () => {
+      expect(DEFAULT_MODELS.gemini).toBe('gemini-3.6-flash');
+      expect(GEMINI_MODELS).toEqual([
+        'gemini-3.6-flash',
+        'gemini-3.5-flash',
+        'gemini-3.5-flash-lite',
+        'gemini-3.1-flash-lite',
+      ]);
+    });
+
+    it('2. Correctly detects HTTP 429 rate limit and HTTP 404 model-unavailable signals', () => {
       expect(isRateLimitError({ status: 429 })).toBe(true);
       expect(isRateLimitError({ message: 'RESOURCE_EXHAUSTED: Quota exceeded' })).toBe(true);
       expect(isRateLimitError({ message: 'TPM Limit 12000 reached for model' })).toBe(true);
+
+      expect(isModelUnavailableError({ status: 404 })).toBe(true);
+      expect(isModelUnavailableError({ message: 'Gemini API Error (404): This model is no longer available to new users.' })).toBe(true);
+
       expect(isRateLimitError({ message: 'Invalid API Key' })).toBe(false);
+      expect(isModelUnavailableError({ message: 'Invalid API Key' })).toBe(false);
     });
 
-    it('2. Rate-limited model enters temporary cooldown and is skipped', () => {
-      markModelCooldown('gemini', 'gemini-2.5-flash', 10000);
-      expect(isModelCooling('gemini', 'gemini-2.5-flash')).toBe(true);
-      expect(isModelCooling('gemini', 'gemini-2.5-pro')).toBe(false);
+    it('3. Rate-limited model enters temporary cooldown and is skipped', () => {
+      markModelCooldown('gemini', 'gemini-3.6-flash', 10000);
+      expect(isModelCooling('gemini', 'gemini-3.6-flash')).toBe(true);
+      expect(isModelCooling('gemini', 'gemini-3.5-flash')).toBe(false);
     });
 
-    it('3. Throws clean error when all providers and models lack keys or fail', async () => {
+    it('4. Throws clean error when all providers and models lack keys or fail', async () => {
       await expect(
         routeChatStream({
           provider: 'gemini',
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.6-flash',
           keys: {},
           systemInstruction: 'test',
           messages: [{ role: 'user', content: 'hello' }],
@@ -66,13 +83,11 @@ describe('DREAMX v0.2 — Model-Aware Provider Fallback, Conversation Saturation
   // 2. SIMULATION CONVERSATION SATURATION & PING-PONG TESTS
   // ----------------------------------------------------
   describe('Simulation Engine — Conversation Saturation & Reciprocal Ping-Pong', () => {
-    it('4. Human reply and human mention receive high urgency scores', async () => {
+    it('5. Human reply and human mention receive high urgency scores', async () => {
       const aiProf = await saveProfile({ id: 'prof-sp-1', display_name: 'Josh', handle: '@Josh' });
       const human = await saveUserProfile({ id: 'user-sp-1', display_name: 'Naraka', handle: '@Naraka' });
 
-      // AI post
       const aiPost = await savePost({ id: 'sp-post-1', author_id: aiProf.id, author_type: 'ai', content: 'Hello world' });
-      // Human replies to AI post
       const humanReply = await savePost({ id: 'sp-post-2', author_id: human.id, author_type: 'human', content: 'Nice post, Josh!', reply_to_post_id: aiPost.id });
 
       const events = evaluateSocialUrgencyEvents([aiProf], [aiPost, humanReply]);
@@ -81,11 +96,10 @@ describe('DREAMX v0.2 — Model-Aware Provider Fallback, Conversation Saturation
       expect(events[0].isDirectHumanInteraction).toBe(true);
     });
 
-    it('5. Repeated A <-> B AI replies experience diminishing urgency through reciprocal ping-pong decay', async () => {
+    it('6. Repeated A <-> B AI replies experience diminishing urgency through reciprocal ping-pong decay', async () => {
       const pA = await saveProfile({ id: 'prof-pa', display_name: 'Actor A', handle: '@ActorA' });
       const pB = await saveProfile({ id: 'prof-pb', display_name: 'Actor B', handle: '@ActorB' });
 
-      // Create a 5-turn ping pong chain A -> B -> A -> B -> A
       const post1 = await savePost({ id: 'pp-1', author_id: pA.id, author_type: 'ai', content: 'Turn 1' });
       const post2 = await savePost({ id: 'pp-2', author_id: pB.id, author_type: 'ai', content: 'Turn 2', reply_to_post_id: 'pp-1' });
       const post3 = await savePost({ id: 'pp-3', author_id: pA.id, author_type: 'ai', content: 'Turn 3', reply_to_post_id: 'pp-2' });
@@ -99,7 +113,6 @@ describe('DREAMX v0.2 — Model-Aware Provider Fallback, Conversation Saturation
       const pingPongDepth = countReciprocalPingPong(post5, pB.id, postMap);
       expect(pingPongDepth).toBeGreaterThanOrEqual(4);
 
-      // Urgency evaluation should apply saturation penalty for pB responding to post5
       const events = evaluateSocialUrgencyEvents([pB], allPosts);
       const bEventsForP5 = events.filter(e => e.targetPost.id === 'pp-5' && e.candidate.id === pB.id);
 
@@ -110,16 +123,14 @@ describe('DREAMX v0.2 — Model-Aware Provider Fallback, Conversation Saturation
       }
     });
 
-    it('6. Fresh human interaction reactivates a saturated thread', async () => {
+    it('7. Fresh human interaction reactivates a saturated thread', async () => {
       const pA = await saveProfile({ id: 'prof-ra-1', display_name: 'Actor A', handle: '@ActorA' });
       const pB = await saveProfile({ id: 'prof-rb-1', display_name: 'Actor B', handle: '@ActorB' });
       const human = await saveUserProfile({ id: 'user-rh-1', display_name: 'Naraka', handle: '@Naraka' });
 
-      // AI ping pong posts
       const post1 = await savePost({ id: 'rh-1', author_id: pA.id, author_type: 'ai', content: 'Turn 1' });
       const post2 = await savePost({ id: 'rh-2', author_id: pB.id, author_type: 'ai', content: 'Turn 2', reply_to_post_id: 'rh-1' });
 
-      // Human enters conversation with fresh reply
       const humanReply = await savePost({ id: 'rh-3', author_id: human.id, author_type: 'human', content: 'Hey @ActorA what do you think?', reply_to_post_id: 'rh-2' });
 
       const allPosts = [post1, post2, humanReply];
@@ -130,7 +141,7 @@ describe('DREAMX v0.2 — Model-Aware Provider Fallback, Conversation Saturation
       expect(events[0].score).toBeGreaterThan(5.0);
     });
 
-    it('7. Simulation runAutonomousActivityStep executes safely without falling into infinite loops', async () => {
+    it('8. Simulation runAutonomousActivityStep executes safely without falling into infinite loops', async () => {
       await saveProfile({ id: 'prof-loop-1', display_name: 'SimBot A', handle: '@sim1' });
       await saveProfile({ id: 'prof-loop-2', display_name: 'SimBot B', handle: '@sim2' });
 
@@ -150,7 +161,7 @@ describe('DREAMX v0.2 — Model-Aware Provider Fallback, Conversation Saturation
   // 3. THREAD ARBITRARY DEPTH & DATA INTEGRITY TESTS
   // ----------------------------------------------------
   describe('Thread Tree & Structural Integrity', () => {
-    it('8. Database maintains arbitrary depth reply relationships intact', async () => {
+    it('9. Database maintains arbitrary depth reply relationships intact', async () => {
       const p1 = await saveProfile({ id: 'prof-tree-1', display_name: 'TreeBot', handle: '@tree' });
       const root = await savePost({ id: 'tree-root', author_id: p1.id, author_type: 'ai', content: 'Root' });
       
@@ -171,7 +182,7 @@ describe('DREAMX v0.2 — Model-Aware Provider Fallback, Conversation Saturation
       expect(leafPost?.reply_to_post_id).toBe('tree-depth-9');
     });
 
-    it('9. DreamWeaver narrative database tables remain completely untouched', async () => {
+    it('10. DreamWeaver narrative database tables remain completely untouched', async () => {
       const db = getDatabase();
       const dwSessions = await db.queryAll('SELECT COUNT(*) as count FROM sessions');
       const dwMessages = await db.queryAll('SELECT COUNT(*) as count FROM messages');

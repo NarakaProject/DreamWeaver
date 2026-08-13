@@ -16,8 +16,15 @@ export interface StreamChatOptions {
   maxOutputTokens: number;
 }
 
+export const GEMINI_MODELS = [
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+];
+
 export const DEFAULT_MODELS: Record<AIProvider, string> = {
-  gemini: 'gemini-2.5-flash',
+  gemini: 'gemini-3.6-flash',
   groq: 'llama-3.3-70b-versatile',
   openrouter: 'meta-llama/llama-3.3-70b-instruct:free',
 };
@@ -29,9 +36,10 @@ export interface ProviderModelPreset {
 
 export const PROVIDER_MODEL_PRESETS: Record<AIProvider, ProviderModelPreset[]> = {
   gemini: [
-    { id: 'gemini-2.5-flash', displayName: 'gemini-2.5-flash (Default)' },
-    { id: 'gemini-2.5-pro', displayName: 'gemini-2.5-pro' },
-    { id: 'gemini-1.5-flash', displayName: 'gemini-1.5-flash' },
+    { id: 'gemini-3.6-flash', displayName: 'gemini-3.6-flash (Default)' },
+    { id: 'gemini-3.5-flash', displayName: 'gemini-3.5-flash' },
+    { id: 'gemini-3.5-flash-lite', displayName: 'gemini-3.5-flash-lite' },
+    { id: 'gemini-3.1-flash-lite', displayName: 'gemini-3.1-flash-lite' },
   ],
   groq: [
     { id: 'llama-3.3-70b-versatile', displayName: 'llama-3.3-70b:versatile (Default)' },
@@ -66,6 +74,23 @@ export function isRateLimitError(err: any): boolean {
     msg.includes('rpm limit') ||
     msg.includes('tokens per minute') ||
     msg.includes('requests per minute')
+  );
+}
+
+/**
+ * Checks if an error represents an obsolete / unavailable model (HTTP 404, model not found).
+ */
+export function isModelUnavailableError(err: any): boolean {
+  if (!err) return false;
+  if (err.status === 404) return true;
+
+  const msg = (err.message || '').toLowerCase();
+  return (
+    msg.includes('404') ||
+    msg.includes('not found') ||
+    msg.includes('no longer available') ||
+    msg.includes('is not found') ||
+    msg.includes('not available to new users')
   );
 }
 
@@ -340,7 +365,6 @@ export async function routeChatStream(
   const primaryProvider = options.provider || 'gemini';
   const primaryModel = options.model || DEFAULT_MODELS[primaryProvider];
 
-  // Provider order starting with requested primary provider
   const allProviders: AIProvider[] = ['gemini', 'groq', 'openrouter'];
   const providerSequence: AIProvider[] = [
     primaryProvider,
@@ -350,7 +374,6 @@ export async function routeChatStream(
   let lastError: Error | null = null;
 
   for (const provider of providerSequence) {
-    // Check if provider has API key available
     const key = provider === 'gemini' ? options.keys.geminiKey :
                 provider === 'groq' ? options.keys.groqKey :
                 options.keys.openrouterKey;
@@ -359,7 +382,6 @@ export async function routeChatStream(
       continue;
     }
 
-    // Get models list for provider (primary requested model first)
     const presetModels = PROVIDER_MODEL_PRESETS[provider].map(m => m.id);
     const candidateModels: string[] = [];
     if (provider === primaryProvider && primaryModel) {
@@ -371,7 +393,7 @@ export async function routeChatStream(
       }
     }
 
-    let providerHadRateLimit = false;
+    let providerHadFailures = false;
 
     for (const candidateModel of candidateModels) {
       if (isModelCooling(provider, candidateModel)) {
@@ -394,26 +416,31 @@ export async function routeChatStream(
 
       } catch (err: any) {
         lastError = err;
-        const rateLimited = isRateLimitError(err);
 
-        if (rateLimited) {
-          providerHadRateLimit = true;
+        if (isModelUnavailableError(err)) {
+          providerHadFailures = true;
+          console.warn(`[AI ROUTER] ${provider} / ${candidateModel} → 404 Model unavailable`);
+          continue;
+        }
+
+        if (isRateLimitError(err)) {
+          providerHadFailures = true;
           markModelCooldown(provider, candidateModel, 30000);
           console.warn(`[AI ROUTER] ${provider} / ${candidateModel} → 429 Rate Limit`);
-        } else {
-          // Non-rate limit error (e.g. invalid key or bad request) -> fail immediately
-          console.error(`[AI ROUTER] ${provider} / ${candidateModel} failed with non-retryable error:`, err?.message || err);
-          throw err;
+          continue;
         }
+
+        // Non-rate-limit, non-404 error (e.g. invalid key or bad request) -> fail immediately
+        console.error(`[AI ROUTER] ${provider} / ${candidateModel} failed with non-retryable error:`, err?.message || err);
+        throw err;
       }
     }
 
-    if (providerHadRateLimit) {
+    if (providerHadFailures) {
       console.warn(`[AI ROUTER] ${provider} models exhausted. Falling back to next available provider...`);
     }
   }
 
-  // All providers and models exhausted
   const finalError = lastError || new Error('All AI models and providers are currently unavailable or rate-limited.');
   console.error('[AI ROUTER] Final failure: All providers/models exhausted.');
   throw finalError;
