@@ -13,7 +13,6 @@ import { extractMentions } from './mentions';
 import type { DreamXProfile, DreamXPost } from './types';
 import type { ProviderKeys, AIProvider } from '@/lib/ai/provider-router';
 
-
 interface SimulationOptions {
   provider?: AIProvider;
   model?: string;
@@ -136,30 +135,24 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
   const replyThreshold = isCandidateMentioned ? 0.85 : 0.70;
   const likeThreshold = isCandidateMentioned ? 0.20 : 0.35;
 
-
-
   // --- OPTION A: AI LIKE (Deterministic, NO LLM CALL) ---
   if (actionChoice < likeThreshold && allPosts.length > 0) {
     const targetPost = isCandidateMentioned 
       ? mentioningPosts[Math.floor(Math.random() * mentioningPosts.length)]
       : allPosts[Math.floor(Math.random() * allPosts.length)];
 
-    
-    // Deterministic interest evaluation
     const contentLower = targetPost.content.toLowerCase();
     const interests = (candidate.interests || '').toLowerCase();
     const traits = (candidate.traits || '').toLowerCase();
     const personality = (candidate.personality || '').toLowerCase();
     
-    // Simple relevance check: do any words > 4 chars in interests/traits/personality appear in the post?
     const candidateKeywords = [interests, traits, personality]
       .join(' ')
-      .split(/[\\s,]+/)
+      .split(/[\s,]+/)
       .filter(w => w.length > 4);
       
     const isRelevant = candidateKeywords.some(kw => contentLower.includes(kw));
     
-    // Fallback: 10% chance to like anyway to simulate arbitrary browsing
     if (!isRelevant && Math.random() > 0.1) {
        await logActivity({
           action_type: 'no_action',
@@ -196,7 +189,6 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
 
     const alreadyReplied = targetPost.replies?.some(r => r.author_id === candidate.id && r.author_type === 'ai');
 
-    // Ensure candidate doesn't reply to their own post and hasn't already replied
     if (targetPost.author_id !== candidate.id && !alreadyReplied) {
       const { text, validation } = await generateDreamXReply(
         candidate,
@@ -206,7 +198,6 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
         options,
         isCandidateMentioned
       );
-
 
       if (!validation.isValid) {
         await logActivity({
@@ -240,7 +231,6 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
        });
        return { outcome: 'NO_ACTION', details: 'Duplicate or self-reply blocked.' };
     }
-
   }
 
   // --- OPTION C: AI POST ---
@@ -270,7 +260,6 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
 
     return { outcome: 'POST_CREATED', details: { post: saved } };
   }
-
 
   // --- OPTION D: NO_ACTION (Silence is valid outcome!) ---
   await logActivity({
@@ -354,6 +343,62 @@ export function calculatePersonalityPropensity(profile: DreamXProfile): number {
 }
 
 /**
+ * Calculates consecutive reciprocal ping-pong exchanges between candidate and target post author.
+ */
+export function countReciprocalPingPong(
+  startPost: DreamXPost,
+  candidateId: string,
+  postMap: Map<string, DreamXPost>
+): number {
+  let count = 0;
+  let curr: DreamXPost | undefined = startPost;
+
+  while (curr && curr.reply_to_post_id && count < 10) {
+    const parent = postMap.get(curr.reply_to_post_id);
+    if (!parent) break;
+
+    // Ping pong pattern: curr is by one actor, parent is by the other
+    if ((curr.author_id === candidateId && parent.author_id === startPost.author_id) ||
+        (curr.author_id === startPost.author_id && parent.author_id === candidateId)) {
+      count++;
+      curr = parent;
+    } else {
+      break;
+    }
+  }
+
+  return count;
+}
+
+/**
+ * Calculates total replies in the thread containing startPost.
+ */
+export function countThreadReplies(
+  startPost: DreamXPost,
+  postMap: Map<string, DreamXPost>
+): number {
+  let root = startPost;
+  let depth = 0;
+  while (root.reply_to_post_id && depth < 20) {
+    const parent = postMap.get(root.reply_to_post_id);
+    if (!parent) break;
+    root = parent;
+    depth++;
+  }
+
+  let count = 0;
+  const stack = [root];
+  while (stack.length > 0) {
+    const item = stack.pop()!;
+    if (item.replies) {
+      count += item.replies.length;
+      stack.push(...item.replies);
+    }
+  }
+  return count;
+}
+
+/**
  * Scans allPosts to find high-value social urgency events for AI profiles.
  */
 export function evaluateSocialUrgencyEvents(profiles: DreamXProfile[], allPosts: DreamXPost[]): SocialUrgencyEvent[] {
@@ -371,7 +416,6 @@ export function evaluateSocialUrgencyEvents(profiles: DreamXProfile[], allPosts:
     for (const post of allPosts) {
       if (post.author_id === candidate.id) continue;
 
-      // Check if candidate has ALREADY replied to this exact post
       const alreadyReplied = post.replies?.some(r => r.author_id === candidate.id && r.author_type === 'ai');
       if (alreadyReplied) continue;
 
@@ -382,18 +426,15 @@ export function evaluateSocialUrgencyEvents(profiles: DreamXProfile[], allPosts:
       const mentions = extractMentions(post.content).map(m => m.toLowerCase());
       const mentionsCandidate = mentions.includes(normHandle);
 
-      // Check direct parent post if post is a reply
       const parentPost = post.reply_to_post_id ? postMap.get(post.reply_to_post_id) : null;
       const isParentByCandidate = parentPost && parentPost.author_id === candidate.id;
 
       if (post.author_type === 'human') {
         if (isParentByCandidate) {
-          // Human directly replied to candidate's post!
           rawScore += 10.0;
           isDirectHuman = true;
         }
         if (mentionsCandidate) {
-          // Human explicitly mentioned candidate!
           rawScore += 8.0;
           isDirectHuman = true;
           isMention = true;
@@ -409,12 +450,30 @@ export function evaluateSocialUrgencyEvents(profiles: DreamXProfile[], allPosts:
       }
 
       if (rawScore > 0) {
-        // Recency decay (within last 30 minutes gets full score)
         const ageMs = now - post.created_at;
         const ageMinutes = ageMs / (1000 * 60);
         const recencyMultiplier = ageMinutes <= 30 ? 1.0 : Math.max(0.1, 1.0 - (ageMinutes - 30) / 120);
 
-        const finalScore = rawScore * propensity * recencyMultiplier;
+        // Apply conversation saturation & ping-pong decay for AI-to-AI interaction
+        let saturationMultiplier = 1.0;
+        if (!isDirectHuman && post.author_type === 'ai') {
+          const pingPongCount = countReciprocalPingPong(post, candidate.id, postMap);
+          const threadCount = countThreadReplies(post, postMap);
+
+          if (pingPongCount >= 4) {
+            saturationMultiplier *= 0.05;
+          } else if (pingPongCount === 3) {
+            saturationMultiplier *= 0.25;
+          } else if (pingPongCount === 2) {
+            saturationMultiplier *= 0.6;
+          }
+
+          if (threadCount > 8) {
+            saturationMultiplier *= Math.max(0.1, 1 / (1 + (threadCount - 8) * 0.3));
+          }
+        }
+
+        const finalScore = rawScore * propensity * recencyMultiplier * saturationMultiplier;
         if (finalScore > 1.0) {
           events.push({
             candidate,
@@ -430,4 +489,3 @@ export function evaluateSocialUrgencyEvents(profiles: DreamXProfile[], allPosts:
 
   return events.sort((a, b) => b.score - a.score);
 }
-

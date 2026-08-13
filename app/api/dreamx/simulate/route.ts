@@ -13,13 +13,22 @@ export async function POST(req: NextRequest) {
 
     const results = [];
     for (let i = 0; i < stepsToRun; i++) {
-      const result = await runAutonomousActivityStep({
-        provider,
-        model,
-        keys: keys || {},
-        forceBypassCooldown: !!forceBypassCooldown || stepsToRun > 1
-      });
-      results.push(result);
+      try {
+        const result = await runAutonomousActivityStep({
+          provider,
+          model,
+          keys: keys || {},
+          forceBypassCooldown: !!forceBypassCooldown || stepsToRun > 1
+        });
+        results.push(result);
+      } catch (err: any) {
+        console.warn(`[SIMULATION BURST] Step ${i + 1} provider error:`, err?.message || err);
+        results.push({
+          outcome: 'NO_ACTION',
+          reason: `Provider unavailable: ${err?.message || 'API error'}`,
+          details: 'Provider unavailable'
+        });
+      }
     }
 
     return NextResponse.json({ 
@@ -30,7 +39,6 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     console.error('Simulation step failed:', err);
-    // Non-blocking error response
     return NextResponse.json({ success: false, error: err.message || 'Simulation error' }, { status: 500 });
   }
 }

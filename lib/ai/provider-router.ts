@@ -45,6 +45,60 @@ export const PROVIDER_MODEL_PRESETS: Record<AIProvider, ProviderModelPreset[]> =
   ],
 };
 
+// Model-specific temporary cooldown tracker ("provider:model" => timestamp expiration)
+const modelCooldownMap = new Map<string, number>();
+
+/**
+ * Checks if an error represents a rate limit / quota exhaustion signal (HTTP 429, RESOURCE_EXHAUSTED, TPM/RPM limit).
+ */
+export function isRateLimitError(err: any): boolean {
+  if (!err) return false;
+  if (err.status === 429) return true;
+
+  const msg = (err.message || '').toLowerCase();
+  return (
+    msg.includes('429') ||
+    msg.includes('resource_exhausted') ||
+    msg.includes('quota exceeded') ||
+    msg.includes('rate_limit') ||
+    msg.includes('rate limit') ||
+    msg.includes('tpm limit') ||
+    msg.includes('rpm limit') ||
+    msg.includes('tokens per minute') ||
+    msg.includes('requests per minute')
+  );
+}
+
+/**
+ * Temporarily marks a specific model as cooling down for a short duration (default 30s).
+ */
+export function markModelCooldown(provider: AIProvider, model: string, durationMs: number = 30000) {
+  const key = `${provider}:${model}`;
+  modelCooldownMap.set(key, Date.now() + durationMs);
+  console.warn(`[AI ROUTER] Temporarily cooling model ${key} for ${Math.round(durationMs / 1000)}s`);
+}
+
+/**
+ * Checks if a specific model is currently in temporary cooldown.
+ */
+export function isModelCooling(provider: AIProvider, model: string): boolean {
+  const key = `${provider}:${model}`;
+  const expires = modelCooldownMap.get(key);
+  if (!expires) return false;
+  if (Date.now() > expires) {
+    modelCooldownMap.delete(key);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Clears model cooldowns (useful for unit tests).
+ */
+export function clearModelCooldowns() {
+  modelCooldownMap.clear();
+}
+
 /**
  * Normalizes messages into OpenAI Chat Completion format:
  * [{ role: 'system', content }, { role: 'user', content }, { role: 'assistant', content }]
@@ -107,7 +161,9 @@ async function fetchOpenAICompatibleStream(
       const parsed = JSON.parse(errText);
       message = parsed.error?.message || errText;
     } catch {}
-    throw new Error(`Provider Error (${res.status}): ${message}`);
+    const err = new Error(`Provider Error (${res.status}): ${message}`);
+    (err as any).status = res.status;
+    throw err;
   }
 
   if (!res.body) {
@@ -225,83 +281,140 @@ async function fetchGeminiStream(
 }
 
 /**
- * Executes a streaming chat request with automatic Multi-Provider Fallback.
+ * Executes a single model attempt for a provider.
+ */
+async function executeSingleModelAttempt(
+  provider: AIProvider,
+  model: string,
+  options: StreamChatOptions,
+  geminiPayload?: any
+): Promise<Response> {
+  const { keys, systemInstruction, messages, temperature, maxOutputTokens } = options;
+
+  if (provider === 'gemini') {
+    if (!keys.geminiKey) throw new Error('Google Gemini API Key is not configured in Settings');
+    return await fetchGeminiStream(keys.geminiKey, model, geminiPayload);
+  }
+
+  if (provider === 'groq') {
+    if (!keys.groqKey) throw new Error('Groq API Key is not configured in Settings');
+    return await fetchOpenAICompatibleStream(
+      'https://api.groq.com/openai/v1/chat/completions',
+      keys.groqKey,
+      model,
+      systemInstruction,
+      messages,
+      temperature,
+      maxOutputTokens
+    );
+  }
+
+  if (provider === 'openrouter') {
+    if (!keys.openrouterKey) throw new Error('OpenRouter API Key is not configured in Settings');
+    return await fetchOpenAICompatibleStream(
+      'https://openrouter.ai/api/v1/chat/completions',
+      keys.openrouterKey,
+      model,
+      systemInstruction,
+      messages,
+      temperature,
+      maxOutputTokens,
+      {
+        'HTTP-Referer': 'https://naraka-dreamweaver.local',
+        'X-Title': 'Naraka DreamWeaver Novel Studio',
+      }
+    );
+  }
+
+  throw new Error(`Unsupported provider: ${provider}`);
+}
+
+/**
+ * Executes a streaming chat request with Intelligent Model-Aware Provider Fallback:
+ * Model A -> Model B (same provider) -> Provider 2 -> Model C -> Model D.
  */
 export async function routeChatStream(
   options: StreamChatOptions,
   geminiPayload?: any
 ): Promise<Response> {
-  const { provider, model, keys, systemInstruction, messages, temperature, maxOutputTokens } = options;
+  const primaryProvider = options.provider || 'gemini';
+  const primaryModel = options.model || DEFAULT_MODELS[primaryProvider];
 
-  // Primary Provider execution
-  try {
-    if (provider === 'groq') {
-      if (!keys.groqKey) throw new Error('Groq API Key is not configured in Settings');
-      return await fetchOpenAICompatibleStream(
-        'https://api.groq.com/openai/v1/chat/completions',
-        keys.groqKey,
-        model || DEFAULT_MODELS.groq,
-        systemInstruction,
-        messages,
-        temperature,
-        maxOutputTokens
-      );
+  // Provider order starting with requested primary provider
+  const allProviders: AIProvider[] = ['gemini', 'groq', 'openrouter'];
+  const providerSequence: AIProvider[] = [
+    primaryProvider,
+    ...allProviders.filter(p => p !== primaryProvider)
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const provider of providerSequence) {
+    // Check if provider has API key available
+    const key = provider === 'gemini' ? options.keys.geminiKey :
+                provider === 'groq' ? options.keys.groqKey :
+                options.keys.openrouterKey;
+
+    if (!key) {
+      continue;
     }
 
-    if (provider === 'openrouter') {
-      if (!keys.openrouterKey) throw new Error('OpenRouter API Key is not configured in Settings');
-      return await fetchOpenAICompatibleStream(
-        'https://openrouter.ai/api/v1/chat/completions',
-        keys.openrouterKey,
-        model || DEFAULT_MODELS.openrouter,
-        systemInstruction,
-        messages,
-        temperature,
-        maxOutputTokens,
-        {
-          'HTTP-Referer': 'https://naraka-dreamweaver.local',
-          'X-Title': 'Naraka DreamWeaver Novel Studio',
+    // Get models list for provider (primary requested model first)
+    const presetModels = PROVIDER_MODEL_PRESETS[provider].map(m => m.id);
+    const candidateModels: string[] = [];
+    if (provider === primaryProvider && primaryModel) {
+      candidateModels.push(primaryModel);
+    }
+    for (const mId of presetModels) {
+      if (!candidateModels.includes(mId)) {
+        candidateModels.push(mId);
+      }
+    }
+
+    let providerHadRateLimit = false;
+
+    for (const candidateModel of candidateModels) {
+      if (isModelCooling(provider, candidateModel)) {
+        console.warn(`[AI ROUTER] Skipping cooling model ${provider} / ${candidateModel}`);
+        continue;
+      }
+
+      try {
+        if (provider !== primaryProvider || candidateModel !== primaryModel) {
+          console.warn(`[AI ROUTER] Trying ${provider} / ${candidateModel}`);
         }
-      );
-    }
 
-    // Default: Gemini
-    if (!keys.geminiKey) throw new Error('Google Gemini API Key is not configured in Settings');
-    return await fetchGeminiStream(keys.geminiKey, model || DEFAULT_MODELS.gemini, geminiPayload);
-  } catch (err: any) {
-    const isRateLimitOrQuota = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('Quota exceeded');
-
-    // Automatic fallback if Gemini 429 occurs and Groq or OpenRouter key exists
-    if (provider === 'gemini' && isRateLimitOrQuota) {
-      console.warn('Gemini 429 Rate Limit hit. Attempting automatic provider fallback...');
-
-      if (keys.groqKey) {
-        console.warn('Falling back seamlessly to Groq Cloud...');
-        return await fetchOpenAICompatibleStream(
-          'https://api.groq.com/openai/v1/chat/completions',
-          keys.groqKey,
-          DEFAULT_MODELS.groq,
-          systemInstruction,
-          messages,
-          temperature,
-          maxOutputTokens
+        const streamResponse = await executeSingleModelAttempt(
+          provider,
+          candidateModel,
+          options,
+          geminiPayload
         );
-      }
+        return streamResponse;
 
-      if (keys.openrouterKey) {
-        console.warn('Falling back seamlessly to OpenRouter Free Llama...');
-        return await fetchOpenAICompatibleStream(
-          'https://openrouter.ai/api/v1/chat/completions',
-          keys.openrouterKey,
-          DEFAULT_MODELS.openrouter,
-          systemInstruction,
-          messages,
-          temperature,
-          maxOutputTokens
-        );
+      } catch (err: any) {
+        lastError = err;
+        const rateLimited = isRateLimitError(err);
+
+        if (rateLimited) {
+          providerHadRateLimit = true;
+          markModelCooldown(provider, candidateModel, 30000);
+          console.warn(`[AI ROUTER] ${provider} / ${candidateModel} → 429 Rate Limit`);
+        } else {
+          // Non-rate limit error (e.g. invalid key or bad request) -> fail immediately
+          console.error(`[AI ROUTER] ${provider} / ${candidateModel} failed with non-retryable error:`, err?.message || err);
+          throw err;
+        }
       }
     }
 
-    throw err;
+    if (providerHadRateLimit) {
+      console.warn(`[AI ROUTER] ${provider} models exhausted. Falling back to next available provider...`);
+    }
   }
+
+  // All providers and models exhausted
+  const finalError = lastError || new Error('All AI models and providers are currently unavailable or rate-limited.');
+  console.error('[AI ROUTER] Final failure: All providers/models exhausted.');
+  throw finalError;
 }

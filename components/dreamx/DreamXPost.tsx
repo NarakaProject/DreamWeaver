@@ -1,13 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { MessageSquare, Heart, Repeat2, Share, User } from 'lucide-react';
+import { MessageSquare, Heart, Repeat2, Share } from 'lucide-react';
 import type { DreamXPost as DreamXPostType } from '@/lib/dreamx/types';
 import Link from 'next/link';
 import { DreamXPostContent } from './DreamXPostContent';
 import { DreamXVerificationBadge } from './DreamXVerificationBadge';
-
-
 
 interface DreamXPostProps {
   post: DreamXPostType;
@@ -41,7 +39,6 @@ export function DreamXPost({
   };
 
   const handleToggleLike = async () => {
-    // Optimistic update
     const nextLiked = !liked;
     setLiked(nextLiked);
     setLikesCount(prev => nextLiked ? prev + 1 : Math.max(0, prev - 1));
@@ -92,14 +89,21 @@ export function DreamXPost({
   };
 
   const cleanHandle = post.author_handle ? post.author_handle.replace(/^@/, '') : 'user';
-  const profileHref = post.author_type === 'ai' ? `/dreamx/profile/${encodeURIComponent(cleanHandle)}` : '#';
+  const profileHref = post.author_type === 'ai' 
+    ? `/dreamx/profile/${encodeURIComponent(cleanHandle)}`
+    : `/dreamx/profile/${encodeURIComponent(cleanHandle)}`;
+
+  // In Feed View, limit inline replies to top 1 preview to keep main feed clean and compact
+  const repliesToRender = !isThreadView && post.replies && post.replies.length > 1
+    ? post.replies.slice(0, 1)
+    : post.replies;
 
   return (
     <div className="border-b border-white/10 p-4 hover:bg-white/5 transition-colors group">
-      <div className="flex gap-4">
+      <div className="flex gap-3">
         {/* Avatar */}
         <Link href={profileHref} className="flex-shrink-0">
-          <div className="w-11 h-11 rounded-full bg-white/10 overflow-hidden flex items-center justify-center font-bold text-white/50 text-lg border border-white/10">
+          <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden flex items-center justify-center font-bold text-white/50 text-base border border-white/10">
             {post.author_avatar ? (
               <img src={post.author_avatar} alt={post.author_name} className="w-full h-full object-cover" />
             ) : (
@@ -116,14 +120,13 @@ export function DreamXPost({
               <DreamXVerificationBadge type={post.author_verification} />
             </Link>
 
-            
             {post.author_type === 'human' && (
               <span className="px-1.5 py-0.5 text-[10px] bg-blue-500/20 text-blue-400 font-bold rounded uppercase tracking-wider">
                 You
               </span>
             )}
 
-            <Link href={profileHref} className="text-white/40 text-sm hover:underline truncate">
+            <Link href={profileHref} className="text-white/40 text-xs hover:underline truncate">
               {post.author_handle || '@unknown'}
             </Link>
             <span className="text-white/30 text-xs">·</span>
@@ -134,10 +137,8 @@ export function DreamXPost({
             <DreamXPostContent content={post.content} />
           </p>
 
-
           {/* Social Interaction Bar */}
           <div className="flex items-center gap-8 text-white/40 pt-1">
-
             <button 
               onClick={handleReplyClick}
               className="flex items-center gap-2 hover:text-blue-400 transition-colors text-xs"
@@ -176,22 +177,32 @@ export function DreamXPost({
         </div>
       </div>
 
-      {/* Nested Replies Rendering (Recursive Tree for Feed & Thread View) */}
-      {!hideReplies && post.replies && post.replies.length > 0 && (
-        <div className={`mt-3 space-y-2 ${depth < 4 ? 'pl-4 sm:pl-6 border-l-2 border-white/10' : 'pl-2 border-l border-white/5'}`}>
-          {post.replies.map(child => (
+      {/* Capped Visual Indentation Reply Tree (Max offset capped at depth 2) */}
+      {!hideReplies && repliesToRender && repliesToRender.length > 0 && (
+        <div className={`mt-3 space-y-2 ${
+          depth === 0 ? 'pl-3 border-l border-white/10' : 'pl-3.5 border-l border-blue-500/20'
+        }`}>
+          {repliesToRender.map(child => (
             <DreamXPost 
               key={child.id} 
               post={child} 
               onSelectReplyTarget={onSelectReplyTarget}
               onInteraction={onInteraction}
               isThreadView={isThreadView}
-              depth={depth + 1}
+              depth={Math.min(depth + 1, 2)}
             />
           ))}
+
+          {!isThreadView && post.replies && post.replies.length > 1 && (
+            <button
+              onClick={handleReplyClick}
+              className="text-xs text-blue-400 font-bold hover:underline py-1 pl-2 flex items-center gap-1.5"
+            >
+              View full conversation ({post.replies.length} replies) →
+            </button>
+          )}
         </div>
       )}
     </div>
   );
 }
-
