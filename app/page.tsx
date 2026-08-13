@@ -21,7 +21,6 @@ import { DbSession, DbMessage } from '@/lib/db/types';
 import { ChatMessage, DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
 import { splitMultiSpeakerText } from '@/lib/parser/dreamgen';
 import { AIProvider, PROVIDER_MODEL_PRESETS } from '@/lib/ai/provider-router';
-import { addMemory } from '@/lib/memory/store';
 
 export default function Home() {
   const [scenarios, setScenarios] = React.useState<FullScenario[]>([]);
@@ -34,6 +33,7 @@ export default function Home() {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
 
   const [viewMode, setViewMode] = React.useState<SidebarNavView>('discovery');
+  const [isHydratingSession, setIsHydratingSession] = React.useState<boolean>(true);
 
   // Modals & Panels State
   const [isPreStartOpen, setIsPreStartOpen] = React.useState(false);
@@ -169,14 +169,16 @@ export default function Home() {
     localStorage.setItem('dreamweaver_max_tokens', tokens.toString());
   };
 
-  // Load Scenarios & Sessions
+  // Load Scenarios & Sessions Bootstrap
   const fetchScenarios = async (): Promise<FullScenario[]> => {
     try {
       const res = await fetch('/api/scenarios');
-      const data = await res.json();
-      if (data.scenarios) {
-        setScenarios(data.scenarios);
-        return data.scenarios;
+      if (res.ok) {
+        const data = await res.json();
+        if (data.scenarios) {
+          setScenarios(data.scenarios);
+          return data.scenarios;
+        }
       }
     } catch (err) {
       console.error('Failed to load scenarios:', err);
@@ -184,85 +186,94 @@ export default function Home() {
     return [];
   };
 
-  const fetchSessions = async (allScenarios: FullScenario[] = scenarios) => {
-    try {
-      // ── Step 1: Try direct DB-first restoration of active session ──────────
-      // This is race-condition-proof: does not depend on the full sessions list
-      // being populated first. Directly queries the DB by ID.
-      const savedActiveId = localStorage.getItem('dreamweaver_active_session_id');
-      if (savedActiveId) {
-        const directRes = await fetch(`/api/sessions?id=${savedActiveId}`);
-        if (directRes.ok) {
-          const directData = await directRes.json();
-          if (directData.session && directData.messages) {
-            // Restore session metadata + messages in one atomic read
-            const sess = directData.session as DbSession;
-            setSessions((prev) => {
-              if (prev.some((s) => s.id === sess.id)) return prev;
-              return [sess, ...prev];
-            });
-            setActiveSessionId(sess.id);
-            setMessages(
-              directData.messages.map((m: DbMessage) => ({
-                id: m.id,
-                role: m.role,
-                content: m.content,
-                type: m.type,
-                speaker: m.speaker,
-                timestamp: m.timestamp,
-              }))
-            );
-            // Resolve scenario + persona from loaded scenarios
-            const foundScen =
-              allScenarios.find((sc) => sc.meta.id === sess.world_id) || allScenarios[0];
-            if (foundScen) {
-              setActiveScenario(foundScen);
-              setActiveWorldBuilding(foundScen.worldBuilding);
-              const foundPers =
-                foundScen.suggestedPersonas.find((p) => p.id === sess.character_id) ||
-                foundScen.suggestedPersonas[0] || {
-                  id: sess.character_id || 'player',
-                  name: sess.title.match(/\(([^)]+)\)/)?.[1] || 'Player',
-                  personality: 'Protagonist',
-                };
-              setActivePersona(foundPers);
-              setSelectedSpeaker(foundPers.name);
-            }
-            setViewMode('play');
-          }
-        }
-      }
-
-      // ── Step 2: Always load full sessions catalog for sidebar ──────────────
-      const res = await fetch('/api/sessions');
-      const data = await res.json();
-      if (data.sessions) {
-        setSessions(data.sessions);
-
-        // Fallback: if direct lookup failed (session not in DB), try catalog-based restore
-        if (savedActiveId && !activeSessionId) {
-          const found = data.sessions.find((s: DbSession) => s.id === savedActiveId);
-          if (found) {
-            loadSessionMessages(savedActiveId, data.sessions, allScenarios);
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load sessions:', err);
-    }
-  };
-
   React.useEffect(() => {
-    fetchScenarios().then((scens) => {
-      fetchSessions(scens);
-    });
+    let isMounted = true;
+    const bootstrapApp = async () => {
+      setIsHydratingSession(true);
+      try {
+        const scens = await fetchScenarios();
+        const savedActiveId = localStorage.getItem('dreamweaver_active_session_id');
+        let restoredSuccess = false;
+
+        // Step 1: Direct DB lookup for active session (race-condition-proof)
+        if (savedActiveId) {
+          try {
+            const directRes = await fetch(`/api/sessions?id=${savedActiveId}`);
+            if (directRes.ok) {
+              const directData = await directRes.json();
+              if (directData.session && Array.isArray(directData.messages) && isMounted) {
+                const sess = directData.session as DbSession;
+                setSessions((prev) => {
+                  if (prev.some((s) => s.id === sess.id)) return prev;
+                  return [sess, ...prev];
+                });
+                setActiveSessionId(sess.id);
+                setMessages(
+                  directData.messages.map((m: DbMessage) => ({
+                    id: m.id,
+                    role: m.role,
+                    content: m.content,
+                    type: m.type,
+                    speaker: m.speaker,
+                    timestamp: m.timestamp,
+                  }))
+                );
+
+                const foundScen = scens.find((sc) => sc.meta.id === sess.world_id) || scens[0];
+                if (foundScen) {
+                  setActiveScenario(foundScen);
+                  setActiveWorldBuilding(foundScen.worldBuilding);
+                  const foundPers =
+                    foundScen.suggestedPersonas.find((p) => p.id === sess.character_id) ||
+                    foundScen.suggestedPersonas[0] || {
+                      id: sess.character_id || 'player',
+                      name: sess.title.match(/\(([^)]+)\)/)?.[1] || 'Player',
+                      personality: 'Protagonist',
+                    };
+                  setActivePersona(foundPers);
+                  setSelectedSpeaker(foundPers.name);
+                }
+                setViewMode('play');
+                restoredSuccess = true;
+              }
+            }
+          } catch (err) {
+            console.error('Direct session restoration error:', err);
+          }
+
+          if (!restoredSuccess) {
+            localStorage.removeItem('dreamweaver_active_session_id');
+          }
+        }
+
+        // Step 2: Load full session catalog for sidebar
+        const res = await fetch('/api/sessions');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.sessions && isMounted) {
+            setSessions(data.sessions);
+          }
+        }
+      } catch (err) {
+        console.error('App bootstrap error:', err);
+      } finally {
+        if (isMounted) {
+          setIsHydratingSession(false);
+        }
+      }
+    };
+
+    bootstrapApp();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingContent]);
 
-  // Load Session Messages from SQLite
+  // Load Session Messages from SQLite (NO automatic addMemory calls on restore)
   const loadSessionMessages = async (
     sessionId: string,
     existingSessions: DbSession[] = sessions,
@@ -272,28 +283,20 @@ export default function Home() {
     localStorage.setItem('dreamweaver_active_session_id', sessionId);
     try {
       const res = await fetch(`/api/sessions?sessionId=${sessionId}`);
-      const data = await res.json();
-      if (data.messages) {
-        setMessages(
-          data.messages.map((m: DbMessage) => ({
-            id: m.id,
-            role: m.role,
-            content: m.content,
-            type: m.type,
-            speaker: m.speaker,
-            timestamp: m.timestamp,
-          }))
-        );
-
-        data.messages.forEach((m: DbMessage, idx: number) => {
-          addMemory({
-            sessionId,
-            turnNumber: idx + 1,
-            speaker: m.speaker || (m.role === 'user' ? 'Player' : 'Narrator'),
-            content: m.content,
-            timestamp: m.timestamp,
-          }).catch(() => {});
-        });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.messages) {
+          setMessages(
+            data.messages.map((m: DbMessage) => ({
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              type: m.type,
+              speaker: m.speaker,
+              timestamp: m.timestamp,
+            }))
+          );
+        }
       }
 
       const sessionObj = existingSessions.find((s) => s.id === sessionId);
@@ -326,11 +329,6 @@ export default function Home() {
   };
 
   const handleStartGame = async (scenario: FullScenario, persona: PersonaTemplate) => {
-    setActiveScenario(scenario);
-    setActivePersona(persona);
-    setActiveWorldBuilding(scenario.worldBuilding);
-    setSelectedSpeaker(persona.name);
-
     const newSessionId = `session-${Date.now()}`;
     const newSession: DbSession = {
       id: newSessionId,
@@ -340,13 +338,6 @@ export default function Home() {
       created_at: Date.now(),
       updated_at: Date.now(),
     };
-    localStorage.setItem('dreamweaver_active_session_id', newSessionId);
-
-    await fetch('/api/sessions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'saveSession', session: newSession }),
-    });
 
     let initialSpeaker = 'Narrator';
     let rawOpening = scenario.worldBuilding.openingMessage;
@@ -372,34 +363,74 @@ export default function Home() {
     );
 
     const initialMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: `msg-${Date.now()}-0`,
       role: 'model',
       content: initialContent,
       speaker: initialSpeaker,
       timestamp: Date.now(),
     };
 
-    await fetch('/api/sessions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'saveMessage',
-        message: {
-          id: initialMsg.id,
-          session_id: newSessionId,
-          role: initialMsg.role,
-          content: initialMsg.content,
-          type: 'narration',
-          speaker: initialMsg.speaker,
-          timestamp: initialMsg.timestamp,
-        },
-      }),
-    });
+    try {
+      // 1. Save session to SQLite
+      const sessRes = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'saveSession', session: newSession }),
+      });
+      if (!sessRes.ok) {
+        console.error('Failed to create session in database');
+        return;
+      }
 
-    setSessions((prev) => [newSession, ...prev]);
-    setActiveSessionId(newSessionId);
-    setMessages([initialMsg]);
-    setViewMode('play');
+      // 2. Save opening message to SQLite
+      const msgRes = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'saveMessage',
+          message: {
+            id: initialMsg.id,
+            session_id: newSessionId,
+            role: initialMsg.role,
+            content: initialMsg.content,
+            type: 'narration',
+            speaker: initialMsg.speaker,
+            timestamp: initialMsg.timestamp,
+          },
+        }),
+      });
+      if (!msgRes.ok) {
+        console.error('Failed to save opening message to database');
+        return;
+      }
+
+      // Index initial opening message to memory store
+      fetch('/api/memory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: `mem_${initialMsg.timestamp}_init`,
+          sessionId: newSessionId,
+          turnNumber: 1,
+          speaker: initialSpeaker,
+          content: initialContent,
+          timestamp: initialMsg.timestamp,
+        }),
+      }).catch(() => {});
+
+      // 3. Establish active session in localStorage & state only after successful persistence
+      localStorage.setItem('dreamweaver_active_session_id', newSessionId);
+      setActiveScenario(scenario);
+      setActivePersona(persona);
+      setActiveWorldBuilding(scenario.worldBuilding);
+      setSelectedSpeaker(persona.name);
+      setSessions((prev) => [newSession, ...prev]);
+      setActiveSessionId(newSessionId);
+      setMessages([initialMsg]);
+      setViewMode('play');
+    } catch (err) {
+      console.error('Session creation failed:', err);
+    }
   };
 
   const handleOpenBuilder = (scenario?: FullScenario) => {
@@ -439,65 +470,47 @@ export default function Home() {
         if (
           npc.name.toLowerCase() === 'summoned' ||
           npc.name.toLowerCase() === 'npc_name' ||
-          npc.name.toLowerCase() === 'npc_name_or_description' ||
-          npc.name.toLowerCase() === '{{user}}' ||
-          npc.id.toLowerCase().includes('summoned')
+          npc.name.toLowerCase() === 'npc_name_or_description'
         ) {
-          return { ...npc, name: targetNpcName };
+          return { ...npc, name: targetNpcName! };
         }
         return npc;
       });
-
-      if (!updatedNPCs.some((n) => n.name.toLowerCase() === targetNpcName.toLowerCase())) {
-        if (
-          updatedNPCs.length > 0 &&
-          (updatedNPCs[0].name.toLowerCase() === 'summoned' ||
-            updatedNPCs[0].name.toLowerCase() === 'npc_name' ||
-            updatedNPCs[0].name.toLowerCase() === 'npc_name_or_description')
-        ) {
-          updatedNPCs[0].name = targetNpcName;
-        } else {
-          updatedNPCs.push({
-            id: `npc-${Date.now()}`,
-            name: targetNpcName,
-            personality: `Summoned character persona for ${targetNpcName}`,
-            firstMessage: '',
-          });
-        }
+      if (!updatedNPCs.some((n) => n.name.toLowerCase() === targetNpcName!.toLowerCase())) {
+        updatedNPCs.push({
+          id: `npc-${Date.now()}`,
+          name: targetNpcName!,
+          personality: 'Summoned NPC',
+          firstMessage: '',
+        });
       }
-
-      setActiveWorldBuilding((prev) => (prev ? { ...prev, scenarioNPCs: updatedNPCs } : prev));
+      setActiveWorldBuilding({
+        ...activeWorldBuilding,
+        scenarioNPCs: updatedNPCs,
+      });
       setSelectedSpeaker(targetNpcName);
     }
 
-    // USER MESSAGE SPEAKER MUST STRICTLY REMAIN THE ACTIVE PLAYER PERSONA ONLY
-    const userSpeakerName = activePersona?.name || 'Naraka';
+    const userSpeakerName = activePersona?.name || 'Player';
+    const now = Date.now();
+    const userMsgId = `msg-${now}-user`;
+    const aiMsgBaseId = `msg-${now}-ai`;
 
     const userMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: userMsgId,
       role: 'user',
       content: trimmedContent,
       type: 'narration',
       speaker: userSpeakerName,
-      timestamp: Date.now(),
+      timestamp: now,
     };
 
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
 
-    // NOTE: User message persistence is handled server-side inside /api/chat/route.ts
-    // via the userMessage payload to guarantee atomic writes before the stream starts.
-    addMemory({
-      sessionId: activeSessionId,
-      turnNumber: updatedMessages.length,
-      speaker: userSpeakerName,
-      content: trimmedContent,
-      timestamp: userMsg.timestamp,
-    }).catch(() => {});
-
     const aiTargetSpeaker =
       targetSpeakerOverride && targetSpeakerOverride !== userSpeakerName ? targetSpeakerOverride : undefined;
-    triggerStreamingResponse(updatedMessages, activeSessionId, aiTargetSpeaker, userMsg);
+    triggerStreamingResponse(updatedMessages, activeSessionId, aiTargetSpeaker, userMsg, aiMsgBaseId);
   };
 
   const handleContinue = (targetSpeaker?: string) => {
@@ -552,10 +565,13 @@ export default function Home() {
     history: ChatMessage[],
     sessionId: string,
     targetSpeaker?: string,
-    pendingUserMessage?: ChatMessage
+    pendingUserMessage?: ChatMessage,
+    inputAiMessageBaseId?: string
   ) => {
     setIsStreaming(true);
     setStreamingContent('');
+
+    const aiMessageBaseId = inputAiMessageBaseId || `msg-${Date.now()}-ai`;
 
     try {
       const res = await fetch('/api/chat', {
@@ -571,12 +587,15 @@ export default function Home() {
           provider,
           model: selectedModel,
           sessionId,
-          userMessage: pendingUserMessage ? {
-            id: pendingUserMessage.id,
-            content: pendingUserMessage.content,
-            speaker: pendingUserMessage.speaker,
-            timestamp: pendingUserMessage.timestamp,
-          } : undefined,
+          userMessage: pendingUserMessage
+            ? {
+                id: pendingUserMessage.id,
+                content: pendingUserMessage.content,
+                speaker: pendingUserMessage.speaker,
+                timestamp: pendingUserMessage.timestamp,
+              }
+            : undefined,
+          aiMessageBaseId,
           narratorDirectives: activeWorldBuilding?.narrator,
           settingLore: activeWorldBuilding?.setting,
           plotHooks: activeWorldBuilding?.plot,
@@ -635,8 +654,10 @@ export default function Home() {
           sec.speaker === '{{user}}'
         ) continue;
 
+        const sectionMsgId = sections.length === 1 ? aiMessageBaseId : `${aiMessageBaseId}-${i}`;
+
         const aiMsg: ChatMessage = {
-          id: `msg-${Date.now()}-${i}`,
+          id: sectionMsgId,
           role: 'model',
           content: sec.content,
           speaker: sec.speaker,
@@ -644,19 +665,6 @@ export default function Home() {
         };
 
         createdMessages.push(aiMsg);
-        // NOTE: AI message persistence is handled server-side in /api/chat/route.ts via stream tee.
-      }
-
-      if (sessionId && createdMessages.length > 0) {
-        createdMessages.forEach((m, idx) => {
-          addMemory({
-            sessionId,
-            turnNumber: history.length + idx + 1,
-            speaker: m.speaker || 'Narrator',
-            content: m.content,
-            timestamp: m.timestamp || Date.now(),
-          }).catch(() => {});
-        });
       }
 
       setMessages((prev) => [...prev, ...createdMessages]);
@@ -765,8 +773,15 @@ export default function Home() {
 
   const handleRegenerateFromIndex = (index: number) => {
     const trimmedHistory = messages.slice(0, index);
+    const discardedMsgs = messages.slice(index);
     setMessages(trimmedHistory);
+
     if (activeSessionId) {
+      discardedMsgs.forEach((m) => {
+        if (m.id) {
+          fetch(`/api/sessions?messageId=${m.id}`, { method: 'DELETE' }).catch(() => {});
+        }
+      });
       triggerStreamingResponse(trimmedHistory, activeSessionId);
     }
   };
@@ -856,7 +871,12 @@ export default function Home() {
           <div className="flex-1 flex flex-col h-full overflow-hidden relative">
             {/* Reading Viewport */}
             <main className="flex-1 overflow-y-auto px-6 py-8 contain-content overscroll-contain">
-              {messages.length === 0 ? (
+              {isHydratingSession ? (
+                <div className="max-w-xl mx-auto my-20 text-center space-y-4">
+                  <div className="w-8 h-8 mx-auto border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm font-medium text-slate-400">Restoring session...</p>
+                </div>
+              ) : messages.length === 0 ? (
                 <div className="max-w-xl mx-auto my-20 text-center space-y-6">
                   <h2 className="text-2xl font-bold text-white">Starting Scenario Session...</h2>
                 </div>

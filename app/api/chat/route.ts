@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assembleGeminiPayload, buildSystemInstruction, DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
 import { routeChatStream, AIProvider, DEFAULT_MODELS } from '@/lib/ai/provider-router';
-import { searchMemories, addMemory } from '@/lib/memory/store';
+import { searchMemories, extractKeywords } from '@/lib/memory/store';
 import { shouldSummarize, summarizeTurnChunk } from '@/lib/memory/summarizer';
 import { getDatabase } from '@/lib/db';
+import { splitMultiSpeakerText } from '@/lib/parser/dreamgen';
 
 function generateId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -20,7 +21,8 @@ export async function POST(req: NextRequest) {
       provider = (req.headers.get('x-provider') as AIProvider) || 'gemini',
       model,
       sessionId,
-      userMessage,        // { id, content, speaker, timestamp } — the user turn to persist server-side
+      userMessage,        // { id, content, speaker, timestamp }
+      aiMessageBaseId: inputAiBaseId, // client-authoritative base ID for AI response section(s)
       narratorDirectives,
       settingLore,
       plotHooks,
@@ -37,7 +39,9 @@ export async function POST(req: NextRequest) {
       maxOutputTokens = 2048,
     } = body;
 
-    // ─── 1. Persist user message server-side BEFORE streaming ────────────────
+    const aiMessageBaseId = inputAiBaseId || generateId('msg');
+
+    // ─── 1. Persist user message server-side BEFORE starting AI stream ────────
     if (sessionId && userMessage?.id && userMessage?.content) {
       try {
         const db = getDatabase();
@@ -57,7 +61,7 @@ export async function POST(req: NextRequest) {
 
     let retrievedMemories = body.retrievedMemories || [];
 
-    // ELTM Context Retrieval: search past memories to enrich the system prompt
+    // ELTM Context Retrieval: search past memories to enrich system prompt
     if ((!retrievedMemories || retrievedMemories.length === 0) && sessionId) {
       const lastUserMsg = messages.filter((m: any) => m.role === 'user').pop()?.content || '';
       if (lastUserMsg) {
@@ -120,7 +124,7 @@ export async function POST(req: NextRequest) {
       content: m.content || '',
     }));
 
-    // ─── 2. Stream the AI response, accumulate full text, then persist ───────
+    // ─── 2. Stream AI response & await persistence before closing stream ─────
     const upstreamResponse = await routeChatStream(
       {
         provider: provider as AIProvider,
@@ -138,79 +142,99 @@ export async function POST(req: NextRequest) {
       return upstreamResponse;
     }
 
-    // Tee the stream: pipe to client AND accumulate for server-side write
-    const [streamForClient, streamForCapture] = upstreamResponse.body.tee();
+    const upstreamReader = upstreamResponse.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulatedText = '';
 
-    // Background: read accumulated text and persist to DB after stream ends
-    (async () => {
-      try {
-        const reader = streamForCapture.getReader();
-        const decoder = new TextDecoder();
-        let fullText = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          fullText += decoder.decode(value, { stream: true });
-        }
-        fullText += decoder.decode(); // flush
+    const customStream = new ReadableStream({
+      async start(controller) {
+        try {
+          while (true) {
+            const { done, value } = await upstreamReader.read();
+            if (done) break;
+            accumulatedText += decoder.decode(value, { stream: true });
+            controller.enqueue(value);
+          }
+          accumulatedText += decoder.decode(); // flush remaining bytes
 
-        if (fullText.trim() && sessionId) {
-          const db = getDatabase();
-          const aiMsgId = generateId('msg');
-          const ts = Date.now();
-          const totalTurns = messages.length + 1; // +1 for the AI response just generated
+          const fullText = accumulatedText.trim();
+          if (fullText && sessionId) {
+            const db = getDatabase();
+            const defaultSpeaker = targetSpeaker || 'Narrator';
+            const sections = splitMultiSpeakerText(fullText, defaultSpeaker, characterName);
+            const ts = Date.now();
 
-          // ── Persist AI response to DB ─────────────────────────────────────
-          await db.saveMessage({
-            id: aiMsgId,
-            session_id: sessionId,
-            role: 'model',
-            content: fullText.trim(),
-            type: 'narration',
-            speaker: targetSpeaker || 'Narrator',
-            timestamp: ts,
-          });
+            // ── A. Persist AI section(s) with canonical shared message ID ─────
+            for (let i = 0; i < sections.length; i++) {
+              const sec = sections[i];
+              if (!sec.content || !sec.content.trim()) continue;
+              const sectionMsgId = sections.length === 1 ? aiMessageBaseId : `${aiMessageBaseId}-${i}`;
+              const msgTs = ts + i * 10;
 
-          // Update session updated_at
-          await db.updateSession(sessionId, { updated_at: ts });
+              await db.saveMessage({
+                id: sectionMsgId,
+                session_id: sessionId,
+                role: 'model',
+                content: sec.content,
+                type: 'narration',
+                speaker: sec.speaker,
+                timestamp: msgTs,
+              });
+            }
 
-          // ── Server-side ELTM Indexing ─────────────────────────────────────
-          // Index user turn (if provided via payload)
-          if (userMessage?.content) {
-            await addMemory({
-              sessionId,
-              turnNumber: messages.length, // user turn precedes AI response
-              speaker: userMessage.speaker || characterName || 'Player',
-              content: userMessage.content,
-              timestamp: userMessage.timestamp || ts - 1,
+            // Update session updated_at timestamp
+            await db.updateSession(sessionId, { updated_at: ts });
+
+            // ── B. Canonical Server-Side ELTM Memory Indexing ───────────────
+            if (userMessage?.content) {
+              const userTurnNum = messages.length;
+              const userKw = extractKeywords(userMessage.content).join(',');
+              await db.saveMemory({
+                id: `mem_${userMessage.timestamp || ts - 1}_user`,
+                session_id: sessionId,
+                turn_number: userTurnNum,
+                speaker: userMessage.speaker || characterName || 'Player',
+                content: userMessage.content,
+                keywords: userKw,
+                is_summary: 0,
+                timestamp: userMessage.timestamp || ts - 1,
+              }).catch(() => {});
+            }
+
+            const totalTurns = messages.length + 1;
+            const aiKw = extractKeywords(fullText).join(',');
+            await db.saveMemory({
+              id: `mem_${ts}_ai`,
+              session_id: sessionId,
+              turn_number: totalTurns,
+              speaker: defaultSpeaker,
+              content: fullText,
+              keywords: aiKw,
+              is_summary: 0,
+              timestamp: ts,
             }).catch(() => {});
-          }
 
-          // Index AI response turn
-          await addMemory({
-            sessionId,
-            turnNumber: totalTurns,
-            speaker: targetSpeaker || 'Narrator',
-            content: fullText.trim(),
-            timestamp: ts,
-          }).catch(() => {});
-
-          // ── Milestone Auto-Summarization ──────────────────────────────────
-          if (shouldSummarize(totalTurns)) {
-            const recentTurns = messages.slice(-15).map((m: any, idx: number) => ({
-              speaker: m.speaker || (m.role === 'user' ? characterName || 'Player' : 'Narrator'),
-              content: m.content || '',
-              turnNumber: Math.max(1, totalTurns - 15 + idx),
-            }));
-            summarizeTurnChunk(sessionId, recentTurns, totalTurns).catch(() => {});
+            // ── C. Auto-Summarization Milestone ─────────────────────────────
+            if (shouldSummarize(totalTurns)) {
+              const recentTurns = messages.slice(-15).map((m: any, idx: number) => ({
+                speaker: m.speaker || (m.role === 'user' ? characterName || 'Player' : 'Narrator'),
+                content: m.content || '',
+                turnNumber: Math.max(1, totalTurns - 15 + idx),
+              }));
+              await summarizeTurnChunk(sessionId, recentTurns, totalTurns).catch(() => {});
+            }
           }
+        } catch (err) {
+          console.error('[chat/route] Error during stream reading or persistence:', err);
+          controller.error(err);
+          return;
+        } finally {
+          controller.close();
         }
-      } catch (err) {
-        console.error('[chat/route] Failed to persist AI response to DB:', err);
-      }
-    })();
+      },
+    });
 
-    return new Response(streamForClient, {
+    return new Response(customStream, {
       headers: upstreamResponse.headers,
       status: upstreamResponse.status,
     });

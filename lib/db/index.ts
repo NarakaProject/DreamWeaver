@@ -57,9 +57,12 @@ class BetterSqliteAdapter implements DbAdapter {
   }
 
   async deleteSession(id: string): Promise<void> {
-    this.db.prepare('DELETE FROM memories WHERE session_id = ?').run(id);
-    this.db.prepare('DELETE FROM messages WHERE session_id = ?').run(id);
-    this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
+    const txn = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM memories WHERE session_id = ?').run(id);
+      this.db.prepare('DELETE FROM messages WHERE session_id = ?').run(id);
+      this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
+    });
+    txn();
   }
 
   async getMessages(sessionId: string): Promise<DbMessage[]> {
@@ -77,26 +80,29 @@ class BetterSqliteAdapter implements DbAdapter {
   }
 
   async saveMessage(message: DbMessage): Promise<void> {
-    const stmt = this.db.prepare(`
-      INSERT INTO messages (id, session_id, role, content, type, speaker, timestamp)
-      VALUES (@id, @session_id, @role, @content, @type, @speaker, @timestamp)
-      ON CONFLICT(id) DO UPDATE SET
-        content = excluded.content,
-        speaker = excluded.speaker,
-        timestamp = excluded.timestamp
-    `);
-    stmt.run({
-      id: message.id,
-      session_id: message.session_id,
-      role: message.role,
-      content: message.content,
-      type: message.type || null,
-      speaker: message.speaker || null,
-      timestamp: message.timestamp,
-    });
+    const txn = this.db.transaction(() => {
+      const stmt = this.db.prepare(`
+        INSERT INTO messages (id, session_id, role, content, type, speaker, timestamp)
+        VALUES (@id, @session_id, @role, @content, @type, @speaker, @timestamp)
+        ON CONFLICT(id) DO UPDATE SET
+          content = excluded.content,
+          speaker = excluded.speaker,
+          timestamp = excluded.timestamp
+      `);
+      stmt.run({
+        id: message.id,
+        session_id: message.session_id,
+        role: message.role,
+        content: message.content,
+        type: message.type || null,
+        speaker: message.speaker || null,
+        timestamp: message.timestamp,
+      });
 
-    // Update parent session updated_at
-    this.db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(message.timestamp, message.session_id);
+      // Update parent session updated_at atomically
+      this.db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(message.timestamp, message.session_id);
+    });
+    txn();
   }
 
   async deleteMessage(id: string): Promise<void> {
@@ -184,9 +190,11 @@ class LibSqlAdapter implements DbAdapter {
   }
 
   async deleteSession(id: string): Promise<void> {
-    await this.client.execute({ sql: 'DELETE FROM memories WHERE session_id = ?', args: [id] });
-    await this.client.execute({ sql: 'DELETE FROM messages WHERE session_id = ?', args: [id] });
-    await this.client.execute({ sql: 'DELETE FROM sessions WHERE id = ?', args: [id] });
+    await this.client.batch([
+      { sql: 'DELETE FROM memories WHERE session_id = ?', args: [id] },
+      { sql: 'DELETE FROM messages WHERE session_id = ?', args: [id] },
+      { sql: 'DELETE FROM sessions WHERE id = ?', args: [id] },
+    ]);
   }
 
   async updateSession(id: string, fields: Partial<DbSession>): Promise<void> {
@@ -215,24 +223,26 @@ class LibSqlAdapter implements DbAdapter {
   }
 
   async saveMessage(message: DbMessage): Promise<void> {
-    await this.client.execute({
-      sql: `INSERT INTO messages (id, session_id, role, content, type, speaker, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET content = excluded.content, speaker = excluded.speaker, timestamp = excluded.timestamp`,
-      args: [
-        message.id,
-        message.session_id,
-        message.role,
-        message.content,
-        message.type || null,
-        message.speaker || null,
-        message.timestamp,
-      ],
-    });
-    await this.client.execute({
-      sql: 'UPDATE sessions SET updated_at = ? WHERE id = ?',
-      args: [message.timestamp, message.session_id],
-    });
+    await this.client.batch([
+      {
+        sql: `INSERT INTO messages (id, session_id, role, content, type, speaker, timestamp)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET content = excluded.content, speaker = excluded.speaker, timestamp = excluded.timestamp`,
+        args: [
+          message.id,
+          message.session_id,
+          message.role,
+          message.content,
+          message.type || null,
+          message.speaker || null,
+          message.timestamp,
+        ],
+      },
+      {
+        sql: 'UPDATE sessions SET updated_at = ? WHERE id = ?',
+        args: [message.timestamp, message.session_id],
+      },
+    ]);
   }
 
   async deleteMessage(id: string): Promise<void> {
