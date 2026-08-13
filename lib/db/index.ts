@@ -472,6 +472,85 @@ export function getDatabase(): DbAdapter {
   try {
     // Attempt native better-sqlite3 first
     dbInstance = new BetterSqliteAdapter(dbPath);
+
+    // ---------------------------------------------------------
+    // ATOMIC SYNCHRONOUS DREAMX MIGRATION (v0.1 -> v0.2)
+    // ---------------------------------------------------------
+    try {
+      const rawDb = (dbInstance as any).db;
+      if (rawDb) {
+        // Inspect current schema of dreamx_posts safely
+        const tableInfo = rawDb.pragma('table_info(dreamx_posts)');
+        const hasProfileId = tableInfo.some((col: any) => col.name === 'profile_id');
+        const hasAuthorId = tableInfo.some((col: any) => col.name === 'author_id');
+        const hasAuthorType = tableInfo.some((col: any) => col.name === 'author_type');
+        
+        // If legacy profile_id column exists, perform a safe table rebuild
+        if (hasProfileId) {
+          console.log('Migrating legacy dreamx_posts schema to v0.2 actor model...');
+          
+          const authorIdSrc = hasAuthorId ? 'author_id' : 'profile_id';
+          const authorTypeSrc = hasAuthorType ? 'author_type' : "'ai'";
+          const hasLikes = tableInfo.some((col: any) => col.name === 'likes_count');
+          const likesSrc = hasLikes ? 'likes_count' : '0';
+          const hasReposts = tableInfo.some((col: any) => col.name === 'reposts_count');
+          const repostsSrc = hasReposts ? 'reposts_count' : '0';
+          const hasReplyTo = tableInfo.some((col: any) => col.name === 'reply_to_post_id');
+          const replyToSrc = hasReplyTo ? 'reply_to_post_id' : 'NULL';
+
+          // Atomic transaction
+          rawDb.transaction(() => {
+            // 1. Create target v0.2 table
+            rawDb.prepare(`
+              CREATE TABLE dreamx_posts_new (
+                id TEXT PRIMARY KEY,
+                author_id TEXT NOT NULL,
+                author_type TEXT NOT NULL CHECK(author_type IN ('human', 'ai')),
+                content TEXT NOT NULL,
+                reply_to_post_id TEXT,
+                likes_count INTEGER DEFAULT 0,
+                reposts_count INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL
+              )
+            `).run();
+            
+            // 2. Map legacy data, preserving content and defaults
+            rawDb.prepare(`
+              INSERT INTO dreamx_posts_new (
+                id, author_id, author_type, content, reply_to_post_id, likes_count, reposts_count, created_at
+              )
+              SELECT 
+                id, 
+                COALESCE(${authorIdSrc}, profile_id), 
+                COALESCE(${authorTypeSrc}, 'ai'), 
+                content, 
+                ${replyToSrc}, 
+                ${likesSrc}, 
+                ${repostsSrc}, 
+                created_at 
+              FROM dreamx_posts
+            `).run();
+            
+            // 3. Swap tables and drop legacy foreign keys
+            rawDb.prepare(`DROP TABLE dreamx_posts`).run();
+            rawDb.prepare(`ALTER TABLE dreamx_posts_new RENAME TO dreamx_posts`).run();
+            
+            // 4. Recreate the deduplication index
+            rawDb.prepare(`
+              CREATE UNIQUE INDEX IF NOT EXISTS idx_dreamx_ai_reply_dedup 
+              ON dreamx_posts(author_id, reply_to_post_id) 
+              WHERE author_type = 'ai' AND reply_to_post_id IS NOT NULL
+            `).run();
+          })();
+          
+          console.log('DreamX schema migration completed successfully.');
+        }
+      }
+    } catch (migErr) {
+      console.error('DreamX synchronous migration failed (rolling back automatically):', migErr);
+    }
+    // ---------------------------------------------------------
+
   } catch (e) {
     console.warn('Native better-sqlite3 initialization failed. Falling back to @libsql/client:', e);
     dbInstance = new LibSqlAdapter(dbPath);
@@ -621,16 +700,8 @@ export function getDatabase(): DbAdapter {
     console.error('Failed to initialize DreamX SQLite schema. DreamWeaver will continue unaffected:', err);
   }
 
-  // Graceful column migrations for existing DreamX v0.1 databases
-  try {
-    dbInstance.exec(`ALTER TABLE dreamx_posts ADD COLUMN author_id TEXT;`);
-  } catch {}
-  try {
-    dbInstance.exec(`ALTER TABLE dreamx_posts ADD COLUMN author_type TEXT DEFAULT 'ai';`);
-  } catch {}
-  try {
-    dbInstance.exec(`UPDATE dreamx_posts SET author_id = profile_id WHERE author_id IS NULL AND profile_id IS NOT NULL;`);
-  } catch {}
+  // The legacy column fallback migration has been replaced by the atomic table rebuild above.
+
 
   return dbInstance;
 }
