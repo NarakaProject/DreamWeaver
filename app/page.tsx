@@ -371,23 +371,13 @@ export default function Home() {
     };
 
     try {
-      // 1. Save session to SQLite
-      const sessRes = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'saveSession', session: newSession }),
-      });
-      if (!sessRes.ok) {
-        console.error('Failed to create session in database');
-        return;
-      }
-
-      // 2. Save opening message to SQLite
-      const msgRes = await fetch('/api/sessions', {
+      // Atomic creation of session + opening message + memory index
+      const res = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'saveMessage',
+          action: 'createSessionWithMessage',
+          session: newSession,
           message: {
             id: initialMsg.id,
             session_id: newSessionId,
@@ -397,28 +387,16 @@ export default function Home() {
             speaker: initialMsg.speaker,
             timestamp: initialMsg.timestamp,
           },
+          indexMemory: true,
         }),
       });
-      if (!msgRes.ok) {
-        console.error('Failed to save opening message to database');
+
+      if (!res.ok) {
+        console.error('Failed to create session and initial message in database');
         return;
       }
 
-      // Index initial opening message to memory store
-      fetch('/api/memory', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: `mem_${initialMsg.timestamp}_init`,
-          sessionId: newSessionId,
-          turnNumber: 1,
-          speaker: initialSpeaker,
-          content: initialContent,
-          timestamp: initialMsg.timestamp,
-        }),
-      }).catch(() => {});
-
-      // 3. Establish active session in localStorage & state only after successful persistence
+      // Establish active session in localStorage & state only after successful atomic creation
       localStorage.setItem('dreamweaver_active_session_id', newSessionId);
       setActiveScenario(scenario);
       setActivePersona(persona);

@@ -54,7 +54,15 @@ class BetterSqliteAdapter implements DbAdapter {
         title = excluded.title,
         updated_at = excluded.updated_at
     `);
-    stmt.run(session);
+    stmt.run({
+      id: session.id,
+      title: session.title,
+      world_id: session.world_id,
+      character_id: session.character_id,
+      system_instruction: session.system_instruction || null,
+      created_at: session.created_at,
+      updated_at: session.updated_at,
+    });
   }
 
   async saveSessionWithMessage(session: DbSession, message: DbMessage, indexMemory?: boolean): Promise<void> {
@@ -65,7 +73,15 @@ class BetterSqliteAdapter implements DbAdapter {
         ON CONFLICT(id) DO UPDATE SET
           title = excluded.title,
           updated_at = excluded.updated_at
-      `).run(session);
+      `).run({
+        id: session.id,
+        title: session.title,
+        world_id: session.world_id,
+        character_id: session.character_id,
+        system_instruction: session.system_instruction || null,
+        created_at: session.created_at,
+        updated_at: session.updated_at,
+      });
 
       this.db.prepare(`
         INSERT INTO messages (id, session_id, role, content, type, speaker, timestamp)
