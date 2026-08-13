@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "vitest run && next build",
+    "build": "vitest run --fileParallelism=false && next build",
+
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
+    "test": "vitest run --fileParallelism=false",
+
     "test:watch": "vitest"
   },
   "dependencies": {

@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import type { DreamXProfile, DreamXPost, DreamXUserProfile } from '@/lib/dreamx/types';
 import { DreamXFeed } from './DreamXFeed';
-import { DreamXCharacterManager } from './DreamXCharacterManager';
 import { DreamXOnboarding } from './DreamXOnboarding';
 import { DreamXThreadModal } from './DreamXThreadModal';
+
 import { Sparkles, Send, Loader2, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { DreamXMentionComposer } from './DreamXMentionComposer';
@@ -174,13 +174,8 @@ export function DreamX({ apiKeys, selectedModel }: DreamXProps) {
             onFeedChanged={loadData}
           />
         </div>
-
-        {/* Right Sidebar - AI Persona Manager */}
-        <DreamXCharacterManager 
-          profiles={profiles} 
-          onProfilesChanged={loadData} 
-        />
       </div>
+
 
       {/* Dedicated Thread Modal */}
       {activeThreadId && (

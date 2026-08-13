@@ -17,16 +17,17 @@ describe('DreamX Deep Reply Targeting & Mention System Audit', () => {
   });
 
   it('1. GET thread using nested child ID returns Josh root and requested target Maria', async () => {
-    await saveProfile({ id: 'josh-1', display_name: 'Josh', handle: '@JoshTest' });
-    await saveUserProfile({ id: 'naraka-1', display_name: 'Naraka', handle: '@Naraka' });
-    await saveProfile({ id: 'maria-1', display_name: 'Maria', handle: '@MariaEnoce' });
+    await saveProfile({ id: 'prof-rt-josh', display_name: 'Josh', handle: '@JoshTest' });
+    await saveUserProfile({ id: 'user-rt-naraka', display_name: 'Naraka', handle: '@Naraka' });
+    await saveProfile({ id: 'prof-rt-maria', display_name: 'Maria', handle: '@MariaEnoce' });
 
     // Josh (root)
-    const joshPost = await savePost({ id: 'post-josh', author_id: 'josh-1', author_type: 'ai', content: 'Balancing growth and well-being is key' });
+    const joshPost = await savePost({ id: 'rt-post-josh', author_id: 'prof-rt-josh', author_type: 'ai', content: 'Balancing growth and well-being is key' });
     // Naraka replies to Josh
-    const narakaReply = await savePost({ id: 'post-naraka', author_id: 'naraka-1', author_type: 'human', content: 'really? i don\'t think so, Josh.', reply_to_post_id: joshPost.id });
+    const narakaReply = await savePost({ id: 'rt-post-naraka', author_id: 'user-rt-naraka', author_type: 'human', content: 'really? i don\'t think so, Josh.', reply_to_post_id: joshPost.id });
     // Maria replies to Naraka
-    const mariaReply = await savePost({ id: 'post-maria', author_id: 'maria-1', author_type: 'ai', content: 'Uh oh, sounds like Josh stepped in it! @Naraka', reply_to_post_id: narakaReply.id });
+    const mariaReply = await savePost({ id: 'rt-post-maria', author_id: 'prof-rt-maria', author_type: 'ai', content: 'Uh oh, sounds like Josh stepped in it! @Naraka', reply_to_post_id: narakaReply.id });
+
 
 
 

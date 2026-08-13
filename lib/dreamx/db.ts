@@ -4,8 +4,10 @@ import type {
   DreamXProfile, 
   DreamXPost, 
   ActorType,
+  VerificationType,
   DreamXActivityLog 
 } from './types';
+
 
 function generateId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -43,14 +45,15 @@ export async function saveUserProfile(profile: Partial<DreamXUserProfile> & { di
     personality: profile.personality || undefined,
     interests: profile.interests || undefined,
     writing_style: profile.writing_style || undefined,
+    verification_type: profile.verification_type || existing?.verification_type || 'none',
     created_at: existing?.created_at || now,
     updated_at: now,
   };
 
   await db.execute(`
     INSERT INTO dreamx_user_profile (
-      id, display_name, handle, avatar_url, bio, personality, interests, writing_style, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, display_name, handle, avatar_url, bio, personality, interests, writing_style, verification_type, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       display_name = excluded.display_name,
       handle = excluded.handle,
@@ -59,6 +62,7 @@ export async function saveUserProfile(profile: Partial<DreamXUserProfile> & { di
       personality = excluded.personality,
       interests = excluded.interests,
       writing_style = excluded.writing_style,
+      verification_type = excluded.verification_type,
       updated_at = excluded.updated_at
   `, [
     fullProfile.id,
@@ -69,12 +73,14 @@ export async function saveUserProfile(profile: Partial<DreamXUserProfile> & { di
     fullProfile.personality,
     fullProfile.interests,
     fullProfile.writing_style,
+    fullProfile.verification_type,
     fullProfile.created_at,
     fullProfile.updated_at
   ]);
 
   return fullProfile;
 }
+
 
 // ----------------------------------------------------
 // AI Profiles DAL
@@ -117,6 +123,7 @@ export async function saveProfile(profile: Partial<DreamXProfile> & { display_na
     beliefs: profile.beliefs || undefined,
     background: profile.background || undefined,
     posting_guidelines: profile.posting_guidelines || undefined,
+    verification_type: profile.verification_type || 'none',
     created_at: profile.created_at || now,
     updated_at: now,
   };
@@ -124,8 +131,8 @@ export async function saveProfile(profile: Partial<DreamXProfile> & { display_na
   await db.execute(`
     INSERT INTO dreamx_profiles (
       id, display_name, handle, avatar_url, bio, personality, traits, interests, 
-      speaking_style, beliefs, background, posting_guidelines, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      speaking_style, beliefs, background, posting_guidelines, verification_type, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       display_name = excluded.display_name,
       handle = excluded.handle,
@@ -138,6 +145,7 @@ export async function saveProfile(profile: Partial<DreamXProfile> & { display_na
       beliefs = excluded.beliefs,
       background = excluded.background,
       posting_guidelines = excluded.posting_guidelines,
+      verification_type = excluded.verification_type,
       updated_at = excluded.updated_at
   `, [
     fullProfile.id,
@@ -152,12 +160,14 @@ export async function saveProfile(profile: Partial<DreamXProfile> & { display_na
     fullProfile.beliefs,
     fullProfile.background,
     fullProfile.posting_guidelines,
+    fullProfile.verification_type,
     fullProfile.created_at,
     fullProfile.updated_at
   ]);
 
   return fullProfile;
 }
+
 
 /**
  * COMPLETE ATOMIC DELETION SEMANTICS
@@ -266,6 +276,8 @@ export async function savePost(post: {
       content = excluded.content,
       reply_to_post_id = excluded.reply_to_post_id
   `, [
+
+
 
     fullPost.id,
     fullPost.author_id,
@@ -382,6 +394,7 @@ async function populatePostMetadata(raw: any, currentHumanId?: string): Promise<
   let author_name = 'Unknown';
   let author_handle = '@unknown';
   let author_avatar = '';
+  let author_verification: VerificationType = 'none';
 
   if (raw.author_type === 'human') {
     const user = await getUserProfile();
@@ -389,6 +402,7 @@ async function populatePostMetadata(raw: any, currentHumanId?: string): Promise<
       author_name = user.display_name;
       author_handle = user.handle;
       author_avatar = user.avatar_url || '';
+      author_verification = user.verification_type || 'none';
     }
   } else {
     const aiProf = await getProfile(raw.author_id);
@@ -396,8 +410,10 @@ async function populatePostMetadata(raw: any, currentHumanId?: string): Promise<
       author_name = aiProf.display_name;
       author_handle = aiProf.handle;
       author_avatar = aiProf.avatar_url || '';
+      author_verification = aiProf.verification_type || 'none';
     }
   }
+
 
   // Count actual likes from dreamx_likes
   const likesRes = await db.queryFirst<{ count: number }>(
@@ -440,18 +456,16 @@ async function populatePostMetadata(raw: any, currentHumanId?: string): Promise<
   return {
     id: raw.id,
     author_id: raw.author_id,
-    author_type: raw.author_type,
-    content: raw.content,
-    reply_to_post_id: raw.reply_to_post_id || null,
-    likes_count,
-    reposts_count,
-    created_at: raw.created_at,
+    ...raw,
     author_name,
     author_handle,
     author_avatar,
+    author_verification,
+    likes_count,
+    reposts_count,
+    reply_count,
     user_liked,
     user_reposted,
-    reply_count,
   };
 }
 

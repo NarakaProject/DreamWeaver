@@ -1,4 +1,5 @@
 export type ActorType = 'human' | 'ai';
+export type VerificationType = 'none' | 'blue' | 'gray' | 'gold';
 
 export interface DreamXUserProfile {
   id: string;
@@ -9,6 +10,7 @@ export interface DreamXUserProfile {
   personality?: string;
   interests?: string;
   writing_style?: string;
+  verification_type?: VerificationType;
   created_at: number;
   updated_at: number;
 }
@@ -26,6 +28,7 @@ export interface DreamXProfile {
   beliefs?: string;
   background?: string;
   posting_guidelines?: string;
+  verification_type?: VerificationType;
   created_at: number;
   updated_at: number;
 }
@@ -44,11 +47,13 @@ export interface DreamXPost {
   author_name?: string;
   author_handle?: string;
   author_avatar?: string;
+  author_verification?: VerificationType;
   user_liked?: boolean;
   user_reposted?: boolean;
   reply_count?: number;
   replies?: DreamXPost[];
 }
+
 
 export interface DreamXLike {
   id: string;

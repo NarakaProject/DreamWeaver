@@ -637,6 +637,7 @@ export function getDatabase(): DbAdapter {
       personality TEXT,
       interests TEXT,
       writing_style TEXT,
+      verification_type TEXT DEFAULT 'none',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -654,9 +655,11 @@ export function getDatabase(): DbAdapter {
       beliefs TEXT,
       background TEXT,
       posting_guidelines TEXT,
+      verification_type TEXT DEFAULT 'none',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+
 
     CREATE TABLE IF NOT EXISTS dreamx_posts (
       id TEXT PRIMARY KEY,
@@ -720,7 +723,18 @@ export function getDatabase(): DbAdapter {
     console.error('Failed to initialize DreamX SQLite schema. DreamWeaver will continue unaffected:', err);
   }
 
-  // The legacy column fallback migration has been replaced by the atomic table rebuild above.
+  // Graceful column migrations for DreamX verification_type
+  try {
+    dbInstance.exec("ALTER TABLE dreamx_profiles ADD COLUMN verification_type TEXT DEFAULT 'none';");
+  } catch {
+    // verification_type already exists
+  }
+  try {
+    dbInstance.exec("ALTER TABLE dreamx_user_profile ADD COLUMN verification_type TEXT DEFAULT 'none';");
+  } catch {
+    // verification_type already exists
+  }
+
 
 
   return dbInstance;

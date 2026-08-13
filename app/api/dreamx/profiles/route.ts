@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProfiles, getProfile, getProfileByHandle, saveProfile, deleteProfile } from '@/lib/dreamx/db';
+import { validateProfileImportPayload, executeProfileImport } from '@/lib/dreamx/import_export';
 
 export async function GET(req: NextRequest) {
   try {
@@ -34,6 +35,29 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    // Bulk Validation Endpoint
+    if (body.action === 'validate_import') {
+      const existing = await getProfiles();
+      const report = validateProfileImportPayload(body.payload, existing);
+      return NextResponse.json({ report });
+    }
+
+    // Bulk Execution Endpoint
+    if (body.action === 'execute_import') {
+      const existing = await getProfiles();
+      const report = validateProfileImportPayload(body.payload, existing);
+      const result = await executeProfileImport(
+        report,
+        saveProfile,
+        body.duplicate_mode || 'update',
+        Boolean(body.allow_skip_invalid)
+      );
+
+      return NextResponse.json(result);
+    }
+
+    // Single Profile Creation/Edit Endpoint (preserved!)
     if (!body.display_name || !body.handle) {
       return NextResponse.json({ error: 'display_name and handle are required' }, { status: 400 });
     }

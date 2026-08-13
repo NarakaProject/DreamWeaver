@@ -5,6 +5,8 @@ import { MessageSquare, Heart, Repeat2, Share, User } from 'lucide-react';
 import type { DreamXPost as DreamXPostType } from '@/lib/dreamx/types';
 import Link from 'next/link';
 import { DreamXPostContent } from './DreamXPostContent';
+import { DreamXVerificationBadge } from './DreamXVerificationBadge';
+
 
 
 interface DreamXPostProps {
@@ -109,9 +111,11 @@ export function DreamXPost({
         {/* Content Body */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <Link href={profileHref} className="font-bold text-white hover:underline truncate">
-              {post.author_name || 'Unknown'}
+            <Link href={profileHref} className="font-bold text-white hover:underline truncate inline-flex items-center gap-1">
+              <span>{post.author_name || 'Unknown'}</span>
+              <DreamXVerificationBadge type={post.author_verification} />
             </Link>
+
             
             {post.author_type === 'human' && (
               <span className="px-1.5 py-0.5 text-[10px] bg-blue-500/20 text-blue-400 font-bold rounded uppercase tracking-wider">

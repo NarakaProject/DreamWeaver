@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { DreamXProfile, DreamXUserProfile } from '@/lib/dreamx/types';
+import type { DreamXProfile, DreamXUserProfile, VerificationType } from '@/lib/dreamx/types';
+import { DreamXVerificationBadge } from './DreamXVerificationBadge';
 
 interface MentionTarget {
   id: string;
@@ -9,7 +10,9 @@ interface MentionTarget {
   handle: string;
   avatar?: string;
   type: 'ai' | 'human';
+  verification_type?: VerificationType;
 }
+
 
 interface DreamXMentionComposerProps {
   value: string;
@@ -57,7 +60,8 @@ export function DreamXMentionComposer({
                 name: p.display_name,
                 handle: p.handle,
                 avatar: p.avatar_url,
-                type: 'ai'
+                type: 'ai',
+                verification_type: p.verification_type
               });
             }
           }
@@ -71,10 +75,12 @@ export function DreamXMentionComposer({
               name: user.display_name,
               handle: user.handle,
               avatar: user.avatar_url,
-              type: 'human'
+              type: 'human',
+              verification_type: user.verification_type
             });
           }
         }
+
 
         setTargets(list);
       } catch (err) {
@@ -215,10 +221,12 @@ export function DreamXMentionComposer({
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold truncate text-white flex items-center gap-1.5">
                     <span>{target.name}</span>
+                    <DreamXVerificationBadge type={target.verification_type} />
                     {target.type === 'human' && (
                       <span className="px-1 py-0.2 text-[9px] bg-blue-500/20 text-blue-400 rounded">You</span>
                     )}
                   </div>
+
                   <div className="text-[11px] text-white/40 truncate">{target.handle}</div>
                 </div>
               </button>

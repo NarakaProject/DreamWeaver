@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import type { DreamXProfile } from '@/lib/dreamx/types';
+import type { DreamXProfile, VerificationType } from '@/lib/dreamx/types';
 import { Plus, X, Trash2, Edit } from 'lucide-react';
+import { DreamXVerificationBadge } from './DreamXVerificationBadge';
+
 
 interface DreamXCharacterManagerProps {
   profiles: DreamXProfile[];
@@ -20,6 +22,8 @@ export function DreamXCharacterManager({ profiles, onProfilesChanged }: DreamXCh
   const [bio, setBio] = useState('');
   const [personality, setPersonality] = useState('');
   const [postingGuidelines, setPostingGuidelines] = useState('');
+  const [verificationType, setVerificationType] = useState<VerificationType>('none');
+
 
   const resetForm = () => {
     setId('');
@@ -29,8 +33,10 @@ export function DreamXCharacterManager({ profiles, onProfilesChanged }: DreamXCh
     setBio('');
     setPersonality('');
     setPostingGuidelines('');
+    setVerificationType('none');
     setIsEditing(false);
   };
+
 
   const handleEdit = (p: DreamXProfile) => {
     setId(p.id);
@@ -40,9 +46,11 @@ export function DreamXCharacterManager({ profiles, onProfilesChanged }: DreamXCh
     setBio(p.bio || '');
     setPersonality(p.personality || '');
     setPostingGuidelines(p.posting_guidelines || '');
+    setVerificationType(p.verification_type || 'none');
     setIsEditing(true);
     setIsOpen(true);
   };
+
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,8 +64,10 @@ export function DreamXCharacterManager({ profiles, onProfilesChanged }: DreamXCh
         bio,
         personality,
         posting_guidelines: postingGuidelines,
+        verification_type: verificationType,
       };
       if (id) payload.id = id;
+
 
       const res = await fetch('/api/dreamx/profiles', {
         method: 'POST',
@@ -106,9 +116,13 @@ export function DreamXCharacterManager({ profiles, onProfilesChanged }: DreamXCh
                 {p.avatar_url ? <img src={p.avatar_url} alt={p.display_name} className="w-full h-full object-cover" /> : p.display_name.charAt(0)}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-bold text-white text-sm truncate">{p.display_name}</p>
+                <p className="font-bold text-white text-sm truncate flex items-center gap-1">
+                  <span>{p.display_name}</span>
+                  <DreamXVerificationBadge type={p.verification_type} />
+                </p>
                 <p className="text-white/50 text-xs truncate">{p.handle}</p>
               </div>
+
             </div>
             
             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -157,9 +171,23 @@ export function DreamXCharacterManager({ profiles, onProfilesChanged }: DreamXCh
                   <textarea value={personality} onChange={e => setPersonality(e.target.value)} rows={3} className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white resize-none" placeholder="How they act..." />
                 </div>
                 <div>
+                  <label className="block text-xs font-medium text-white/50 mb-1">Verification Status</label>
+                  <select 
+                    value={verificationType} 
+                    onChange={e => setVerificationType(e.target.value as VerificationType)}
+                    className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white text-xs"
+                  >
+                    <option value="none">None (Standard Account)</option>
+                    <option value="blue">Blue Badge (Public Figure / Notable Person)</option>
+                    <option value="gray">Gray Badge (Government / Institution)</option>
+                    <option value="gold">Gold Badge (Company / Organization)</option>
+                  </select>
+                </div>
+                <div>
                   <label className="block text-xs font-medium text-white/50 mb-1">Posting Guidelines</label>
                   <textarea value={postingGuidelines} onChange={e => setPostingGuidelines(e.target.value)} rows={3} className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white resize-none" placeholder="What they usually post about..." />
                 </div>
+
               </form>
             </div>
             

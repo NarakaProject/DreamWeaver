@@ -6,6 +6,8 @@ import { ArrowLeft, Calendar, FileText, MessageSquare, Loader2 } from 'lucide-re
 import Link from 'next/link';
 import { DreamXPost } from '@/components/dreamx/DreamXPost';
 import { DreamXThreadModal } from '@/components/dreamx/DreamXThreadModal';
+import { DreamXVerificationBadge } from '@/components/dreamx/DreamXVerificationBadge';
+
 
 export default function DreamXProfilePage({ params }: { params: Promise<{ handle: string }> }) {
   const resolvedParams = use(params);
@@ -72,9 +74,13 @@ export default function DreamXProfilePage({ params }: { params: Promise<{ handle
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <div>
-          <h1 className="font-bold text-white leading-tight">{profile.display_name}</h1>
+          <h1 className="font-bold text-white leading-tight flex items-center gap-1">
+            <span>{profile.display_name}</span>
+            <DreamXVerificationBadge type={profile.verification_type} />
+          </h1>
           <p className="text-xs text-white/50">{originalPosts.length + replyPosts.length} posts</p>
         </div>
+
       </div>
 
       {/* Main Container */}
@@ -89,9 +95,13 @@ export default function DreamXProfilePage({ params }: { params: Promise<{ handle
         {/* Profile Info */}
         <div className="pt-12 px-6 pb-6 border-b border-white/10 space-y-4">
           <div>
-            <h2 className="text-xl font-bold text-white">{profile.display_name}</h2>
+            <h2 className="text-xl font-bold text-white flex items-center gap-1.5">
+              <span>{profile.display_name}</span>
+              <DreamXVerificationBadge type={profile.verification_type} className="w-5 h-5" />
+            </h2>
             <p className="text-sm text-white/50">{profile.handle}</p>
           </div>
+
 
           {profile.bio && <p className="text-sm text-white/90">{profile.bio}</p>}
 
