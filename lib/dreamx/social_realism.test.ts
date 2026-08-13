@@ -28,7 +28,7 @@ describe('DREAMX v0.2 — Social Realism & Event-Driven Urgency System Audit', (
       humanReply
     ];
 
-    const events = evaluateSocialUrgencyEvents([joshProfile], allPosts);
+    const events = evaluateSocialUrgencyEvents([joshProfile], allPosts, new Set());
 
     expect(events.length).toBeGreaterThan(0);
     expect(events[0].candidate.id).toBe('josh-1');
@@ -47,7 +47,7 @@ describe('DREAMX v0.2 — Social Realism & Event-Driven Urgency System Audit', (
 
     const allPosts: DreamXPost[] = [{ ...mariaPost, replies: [humanReply] }, humanReply];
 
-    const events = evaluateSocialUrgencyEvents([joshProfile, mariaProfile], allPosts);
+    const events = evaluateSocialUrgencyEvents([joshProfile, mariaProfile], allPosts, new Set());
 
     expect(events.length).toBeGreaterThan(0);
     expect(events[0].candidate.id).toBe('maria-1');
@@ -60,7 +60,7 @@ describe('DREAMX v0.2 — Social Realism & Event-Driven Urgency System Audit', (
 
     const humanPost = await savePost({ author_id: 'human-1', author_type: 'human', content: '@MariaEnoce what do you think about this?' });
 
-    const events = evaluateSocialUrgencyEvents([mariaProfile], [humanPost]);
+    const events = evaluateSocialUrgencyEvents([mariaProfile], [humanPost], new Set());
 
     expect(events).toHaveLength(1);
     expect(events[0].candidate.id).toBe('maria-1');
@@ -78,7 +78,7 @@ describe('DREAMX v0.2 — Social Realism & Event-Driven Urgency System Audit', (
 
     const allPosts: DreamXPost[] = [joshPost, { ...mariaReply, replies: [humanReply] }, humanReply];
 
-    const events = evaluateSocialUrgencyEvents([mariaProfile], allPosts);
+    const events = evaluateSocialUrgencyEvents([mariaProfile], allPosts, new Set());
 
     expect(events.length).toBeGreaterThan(0);
     expect(events[0].candidate.id).toBe('maria-1');
@@ -98,7 +98,7 @@ describe('DREAMX v0.2 — Social Realism & Event-Driven Urgency System Audit', (
       replies: [joshResponse]
     };
 
-    const events = evaluateSocialUrgencyEvents([joshProfile], [joshPost, humanReplyWithChildren, joshResponse]);
+    const events = evaluateSocialUrgencyEvents([joshProfile], [joshPost, humanReplyWithChildren, joshResponse], new Set([`josh-1:${humanReply.id}`]));
 
     // Since Josh has already replied to humanReply, urgency score for humanReply should drop to 0
     expect(events).toHaveLength(0);

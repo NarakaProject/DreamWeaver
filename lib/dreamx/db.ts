@@ -377,6 +377,20 @@ export async function getRepliesTree(postId: string, humanId?: string): Promise<
 }
 
 /**
+ * Returns a Set of author_id:reply_to_post_id combinations to prevent
+ * AI actors from attempting to reply to the same target post multiple times,
+ * which would trigger a UNIQUE constraint failure.
+ */
+export async function getAiReplyEdges(): Promise<Set<string>> {
+  const db = getDreamXDb();
+  const rows = await db.queryAll<{author_id: string, reply_to_post_id: string}>(
+    'SELECT author_id, reply_to_post_id FROM dreamx_posts WHERE reply_to_post_id IS NOT NULL AND author_type = ?',
+    ['ai']
+  );
+  return new Set(rows.map(r => `${r.author_id}:${r.reply_to_post_id}`));
+}
+
+/**
  * Resolves the conversation root post for any post ID (root or reply)
  * and retrieves all descendant replies as a flat, chronologically ordered list.
  */
@@ -432,16 +446,42 @@ export async function getConversationFlat(postId: string): Promise<{
   }
 
   // 3. Populate metadata for all descendant replies
-  const conversation: DreamXPost[] = [];
+  const conversationUnsorted: DreamXPost[] = [];
   for (const raw of allRepliesRaw) {
     if (descendantIds.has(raw.id)) {
       const populated = await populatePostMetadata(raw, human?.id);
-      conversation.push(populated);
+      conversationUnsorted.push(populated);
     }
   }
 
-  // 4. Stable flat chronological ordering: created_at ASC, id ASC
-  conversation.sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+  // 4. Sort descendants using Depth-First Search (DFS)
+  // We want to group threads continuously so visual connectors work correctly.
+  // First, sort all siblings by created_at ASC
+  conversationUnsorted.sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+
+  // Build a map of parentId -> children array
+  const childrenMap = new Map<string, DreamXPost[]>();
+  for (const post of conversationUnsorted) {
+    if (!post.reply_to_post_id) continue;
+    if (!childrenMap.has(post.reply_to_post_id)) {
+      childrenMap.set(post.reply_to_post_id, []);
+    }
+    childrenMap.get(post.reply_to_post_id)!.push(post);
+  }
+
+  const conversation: DreamXPost[] = [];
+  
+  // DFS traversal function
+  const dfs = (parentId: string) => {
+    const children = childrenMap.get(parentId) || [];
+    for (const child of children) {
+      conversation.push(child);
+      dfs(child.id);
+    }
+  };
+
+  // The root of the descendant tree is the requested target post
+  dfs(requestedPost.id);
 
   return { root, ancestors, conversation, target: requestedPost };
 }

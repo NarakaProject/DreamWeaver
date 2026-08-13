@@ -90,7 +90,7 @@ describe('DREAMX v0.2 — Model-Aware Provider Fallback, Conversation Saturation
       const aiPost = await savePost({ id: 'sp-post-1', author_id: aiProf.id, author_type: 'ai', content: 'Hello world' });
       const humanReply = await savePost({ id: 'sp-post-2', author_id: human.id, author_type: 'human', content: 'Nice post, Josh!', reply_to_post_id: aiPost.id });
 
-      const events = evaluateSocialUrgencyEvents([aiProf], [aiPost, humanReply]);
+      const events = evaluateSocialUrgencyEvents([aiProf], [aiPost, humanReply], new Set());
       expect(events.length).toBeGreaterThan(0);
       expect(events[0].score).toBeGreaterThan(5.0);
       expect(events[0].isDirectHumanInteraction).toBe(true);
@@ -113,7 +113,7 @@ describe('DREAMX v0.2 — Model-Aware Provider Fallback, Conversation Saturation
       const pingPongDepth = countReciprocalPingPong(post5, pB.id, postMap);
       expect(pingPongDepth).toBeGreaterThanOrEqual(4);
 
-      const events = evaluateSocialUrgencyEvents([pB], allPosts);
+      const events = evaluateSocialUrgencyEvents([pB], allPosts, new Set());
       const bEventsForP5 = events.filter(e => e.targetPost.id === 'pp-5' && e.candidate.id === pB.id);
 
       if (bEventsForP5.length > 0) {
@@ -134,7 +134,7 @@ describe('DREAMX v0.2 — Model-Aware Provider Fallback, Conversation Saturation
       const humanReply = await savePost({ id: 'rh-3', author_id: human.id, author_type: 'human', content: 'Hey @ActorA what do you think?', reply_to_post_id: 'rh-2' });
 
       const allPosts = [post1, post2, humanReply];
-      const events = evaluateSocialUrgencyEvents([pA], allPosts);
+      const events = evaluateSocialUrgencyEvents([pA], allPosts, new Set());
 
       expect(events.length).toBeGreaterThan(0);
       expect(events[0].isDirectHumanInteraction).toBe(true);

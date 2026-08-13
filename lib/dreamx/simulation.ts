@@ -6,7 +6,8 @@ import {
   toggleLike, 
   ensureLike,
   logActivity,
-  getPost
+  getPost,
+  getAiReplyEdges
 } from './db';
 import { generateDreamXPost, generateDreamXReply } from './engine';
 import { extractMentions } from './mentions';
@@ -37,9 +38,10 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
   }
 
   const allPosts = await getRecentSimulationPosts(100);
+  const aiReplyEdges = await getAiReplyEdges();
 
   // 3. Scan for High-Urgency Social Events (e.g. human replies or mentions)
-  const urgencyEvents = evaluateSocialUrgencyEvents(profiles, allPosts);
+  const urgencyEvents = evaluateSocialUrgencyEvents(profiles, allPosts, aiReplyEdges);
   const topUrgencyEvent = urgencyEvents.length > 0 ? urgencyEvents[0] : null;
 
   let candidate: DreamXProfile;
@@ -174,13 +176,15 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
 
   // --- OPTION B: AI REPLY ---
   if (actionChoice < replyThreshold && allPosts.length > 0 && (options.keys.geminiKey || options.keys.groqKey || options.keys.openrouterKey)) {
-    const targetPost = isCandidateMentioned 
-      ? mentioningPosts[Math.floor(Math.random() * mentioningPosts.length)]
-      : allPosts[Math.floor(Math.random() * allPosts.length)];
+    // Filter out posts this candidate has already replied to, or authored
+    const validTargets = allPosts.filter(p => p.author_id !== candidate.id && !aiReplyEdges.has(`${candidate.id}:${p.id}`));
+    const validMentionTargets = mentioningPosts.filter(p => p.author_id !== candidate.id && !aiReplyEdges.has(`${candidate.id}:${p.id}`));
 
-    const alreadyReplied = targetPost.replies?.some(r => r.author_id === candidate.id && r.author_type === 'ai');
+    let possibleTargets = isCandidateMentioned && validMentionTargets.length > 0 ? validMentionTargets : validTargets;
 
-    if (targetPost.author_id !== candidate.id && !alreadyReplied) {
+    if (possibleTargets.length > 0) {
+      const targetPost = possibleTargets[Math.floor(Math.random() * possibleTargets.length)];
+
       const { text, validation } = await generateDreamXReply(
         candidate,
         targetPost,
@@ -218,9 +222,9 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
        await logActivity({
           action_type: 'no_action',
           actor_id: candidate.id,
-          reason: alreadyReplied ? `Already replied to post ${targetPost.id}` : `Cannot reply to own post ${targetPost.id}`
+          reason: `No valid targets to reply to without hitting UNIQUE constraint.`
        });
-       return { outcome: 'NO_ACTION', details: 'Duplicate or self-reply blocked.' };
+       return { outcome: 'NO_ACTION', details: 'No valid targets.' };
     }
   }
 
@@ -416,7 +420,7 @@ export function countThreadReplies(
 /**
  * Scans allPosts to find high-value social urgency events for AI profiles.
  */
-export function evaluateSocialUrgencyEvents(profiles: DreamXProfile[], allPosts: DreamXPost[]): SocialUrgencyEvent[] {
+export function evaluateSocialUrgencyEvents(profiles: DreamXProfile[], allPosts: DreamXPost[], aiReplyEdges: Set<string>): SocialUrgencyEvent[] {
   const events: SocialUrgencyEvent[] = [];
   const now = Date.now();
   const postMap = new Map<string, DreamXPost>();
@@ -431,8 +435,8 @@ export function evaluateSocialUrgencyEvents(profiles: DreamXProfile[], allPosts:
     for (const post of allPosts) {
       if (post.author_id === candidate.id) continue;
 
-      const alreadyReplied = post.replies?.some(r => r.author_id === candidate.id && r.author_type === 'ai');
-      if (alreadyReplied) continue;
+      // Filter out posts candidate has already replied to
+      if (aiReplyEdges.has(`${candidate.id}:${post.id}`)) continue;
 
       let rawScore = 0;
       let isDirectHuman = false;

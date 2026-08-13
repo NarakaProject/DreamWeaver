@@ -15,7 +15,7 @@ interface DreamXPostProps {
   isThreadView?: boolean;
   hideReplies?: boolean;
   depth?: number;
-  isContextAncestor?: boolean;
+  hasThreadConnector?: boolean;
   isContextTarget?: boolean;
 }
 
@@ -23,7 +23,7 @@ export function DreamXPost({
   post, 
   onSelectReplyTarget, 
   onInteraction,
-  isContextAncestor,
+  hasThreadConnector,
   isContextTarget
 }: DreamXPostProps) {
   const router = useRouter();
@@ -119,7 +119,7 @@ export function DreamXPost({
           </Link>
           
           {/* Vertical Thread Connector */}
-          {isContextAncestor && (
+          {hasThreadConnector && (
             <div className="flex-1 w-[2px] bg-white/15 mt-1 -mb-[33px] z-0" />
           )}
         </div>

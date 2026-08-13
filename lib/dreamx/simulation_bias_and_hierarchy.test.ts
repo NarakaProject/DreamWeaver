@@ -67,6 +67,30 @@ describe('DreamX v0.2 - Simulation Bias and Target-Aware Hierarchy', () => {
       const renderedSequenceD = [...resultD.ancestors, resultD.target, ...resultD.conversation].map(p => p.id);
       expect(renderedSequenceD.length).toBe(new Set(renderedSequenceD).size);
     });
+
+    it('sorts descendant replies using Depth-First Search to properly visualize branching threads', async () => {
+      // Tree:
+      // A
+      // ├── B
+      // │   └── C
+      // │       └── D
+      // └── E
+      //     └── F
+      const rootA = await savePost({ author_id: 'u1', author_type: 'human', content: 'A', reply_to_post_id: null });
+      const replyB = await savePost({ author_id: 'u1', author_type: 'human', content: 'B', reply_to_post_id: rootA.id });
+      const replyC = await savePost({ author_id: 'u1', author_type: 'human', content: 'C', reply_to_post_id: replyB.id });
+      const replyD = await savePost({ author_id: 'u1', author_type: 'human', content: 'D', reply_to_post_id: replyC.id });
+      
+      const replyE = await savePost({ author_id: 'u1', author_type: 'human', content: 'E', reply_to_post_id: rootA.id });
+      const replyF = await savePost({ author_id: 'u1', author_type: 'human', content: 'F', reply_to_post_id: replyE.id });
+
+      const result = await getConversationFlat(rootA.id);
+      
+      const expectedOrder = [replyB.id, replyC.id, replyD.id, replyE.id, replyF.id];
+      const actualOrder = result.conversation.map(p => p.id);
+      
+      expect(actualOrder).toEqual(expectedOrder);
+    });
   });
 
   describe('Simulation Candidate Exposure Decay & Balancing', () => {
@@ -167,6 +191,21 @@ describe('DreamX v0.2 - Simulation Bias and Target-Aware Hierarchy', () => {
       
       // Ensure high-profile users still appear (e.g. blue at least 10%)
       expect(pctBlue).toBeGreaterThan(0.10);
+    });
+    
+    it('prevents UNIQUE constraint loop by filtering out previously replied targets', async () => {
+      const p1 = await saveProfile({ id: 'loop1', display_name: 'L1', handle: 'l1', verification_type: 'none' });
+      const rootPost = await savePost({ author_id: 'loop1', author_type: 'ai', content: 'Loop root', reply_to_post_id: null });
+      
+      // Candidate has already replied to rootPost
+      await savePost({ author_id: 'loop1', author_type: 'ai', content: 'Reply', reply_to_post_id: rootPost.id });
+
+      const allPosts = [rootPost];
+      const aiReplyEdges = new Set([`loop1:${rootPost.id}`]);
+
+      // evaluateSocialUrgencyEvents should exclude rootPost because of aiReplyEdges
+      const urgencyEvents = evaluateSocialUrgencyEvents([p1], allPosts, aiReplyEdges);
+      expect(urgencyEvents.length).toBe(0);
     });
   });
 });

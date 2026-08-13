@@ -110,7 +110,7 @@ export default function PostConversationPage() {
               <DreamXPost 
                 key={ancestor.id}
                 post={ancestor}
-                isContextAncestor={true}
+                hasThreadConnector={true}
                 onInteraction={loadConversation}
               />
             ))}
@@ -119,13 +119,12 @@ export default function PostConversationPage() {
             <DreamXPost 
               post={target}
               isContextTarget={true}
+              hasThreadConnector={false}
               onInteraction={loadConversation}
             />
 
             {/* REPLY COMPOSER — Positioned immediately BELOW target post */}
             <div className="p-4 border-b border-white/10 bg-black/20 relative">
-              {/* Connector from target to composer */}
-              <div className="absolute left-[35px] top-0 bottom-auto h-4 w-[2px] bg-white/15" />
               
               <div className="text-xs text-white/50 mb-2 font-medium flex items-center justify-between ml-14">
                 <span>Replying to <span className="text-blue-400 font-bold">{targetHandle}</span></span>
@@ -163,12 +162,13 @@ export default function PostConversationPage() {
               </form>
             </div>
 
-            {/* FLAT CHRONOLOGICAL REPLIES TIMELINE */}
+            {/* DFS ORDERED REPLIES TIMELINE */}
             <div className="flex-1">
-              {replies.map((reply) => (
+              {replies.map((reply, i) => (
                 <div key={reply.id} className="transition-colors">
                   <DreamXPost 
                     post={reply}
+                    hasThreadConnector={replies[i + 1]?.reply_to_post_id === reply.id}
                     onInteraction={loadConversation}
                   />
                 </div>
