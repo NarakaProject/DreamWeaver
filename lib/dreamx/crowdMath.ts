@@ -93,13 +93,20 @@ export function calculateFollowerDelta(params: FollowerGrowthParams): FollowerGr
 // --- CATALYST NODE PROPAGATION ---
 
 export interface CatalystPropagationParams {
-  catalystInfluence: number;       // 0 to 100+
-  catalystFollowers: number;       // 0 to millions
-  targetAuthorInfluence: number;   // 0 to 100+
-  targetPostQuality: number;       // 0.0 to 1.0
-  topicAffinity: number;           // 0.0 to 1.0
-  factionAffinity: number;         // 0.0 to 1.0
-  currentMomentum: number;         // existing momentum multiplier
+  /** Normalized, logarithmic-like score representing structural network power (e.g. 0 to 100). NOT a raw follower count. */
+  catalystInfluence: number;
+  /** Raw count of the catalyst's followers (e.g. 0 to 100,000,000+). */
+  catalystFollowers: number;
+  /** Normalized influence score of the post's author (e.g. 0 to 100). */
+  targetAuthorInfluence: number;
+  /** Evaluated quality of the target post (0.0 to 1.0). */
+  targetPostQuality: number;
+  /** Alignment between the catalyst's interests and the post topic (0.0 to 1.0). */
+  topicAffinity: number;
+  /** Alignment between the catalyst's faction and the author's faction (0.0 to 1.0). */
+  factionAffinity: number;
+  /** The target post's current momentum multiplier (e.g. 0.0 to 10.0+). */
+  currentMomentum: number;
 }
 
 export interface CatalystPropagationResult {
@@ -113,6 +120,10 @@ export interface CatalystPropagationResult {
 /**
  * Calculates the shockwave effect of a high-influence agent interacting with a post.
  * O(1) complexity, no follower loops.
+ *
+ * Influence is treated as a normalized [0, 100+] metric, while follower counts
+ * are raw integers. The `influenceGap` drives algorithmic momentum, whereas
+ * raw `catalystFollowers` drives flat impressions.
  */
 export function calculateCatalystPropagation(params: CatalystPropagationParams): CatalystPropagationResult {
   const {
@@ -273,17 +284,21 @@ export interface NetworkEdge {
 
 export interface NetworkBiasResult {
   crossFactionRatio: number;
+  sameFactionRatio: number;
   isEchoChamber: boolean;
   totalEdges: number;
 }
 
 /**
  * Operates strictly on the Core Agent graph edges to determine network bias.
+ * Note: This calculates simple cross-faction vs same-faction ratios.
+ * It does NOT calculate true statistical assortativity, as we do not evaluate
+ * node degree distributions here.
  */
 export function calculateNetworkBias(edges: NetworkEdge[]): NetworkBiasResult {
   const totalEdges = edges.length;
   if (totalEdges === 0) {
-    return { crossFactionRatio: 0, isEchoChamber: false, totalEdges: 0 };
+    return { crossFactionRatio: 0, sameFactionRatio: 0, isEchoChamber: false, totalEdges: 0 };
   }
 
   let crossFactionCount = 0;
@@ -294,9 +309,11 @@ export function calculateNetworkBias(edges: NetworkEdge[]): NetworkBiasResult {
   }
 
   const crossFactionRatio = crossFactionCount / totalEdges;
+  const sameFactionRatio = 1.0 - crossFactionRatio;
 
   return {
     crossFactionRatio,
+    sameFactionRatio,
     // Arbitrary threshold for echo chamber: less than 10% cross-faction interaction
     isEchoChamber: totalEdges > 10 && crossFactionRatio < 0.1,
     totalEdges
@@ -307,14 +324,24 @@ export function calculateNetworkBias(edges: NetworkEdge[]): NetworkBiasResult {
 // --- KL DIVERGENCE ---
 
 /**
- * Calculates Kullback-Leibler Divergence KL(P || Q) for two discrete probability distributions.
+ * Calculates Kullback-Leibler Divergence KL(P || Q) for two distributions.
  * P = True distribution (e.g., Normal behavior)
  * Q = Approximating distribution (e.g., Burst behavior)
  *
+ * INPUT CONTRACT:
+ * Accepts raw count arrays OR probability distributions.
+ * Automatically normalizes inputs to sum to 1.0 internally to guarantee validity.
  * Safe against zero probabilities via epsilon smoothing.
  */
-export function klDivergence(p: number[], q: number[]): number {
-  if (p.length !== q.length || p.length === 0) return 0;
+export function klDivergence(pRaw: number[], qRaw: number[]): number {
+  if (pRaw.length !== qRaw.length || pRaw.length === 0) return 0;
+
+  // 1. Normalize arrays into valid probability distributions summing to 1.0
+  const pSum = pRaw.reduce((sum, val) => sum + Math.max(0, val), 0);
+  const qSum = qRaw.reduce((sum, val) => sum + Math.max(0, val), 0);
+
+  const p = pSum > 0 ? pRaw.map(v => Math.max(0, v) / pSum) : pRaw.map(() => 1 / pRaw.length);
+  const q = qSum > 0 ? qRaw.map(v => Math.max(0, v) / qSum) : qRaw.map(() => 1 / qRaw.length);
 
   const epsilon = 1e-10;
   let divergence = 0;

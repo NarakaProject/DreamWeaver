@@ -166,7 +166,7 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
     });
   });
 
-  describe('Catalyst Propagation Model', () => {
+  describe('Catalyst Propagation Model (Semantic Contract)', () => {
     it('handles low-influence vs high-influence catalyst', () => {
       const lowResult = calculateCatalystPropagation({
         catalystInfluence: 5,
@@ -179,8 +179,8 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
       });
 
       const highResult = calculateCatalystPropagation({
-        catalystInfluence: 95,
-        catalystFollowers: 1000000,
+        catalystInfluence: 95, // Influence is normalized score
+        catalystFollowers: 1000000, // Followers is raw count
         targetAuthorInfluence: 2,
         targetPostQuality: 0.5,
         topicAffinity: 0.5,
@@ -190,6 +190,53 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
 
       expect(highResult.addedImpressions).toBeGreaterThan(lowResult.addedImpressions);
       expect(highResult.momentumContribution).toBeGreaterThan(lowResult.momentumContribution);
+    });
+
+    it('verifies followers drive impressions, not influence (semantic separation)', () => {
+      // 100M follower celebrity with 0 influence score
+      const celebrityZeroInfl = calculateCatalystPropagation({
+        catalystInfluence: 0,
+        catalystFollowers: 100_000_000,
+        targetAuthorInfluence: 10,
+        targetPostQuality: 1.0,
+        topicAffinity: 1.0,
+        factionAffinity: 1.0,
+        currentMomentum: 0
+      });
+
+      // 10 follower nobody with 100 influence score
+      const nobodyHighInfl = calculateCatalystPropagation({
+        catalystInfluence: 100,
+        catalystFollowers: 10,
+        targetAuthorInfluence: 10,
+        targetPostQuality: 1.0,
+        topicAffinity: 1.0,
+        factionAffinity: 1.0,
+        currentMomentum: 0
+      });
+
+      // Followers drive reach (impressions)
+      expect(celebrityZeroInfl.addedImpressions).toBeGreaterThan(1_000_000);
+      expect(nobodyHighInfl.addedImpressions).toBeLessThan(10);
+
+      // Influence drives momentum
+      expect(nobodyHighInfl.momentumContribution).toBeGreaterThan(celebrityZeroInfl.momentumContribution);
+    });
+
+    it('bounds extreme inputs', () => {
+      const extreme = calculateCatalystPropagation({
+        catalystInfluence: 99999,
+        catalystFollowers: 1e12,
+        targetAuthorInfluence: -50,
+        targetPostQuality: 50, // Should clamp to 1
+        topicAffinity: 50, // Should clamp to 1
+        factionAffinity: 50, // Should clamp to 1
+        currentMomentum: 1000
+      });
+
+      expect(Number.isFinite(extreme.addedImpressions)).toBe(true);
+      expect(Number.isFinite(extreme.engagementMultiplier)).toBe(true);
+      expect(extreme.addedLikes).toBeGreaterThanOrEqual(0);
     });
 
     it('adjusts engagement based on target post quality and topic affinity', () => {
@@ -346,6 +393,7 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
       ];
       const res = calculateNetworkBias(edges);
       expect(res.crossFactionRatio).toBe(1.0);
+      expect(res.sameFactionRatio).toBe(0.0);
       expect(res.isEchoChamber).toBe(false);
     });
 
@@ -353,17 +401,31 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
       const edges = Array(11).fill({ sourceFaction: 'A', targetFaction: 'A' });
       const res = calculateNetworkBias(edges);
       expect(res.crossFactionRatio).toBe(0.0);
+      expect(res.sameFactionRatio).toBe(1.0);
       expect(res.isEchoChamber).toBe(true); // > 10 edges, ratio < 0.1
     });
 
     it('handles isolated agents (zero edges)', () => {
       const res = calculateNetworkBias([]);
       expect(res.crossFactionRatio).toBe(0);
+      expect(res.sameFactionRatio).toBe(0);
       expect(res.isEchoChamber).toBe(false); // Insufficient data
     });
   });
 
-  describe('KL Divergence', () => {
+  describe('KL Divergence (Input Contract)', () => {
+    it('normalizes raw counts internally', () => {
+      const p = [1, 2, 3];
+      const q = [100, 200, 300]; // Same distribution, larger volume
+
+      const p2 = [0.1, 0.2, 0.3];
+      const q2 = [1, 2, 3];
+
+      // KL divergence of identical distributions (even if unnormalized arrays passed) is 0
+      expect(klDivergence(p, q)).toBeCloseTo(0, 5);
+      expect(klDivergence(p2, q2)).toBeCloseTo(0, 5);
+    });
+
     it('identical distributions -> approximately zero', () => {
       const p = [0.2, 0.2, 0.2, 0.2, 0.2];
       const div = klDivergence(p, p);
@@ -382,6 +444,15 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
       const q = [0, 1, 0];
       expect(klDivergence(p, q)).toBeGreaterThan(0);
       expect(Number.isFinite(klDivergence(p, q))).toBe(true);
+    });
+
+    it('handles mismatched lengths and empty arrays', () => {
+      expect(klDivergence([1, 2], [1, 2, 3])).toBe(0);
+      expect(klDivergence([], [])).toBe(0);
+    });
+
+    it('handles all zeroes by falling back to uniform distribution', () => {
+      expect(klDivergence([0, 0, 0], [0, 0, 0])).toBe(0);
     });
   });
 
