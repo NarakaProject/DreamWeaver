@@ -40,7 +40,7 @@ export default function PostConversationPage() {
         setRoot(data.root);
         setAncestors(data.ancestors || []);
         setTarget(data.target || data.root);
-        setReplies(data.conversation || data.replies || []);
+        setReplies(data.replies || []);
       }
     } catch (err) {
       console.error('Failed to load conversation:', err);

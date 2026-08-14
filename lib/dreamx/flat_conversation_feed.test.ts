@@ -62,7 +62,7 @@ describe('DREAMX v0.2 — Modern X Post Navigation, Groq Fallback & OpenRouter/F
     const replyC = await savePost({ id: 'conv-reply-c', author_id: p1.id, author_type: 'ai', content: 'Nested Reply C', reply_to_post_id: replyB.id });
     const replyD = await savePost({ id: 'conv-reply-d', author_id: p1.id, author_type: 'ai', content: 'Deep Reply D', reply_to_post_id: replyC.id });
 
-    const { root: resolvedRoot, ancestors, conversation, target } = await getConversationFlat('conv-reply-c');
+    const { root: resolvedRoot, ancestors, replies, target } = await getConversationFlat('conv-reply-c');
 
     expect(resolvedRoot.id).toBe('conv-root');
     expect(resolvedRoot.content).toBe('Original Root Post A');
@@ -72,8 +72,8 @@ describe('DREAMX v0.2 — Modern X Post Navigation, Groq Fallback & OpenRouter/F
     expect(ancestors[0].id).toBe('conv-root');
     expect(ancestors[1].id).toBe('conv-reply-b');
     
-    expect(conversation).toHaveLength(1);
-    expect(conversation[0].id).toBe('conv-reply-d');
+    expect(replies).toHaveLength(1);
+    expect(replies[0].id).toBe('conv-reply-d');
   });
 
   it('9 & 10. 100+ reply deep conversation handles full descendant retrieval flatly while keeping reply_to_post_id in DB', async () => {
@@ -92,12 +92,12 @@ describe('DREAMX v0.2 — Modern X Post Navigation, Groq Fallback & OpenRouter/F
       parentId = p.id;
     }
 
-    const { root: resRoot, ancestors, conversation, target } = await getConversationFlat('deep-post-20');
+    const { root: resRoot, ancestors, replies, target } = await getConversationFlat('deep-post-20');
     expect(resRoot.id).toBe('deep-root');
     expect(ancestors).toHaveLength(20);
     expect(ancestors[0].id).toBe('deep-root');
     expect(target.id).toBe('deep-post-20');
-    expect(conversation).toHaveLength(0);
+    expect(replies).toHaveLength(0);
 
     const leafPost = await getPost('deep-post-20');
     expect(leafPost?.reply_to_post_id).toBe('deep-post-19');

@@ -397,7 +397,6 @@ export async function getConversationFlat(postId: string): Promise<{
   root: DreamXPost;
   ancestors: DreamXPost[];
   replies: DreamXPost[];
-  conversation: DreamXPost[];
   target: DreamXPost;
 }> {
   const db = getDreamXDb();
@@ -438,7 +437,6 @@ export async function getConversationFlat(postId: string): Promise<{
     root, 
     ancestors, 
     replies, 
-    conversation: replies, 
     target: requestedPost 
   };
 }

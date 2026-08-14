@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
     const profileType = (searchParams.get('profile_type') as 'human' | 'ai') || 'ai';
 
     if (threadId) {
-      const { root, ancestors, conversation, target } = await getConversationFlat(threadId);
-      return NextResponse.json({ root, ancestors, replies: conversation, conversation, target });
+      const { root, ancestors, replies, target } = await getConversationFlat(threadId);
+      return NextResponse.json({ root, ancestors, replies, target });
     }
 
     if (profileId) {
