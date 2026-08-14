@@ -85,6 +85,7 @@ import { estimatePostEngagement, calculateCatalystPropagation, calculateNetworkB
 import { getPost } from './db';
 
 export async function computeCrowdBurst(): Promise<void> {
+  const burstStart = Date.now();
   const db = getDreamXDb();
 
   const cursorRow = await db.queryFirst<{ value: string }>('SELECT value FROM dreamx_simulation_state WHERE key = \'last_crowd_log_rowid\'');
@@ -241,10 +242,11 @@ export async function computeCrowdBurst(): Promise<void> {
   }
 
   const stepId = `crowd_burst_${newRowid}`;
+  const durationMs = now - burstStart;
   statements.push({
     sql: `INSERT INTO dreamx_analytics_steps (step_id, type, started_at, duration_ms, actions_taken, created_at)
           VALUES (?, ?, ?, ?, ?, ?)`,
-    args: [stepId, 'burst', now, 0, events.length, now]
+    args: [stepId, 'burst', burstStart, durationMs, events.length, now]
   });
 
   try {

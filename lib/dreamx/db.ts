@@ -300,7 +300,7 @@ export async function savePost(post: {
     await logActivity({
       action_type: post.reply_to_post_id ? 'reply' : 'post',
       actor_id: post.author_id,
-      target_post_id: post.reply_to_post_id ? post.reply_to_post_id : id,
+      target_post_id: id,
       reason: 'Human action'
     }, runToken);
   }
