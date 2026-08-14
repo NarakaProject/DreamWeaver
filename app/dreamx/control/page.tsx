@@ -5,6 +5,7 @@ import type { DreamXProfile } from '@/lib/dreamx/types';
 import { ValidationReport, exportAIProfilesJSON } from '@/lib/dreamx/import_export';
 import { DreamXCharacterManager } from '@/components/dreamx/DreamXCharacterManager';
 import { DreamXSnapshotsManager } from '@/components/dreamx/DreamXSnapshotsManager';
+import { DreamXAnalyticsPanel } from '@/components/dreamx/DreamXAnalyticsPanel';
 import {
   ShieldAlert,
   Play,
@@ -20,14 +21,15 @@ import {
   Users,
   Cpu,
   Zap,
-  Database
+  Database,
+  BarChart2
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DreamXControlPage() {
   const [profiles, setProfiles] = useState<DreamXProfile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'simulation' | 'profiles' | 'import_export' | 'snapshots'>('simulation');
+  const [activeTab, setActiveTab] = useState<'simulation' | 'profiles' | 'import_export' | 'snapshots' | 'analytics'>('simulation');
 
   // Simulation execution state
   const [selectedProfileId, setSelectedProfileId] = useState('');
@@ -325,6 +327,17 @@ export default function DreamXControlPage() {
           >
             <Database className="w-4 h-4 text-amber-400" />
             Snapshots & Rollback
+          </button>
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`px-4 py-2.5 font-bold text-xs rounded-t-xl flex items-center gap-2 transition-colors border-b-2 ${
+              activeTab === 'analytics'
+                ? 'border-blue-500 bg-blue-500/10 text-white'
+                : 'border-transparent text-white/50 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <BarChart2 className="w-4 h-4 text-blue-400" />
+            Analytics
           </button>
         </div>
 
@@ -653,6 +666,13 @@ export default function DreamXControlPage() {
         {activeTab === 'snapshots' && (
           <div className="flex-1 min-h-[500px]">
             <DreamXSnapshotsManager />
+          </div>
+        )}
+
+        {/* TAB 5: ANALYTICS PANEL */}
+        {activeTab === 'analytics' && (
+          <div className="flex-1 min-h-[500px]">
+            <DreamXAnalyticsPanel />
           </div>
         )}
       </div>

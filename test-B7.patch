@@ -1,0 +1,18 @@
+--- lib/dreamx/crowd_integration.test.ts
++++ lib/dreamx/crowd_integration.test.ts
+@@ -69,6 +69,13 @@
+     expect(logs.length).toBeGreaterThan(0);
+   });
+ 
++  it('logs correct analytics step metrics for the burst (B7)', async () => {
++    await saveProfile({ id: 'prof_a', display_name: 'A', handle: '@a' });
++    await savePost({ id: 'post_1', author_id: 'prof_a', author_type: 'human', content: 'hello' });
++    await computeCrowdBurst();
++    const db = getDatabase();
++    const step = await db.queryFirst<any>('SELECT * FROM dreamx_analytics_steps WHERE type = \'burst\' ORDER BY created_at DESC');
++    expect(step).toBeDefined();
++    expect(step.duration_ms).toBeGreaterThanOrEqual(0);
++    expect(step.actions_taken).toBe(1); // 1 post event
++  });
++
+   it('processes events and ignores repeated invocations', async () => {
