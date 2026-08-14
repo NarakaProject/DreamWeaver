@@ -4,12 +4,28 @@ import fs from 'fs';
 import type { DbSession, DbMessage, DbMemory } from './types';
 export type { DbSession, DbMessage, DbMemory } from './types';
 
+// Determine if we are running in a test environment
+const isTestMode = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
+
 // Ensure data directory exists
-const dbDir = path.resolve(process.cwd(), 'data');
+const baseDbDir = path.resolve(process.cwd(), 'data');
+const dbDir = isTestMode ? path.resolve(baseDbDir, 'test') : baseDbDir;
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
-const dbPath = path.resolve(dbDir, 'app.db');
+
+// Resolve the actual database file
+const defaultDbName = 'app.db';
+const dbPath = process.env.DREAMX_DB_PATH || path.resolve(dbDir, defaultDbName);
+
+// HARD SAFETY RULE: Fail-closed if test mode accidentally resolves to production database
+if (isTestMode && dbPath === path.resolve(baseDbDir, 'app.db')) {
+  throw new Error('FATAL ERROR: Test mode must not use the production database (app.db).');
+}
+
+export function getDbPath(): string {
+  return dbPath;
+}
 
 interface DbAdapter {
   exec(sql: string): Promise<void> | void;

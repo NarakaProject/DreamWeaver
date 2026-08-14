@@ -53,3 +53,5 @@ next-env.d.ts
 !/data/scenarios/static-in-the-synapse/
 !/data/scenarios/under-the-ginkgo-tree/
 
+# DreamX test database
+data/test/

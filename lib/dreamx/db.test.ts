@@ -14,7 +14,7 @@ describe('DreamX Database Schema Migration Comprehensive Audit', () => {
     // Mock process.cwd() so lib/db/index.ts uses testDir/data/app.db
     vi.spyOn(process, 'cwd').mockReturnValue(testDir);
     
-    const dataDir = path.join(testDir, 'data');
+    const dataDir = path.join(testDir, 'data', 'test');
     fs.mkdirSync(dataDir, { recursive: true });
     testDbPath = path.join(dataDir, 'app.db');
   });
