@@ -803,6 +803,18 @@ export function getDatabase(mode: 'normal' | 'restore' = 'normal'): DbAdapter {
       actions_taken INTEGER DEFAULT 0,
       created_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS dreamx_notifications (
+      id TEXT PRIMARY KEY,
+      recipient_id TEXT NOT NULL,
+      notification_type TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      source_log_id TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      UNIQUE(source_log_id)
+    );
   `;
 
   try {

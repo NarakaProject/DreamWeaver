@@ -8,6 +8,7 @@ import { DreamXOnboarding } from './DreamXOnboarding';
 import { Sparkles, Send, Loader2, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { DreamXMentionComposer } from './DreamXMentionComposer';
+import { DreamXNotifications } from './DreamXNotifications';
 
 interface DreamXProps {
   apiKeys: any;
@@ -120,6 +121,7 @@ export function DreamX({ apiKeys, selectedModel }: DreamXProps) {
           <h1 className="font-bold text-lg text-white tracking-tight">DreamX</h1>
         </div>
         <div className="flex items-center gap-4">
+          <DreamXNotifications />
           <div className="text-xs text-white/50 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span>Signed in as</span>

@@ -739,6 +739,10 @@ export async function resetSimulationState(): Promise<void> {
     { sql: 'DELETE FROM dreamx_reposts' },
     { sql: 'DELETE FROM dreamx_follows' },
     { sql: 'DELETE FROM dreamx_activity_log' },
-    { sql: 'DELETE FROM dreamx_simulation_state' }
+    { sql: 'DELETE FROM dreamx_simulation_state' },
+    { sql: 'DELETE FROM dreamx_notifications' },
+    { sql: 'DELETE FROM dreamx_crowd_state' },
+    { sql: 'DELETE FROM dreamx_crowd_engagement' },
+    { sql: 'DELETE FROM dreamx_analytics_steps' }
   ]);
 }
