@@ -1,0 +1,44 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getSnapshots, createSimulationSnapshot, deleteSnapshot } from '@/lib/dreamx/snapshots';
+
+export async function GET() {
+  try {
+    const snapshots = await getSnapshots();
+    return NextResponse.json({ success: true, snapshots });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { label } = await req.json();
+    if (!label || typeof label !== 'string') {
+      return NextResponse.json({ success: false, error: 'Invalid label' }, { status: 400 });
+    }
+    const snapshot = await createSimulationSnapshot(label);
+    return NextResponse.json({ success: true, snapshot });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { id } = await req.json();
+    if (!id || typeof id !== 'string') {
+      return NextResponse.json({ success: false, error: 'Invalid snapshot ID' }, { status: 400 });
+    }
+    
+    // Prevent deleting the very last snapshot
+    const snapshots = await getSnapshots();
+    if (snapshots.length <= 1) {
+      return NextResponse.json({ success: false, error: 'Cannot delete the final snapshot. Create another one first.' }, { status: 400 });
+    }
+
+    await deleteSnapshot(id);
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}

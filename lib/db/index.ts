@@ -47,6 +47,8 @@ interface DbAdapter {
   queryFirst<T>(sql: string, args?: any[]): Promise<T | undefined>;
   execute(sql: string, args?: any[]): Promise<void>;
   batchExecute(statements: Array<{ sql: string; args?: any[] }>): Promise<void>;
+  close(): void;
+  backup?(destinationFile: string): Promise<any>;
 }
 
 class BetterSqliteAdapter implements DbAdapter {
@@ -61,6 +63,16 @@ class BetterSqliteAdapter implements DbAdapter {
 
   exec(sql: string): void {
     this.db.exec(sql);
+  }
+
+  close(): void {
+    if (this.db && this.db.open) {
+      this.db.close();
+    }
+  }
+
+  async backup(destinationFile: string): Promise<any> {
+    return this.db.backup(destinationFile);
   }
 
   async queryAll<T>(sql: string, args: any[] = []): Promise<T[]> {
@@ -478,10 +490,27 @@ class LibSqlAdapter implements DbAdapter {
     const batchStmts = statements.map(s => ({ sql: s.sql, args: s.args || [] }));
     await this.client.batch(batchStmts);
   }
+
+  close(): void {
+    this.client.close();
+  }
 }
 
-let dbInstance: DbAdapter;
+let dbInstance: DbAdapter | null = null;
 let dreamxInitError: Error | null = null;
+
+export function closeDatabase(): void {
+  if (dbInstance) {
+    dbInstance.close();
+    dbInstance = null;
+  }
+}
+
+export function reconnectDatabase(mode: 'normal' | 'restore' = 'normal'): DbAdapter {
+  closeDatabase();
+  dreamxInitError = null;
+  return getDatabase(mode);
+}
 
 export function assertDreamXAvailable(): void {
   if (dreamxInitError) {
@@ -489,7 +518,7 @@ export function assertDreamXAvailable(): void {
   }
 }
 
-export function getDatabase(): DbAdapter {
+export function getDatabase(mode: 'normal' | 'restore' = 'normal'): DbAdapter {
   if (dbInstance) return dbInstance;
 
   try {
@@ -576,6 +605,10 @@ export function getDatabase(): DbAdapter {
     // ---------------------------------------------------------
 
   } catch (e) {
+    if (mode === 'restore') {
+      throw new Error(`Native better-sqlite3 initialization failed during restore operation. Bypassing fallback to prevent schema corruption. Original error: ${(e as Error).message}`);
+    }
+
     console.warn('Native better-sqlite3 initialization failed. Falling back to @libsql/client:', e);
     dbInstance = new LibSqlAdapter(dbPath);
 
@@ -591,9 +624,9 @@ export function getDatabase(): DbAdapter {
     })();
   }
 
-
-  // Initialize Schema
-  const initSql = `
+  // Initialize Schema ONLY in normal mode
+  if (mode === 'normal') {
+    const initSql = `
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -750,8 +783,7 @@ export function getDatabase(): DbAdapter {
   } catch {
     // verification_type already exists
   }
-
-
+  }
 
   return dbInstance;
 }

@@ -21,19 +21,59 @@ interface SimulationOptions {
   forceBypassCooldown?: boolean; // For dev control panel
 }
 
+// ----------------------------------------------------
+// Concurrency & Ghost-Write Prevention State Machine
+// ----------------------------------------------------
+let globalRunToken: number = Date.now();
+let inFlightCount: number = 0;
+let isSimulationPaused: boolean = false;
+
+export function getRunToken(): number {
+  return globalRunToken;
+}
+
+export function getInFlightCount(): number {
+  return inFlightCount;
+}
+
+export function isSimulationActive(): boolean {
+  return !isSimulationPaused;
+}
+
+export function pauseSimulation(): void {
+  isSimulationPaused = true;
+}
+
+export function resumeSimulation(): void {
+  isSimulationPaused = false;
+  invalidateSimulationToken();
+}
+
+export function invalidateSimulationToken(): void {
+  globalRunToken = Date.now();
+}
+
 export async function runAutonomousActivityStep(options: SimulationOptions): Promise<{ outcome: string; details?: any }> {
-  // 1. Concurrency-safe atomic cooldown claim (60 seconds)
-  if (!options.forceBypassCooldown) {
-    const claimed = await claimSimulationSlot(60000);
-    if (!claimed) {
-      return { outcome: 'COOLDOWN_ACTIVE' };
-    }
+  if (isSimulationPaused) {
+    return { outcome: 'PAUSED', details: 'Simulation is currently paused for rollback or snapshot.' };
   }
+
+  const runToken = globalRunToken;
+  inFlightCount++;
+
+  try {
+    // 1. Concurrency-safe atomic cooldown claim (60 seconds)
+    if (!options.forceBypassCooldown) {
+      const claimed = await claimSimulationSlot(60000, runToken);
+      if (!claimed) {
+        return { outcome: 'COOLDOWN_ACTIVE' };
+      }
+    }
 
   // 2. Fetch DreamX-only state
   const profiles = await getProfiles();
   if (profiles.length === 0) {
-    await logActivity({ action_type: 'no_action', reason: 'No AI profiles exist' });
+    await logActivity({ action_type: 'no_action', reason: 'No AI profiles exist' }, runToken);
     return { outcome: 'NO_ACTION', details: 'No AI profiles exist' };
   }
 
@@ -86,7 +126,7 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
           action_type: 'no_action',
           actor_id: candidate.id,
           reason: `Rejected high-urgency reply output: ${validation.reason}`
-        });
+        }, runToken);
         return { outcome: 'NO_ACTION', details: `Rejected reply generation: ${validation.reason}` };
       }
 
@@ -95,31 +135,31 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
         author_type: 'ai',
         content: text,
         reply_to_post_id: targetPost.id
-      });
+      }, runToken);
 
       await logActivity({
         action_type: 'reply',
         actor_id: candidate.id,
         target_post_id: targetPost.id,
-        reason: `Event-driven response to ${targetPost.author_handle} (Urgency: ${topUrgencyEvent?.score.toFixed(1)})`
+        reason: `Event-driven response to ${targetPost.author_handle} (Urgency: ${topUrgencyEvent?.score.toFixed(1)}, runToken)`
       });
 
       return { outcome: 'REPLY_CREATED', details: { post: saved } };
     } else if (actionChoice < 0.85) {
-      const result = await ensureLike(targetPost.id, candidate.id, 'ai');
+      const result = await ensureLike(targetPost.id, candidate.id, 'ai', runToken);
       await logActivity({
         action_type: result.newlyAdded ? 'like' : 'no_action',
         actor_id: candidate.id,
         target_post_id: targetPost.id,
         reason: `Event-driven like for ${targetPost.author_handle}'s post`
-      });
+      }, runToken);
       return { outcome: result.newlyAdded ? 'LIKE_CREATED' : 'NO_ACTION', details: { actor: candidate.handle, postId: targetPost.id } };
     } else {
       await logActivity({
         action_type: 'no_action',
         actor_id: candidate.id,
         reason: `High urgency event present but candidate ${candidate.handle} chose silence.`
-      });
+      }, runToken);
       return { outcome: 'NO_ACTION', details: 'Candidate chose silence on social event.' };
     }
   }
@@ -151,17 +191,17 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
           action_type: 'no_action',
           actor_id: candidate.id,
           reason: `Evaluated post ${targetPost.id} but found no relevance to interests.`
-       });
+       }, runToken);
        return { outcome: 'NO_ACTION', details: 'Post not relevant for liking.' };
     }
 
-    const result = await ensureLike(targetPost.id, candidate.id, 'ai');
+    const result = await ensureLike(targetPost.id, candidate.id, 'ai', runToken);
     if (!result.newlyAdded) {
        await logActivity({
           action_type: 'no_action',
           actor_id: candidate.id,
           reason: `Already liked post ${targetPost.id}, skipping.`
-       });
+       }, runToken);
        return { outcome: 'NO_ACTION', details: 'Already liked.' };
     }
 
@@ -170,7 +210,7 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
       actor_id: candidate.id,
       target_post_id: targetPost.id,
       reason: `Deterministic interest evaluation by ${candidate.handle}`
-    });
+    }, runToken);
     return { outcome: 'LIKE_CREATED', details: { actor: candidate.handle, postId: targetPost.id } };
   }
 
@@ -199,7 +239,7 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
           action_type: 'no_action',
           actor_id: candidate.id,
           reason: `Rejected AI reply output: ${validation.reason}`
-        });
+        }, runToken);
         return { outcome: 'NO_ACTION', details: `Rejected reply generation: ${validation.reason}` };
       }
 
@@ -208,14 +248,14 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
         author_type: 'ai',
         content: text,
         reply_to_post_id: targetPost.id
-      });
+      }, runToken);
 
       await logActivity({
         action_type: 'reply',
         actor_id: candidate.id,
         target_post_id: targetPost.id,
         reason: `Autonomous in-character reply by ${candidate.handle}`
-      });
+      }, runToken);
 
       return { outcome: 'REPLY_CREATED', details: { post: saved } };
     } else {
@@ -223,7 +263,7 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
           action_type: 'no_action',
           actor_id: candidate.id,
           reason: `No valid targets to reply to without hitting UNIQUE constraint.`
-       });
+       }, runToken);
        return { outcome: 'NO_ACTION', details: 'No valid targets.' };
     }
   }
@@ -236,7 +276,7 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
         action_type: 'no_action',
         actor_id: candidate.id,
         reason: `Rejected AI post output: ${validation.reason}`
-      });
+      }, runToken);
       return { outcome: 'NO_ACTION', details: `Rejected post generation: ${validation.reason}` };
     }
 
@@ -245,13 +285,13 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
       author_type: 'ai',
       content: text,
       reply_to_post_id: null
-    });
+    }, runToken);
 
     await logActivity({
       action_type: 'post',
       actor_id: candidate.id,
       reason: `Autonomous standalone post by ${candidate.handle}`
-    });
+    }, runToken);
 
     return { outcome: 'POST_CREATED', details: { post: saved } };
   }
@@ -260,10 +300,13 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
   await logActivity({
     action_type: 'no_action',
     actor_id: candidate.id,
-    reason: `Chose no action (random choice: ${actionChoice.toFixed(2)})`
+    reason: `Chose no action (random choice: ${actionChoice.toFixed(2)}, runToken)`
   });
 
   return { outcome: 'NO_ACTION', details: 'No action performed.' };
+  } finally {
+    inFlightCount--;
+  }
 }
 
 /**

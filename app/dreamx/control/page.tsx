@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { DreamXProfile } from '@/lib/dreamx/types';
 import { ValidationReport, exportAIProfilesJSON } from '@/lib/dreamx/import_export';
 import { DreamXCharacterManager } from '@/components/dreamx/DreamXCharacterManager';
+import { DreamXSnapshotsManager } from '@/components/dreamx/DreamXSnapshotsManager';
 import {
   ShieldAlert,
   Play,
@@ -18,14 +19,15 @@ import {
   XCircle,
   Users,
   Cpu,
-  Zap
+  Zap,
+  Database
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DreamXControlPage() {
   const [profiles, setProfiles] = useState<DreamXProfile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'simulation' | 'profiles' | 'import_export'>('simulation');
+  const [activeTab, setActiveTab] = useState<'simulation' | 'profiles' | 'import_export' | 'snapshots'>('simulation');
 
   // Simulation execution state
   const [selectedProfileId, setSelectedProfileId] = useState('');
@@ -312,6 +314,17 @@ export default function DreamXControlPage() {
           >
             <FileJson className="w-4 h-4 text-emerald-400" />
             Bulk Import & Export
+          </button>
+          <button
+            onClick={() => setActiveTab('snapshots')}
+            className={`px-4 py-2.5 font-bold text-xs rounded-t-xl flex items-center gap-2 transition-colors border-b-2 ${
+              activeTab === 'snapshots'
+                ? 'border-amber-500 bg-amber-500/10 text-white'
+                : 'border-transparent text-white/50 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Database className="w-4 h-4 text-amber-400" />
+            Snapshots & Rollback
           </button>
         </div>
 
@@ -633,6 +646,13 @@ export default function DreamXControlPage() {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TAB 4: SNAPSHOTS & ROLLBACK */}
+        {activeTab === 'snapshots' && (
+          <div className="flex-1 min-h-[500px]">
+            <DreamXSnapshotsManager />
           </div>
         )}
       </div>

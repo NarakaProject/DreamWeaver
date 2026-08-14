@@ -53,5 +53,10 @@ next-env.d.ts
 !/data/scenarios/static-in-the-synapse/
 !/data/scenarios/under-the-ginkgo-tree/
 
-# DreamX test database
-data/test/
+# DreamX test database directory (keep structure, ignore dbs)
+!/data/test/
+!/data/test/.gitkeep
+
+# DreamX Snapshots
+/data/snapshots/
+

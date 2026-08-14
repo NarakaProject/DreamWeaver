@@ -1,4 +1,5 @@
 import { getDatabase, assertDreamXAvailable } from '@/lib/db';
+import { getRunToken } from './simulation';
 import type { 
   DreamXUserProfile, 
   DreamXProfile, 
@@ -8,6 +9,11 @@ import type {
   DreamXActivityLog 
 } from './types';
 
+function validateSimulationRun(runToken?: number) {
+  if (runToken !== undefined && runToken !== getRunToken()) {
+    throw new Error('Ghost write aborted: Stale simulation generation');
+  }
+}
 
 function generateId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -245,7 +251,8 @@ export async function savePost(post: {
   author_type: ActorType; 
   content: string; 
   reply_to_post_id?: string | null 
-}): Promise<DreamXPost> {
+}, runToken?: number): Promise<DreamXPost> {
+  validateSimulationRun(runToken);
   const db = getDreamXDb();
   const id = post.id || generateId('dx-post');
   let now = Date.now();
@@ -557,7 +564,8 @@ async function populatePostMetadata(raw: any, currentHumanId?: string): Promise<
 // Interactions (Likes, Reposts, Follows) DAL
 // ----------------------------------------------------
 
-export async function toggleLike(postId: string, actorId: string, actorType: ActorType): Promise<{ liked: boolean; count: number }> {
+export async function toggleLike(postId: string, actorId: string, actorType: ActorType, runToken?: number): Promise<{ liked: boolean; count: number }> {
+  validateSimulationRun(runToken);
   const db = getDreamXDb();
   const existing = await db.queryFirst<{ id: string }>(
     'SELECT id FROM dreamx_likes WHERE post_id = ? AND actor_id = ? AND actor_type = ?',
@@ -578,7 +586,8 @@ export async function toggleLike(postId: string, actorId: string, actorType: Act
   return { liked: !existing, count: res?.count || 0 };
 }
 
-export async function ensureLike(postId: string, actorId: string, actorType: ActorType): Promise<{ liked: boolean; newlyAdded: boolean; count: number }> {
+export async function ensureLike(postId: string, actorId: string, actorType: ActorType, runToken?: number): Promise<{ liked: boolean; newlyAdded: boolean; count: number }> {
+  validateSimulationRun(runToken);
   const db = getDreamXDb();
   const existing = await db.queryFirst<{ id: string }>(
     'SELECT id FROM dreamx_likes WHERE post_id = ? AND actor_id = ? AND actor_type = ?',
@@ -659,7 +668,8 @@ export async function isFollowing(followerId: string, followerType: ActorType, f
  * Minimum 60-second cooldown enforced via atomic SQLite conditional UPDATE.
  * Returns true if slot claimed successfully, false if cooldown is active.
  */
-export async function claimSimulationSlot(cooldownMs: number = 60000): Promise<boolean> {
+export async function claimSimulationSlot(cooldownMs: number = 60000, runToken?: number): Promise<boolean> {
+  validateSimulationRun(runToken);
   const db = getDreamXDb();
   const now = Date.now();
   const cutoff = now - cooldownMs;
@@ -683,7 +693,8 @@ export async function claimSimulationSlot(cooldownMs: number = 60000): Promise<b
   return current?.value === now.toString();
 }
 
-export async function logActivity(log: { action_type: 'post' | 'reply' | 'like' | 'no_action'; actor_id?: string; target_post_id?: string; reason?: string }) {
+export async function logActivity(log: { action_type: 'post' | 'reply' | 'like' | 'no_action'; actor_id?: string; target_post_id?: string; reason?: string }, runToken?: number) {
+  validateSimulationRun(runToken);
   const db = getDreamXDb();
   const id = generateId('dx-log');
   await db.execute(
