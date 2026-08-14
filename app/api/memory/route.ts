@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/db';
-import { extractKeywords, searchMemories, MemoryEntry } from '@/lib/memory/store';
+import { extractKeywords, scoreMemories, MemoryEntry } from '@/lib/memory/store';
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
     if (query) {
       const topK = topKParam ? parseInt(topKParam, 10) : 5;
-      const results = await searchMemories(sessionId, query, topK);
+      const results = scoreMemories(memories, query, topK);
       return NextResponse.json({ memories: results });
     }
 

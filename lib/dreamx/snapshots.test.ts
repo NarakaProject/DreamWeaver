@@ -209,7 +209,7 @@ describe('DreamX Snapshot & Rollback Architecture', () => {
     });
 
     const originalBackup = (getDatabase() as any).db.backup;
-    const backupSpy = vi.spyOn((getDatabase() as any).db, 'backup').mockImplementation(async (dest) => {
+    const backupSpy = vi.spyOn((getDatabase() as any).db, 'backup').mockImplementation(async (dest: any) => {
       executionLog.push(`backup:${path.basename(dest.toString())}`);
       return originalBackup.call((getDatabase() as any).db, dest);
     });
@@ -235,6 +235,66 @@ describe('DreamX Snapshot & Rollback Architecture', () => {
     // but we CAN assert that ops completed sequentially if we look at the internal logs.
     const backups = executionLog.filter(l => l.startsWith('backup:'));
     expect(backups.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('J. RED-1: Successful Restore Resumes Simulation', async () => {
+    // 1. Establish valid state
+    await savePost({ author_id: 'red', author_type: 'human', content: 'test' });
+    const snapMeta = await createSimulationSnapshot('Red 1');
+    
+    // 2. Restore
+    await restoreSimulationSnapshot(snapMeta.snapshot_id);
+    
+    // 3. Simulation should be unpaused
+    const step = await runAutonomousActivityStep({ provider: 'gemini', keys: {}, forceBypassCooldown: true });
+    expect(step.outcome).not.toBe('PAUSED');
+  });
+
+  it('K. RED-2 & RED-4: Failed Restore With Successful Emergency Recovery Resumes Simulation', async () => {
+    await savePost({ author_id: 'red2', author_type: 'human', content: 'test2' });
+    const snapMeta = await createSimulationSnapshot('Red 2');
+    
+    // Force a failure during the atomic rename to trigger emergency recovery
+    const originalRenameSync = fs.renameSync;
+    vi.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+      if (oldPath.toString().includes('.restore.tmp')) {
+        throw new Error('Injected rename failure');
+      }
+      return originalRenameSync(oldPath, newPath);
+    });
+
+    const oldToken = getRunToken();
+    
+    await expect(restoreSimulationSnapshot(snapMeta.snapshot_id))
+      .rejects.toThrow('Rollback failed, but emergency recovery succeeded');
+      
+    // Simulation must resume after successful emergency recovery
+    const step = await runAutonomousActivityStep({ provider: 'gemini', keys: {}, forceBypassCooldown: true });
+    expect(step.outcome).not.toBe('PAUSED');
+    
+    // Prove token advanced (RED-4)
+    expect(getRunToken()).not.toBe(oldToken);
+  });
+
+  it('L. RED-3: Emergency Recovery Failure Keeps Simulation Paused', async () => {
+    await savePost({ author_id: 'red3', author_type: 'human', content: 'test3' });
+    const snapMeta = await createSimulationSnapshot('Red 3');
+    
+    // Force BOTH the restore and the emergency recovery to fail
+    const originalRenameSync = fs.renameSync;
+    vi.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+      if (oldPath.toString().includes('.restore.tmp') || oldPath.toString().includes('.emerg.tmp')) {
+        throw new Error('Injected rename failure for both');
+      }
+      return originalRenameSync(oldPath, newPath);
+    });
+
+    await expect(restoreSimulationSnapshot(snapMeta.snapshot_id))
+      .rejects.toThrow('FATAL: Rollback failed AND emergency recovery failed');
+      
+    // System is dead, simulation MUST remain paused
+    const step = await runAutonomousActivityStep({ provider: 'gemini', keys: {}, forceBypassCooldown: true });
+    expect(step.outcome).toBe('PAUSED');
   });
 
 });

@@ -133,16 +133,12 @@ export async function getMemoriesForSession(sessionId: string): Promise<MemoryEn
   return memories;
 }
 
-/**
- * Searches stored memories using local keyword relevance scoring (TF-IDF inspired).
- * Returns the top-K most relevant memory entries.
- */
-export async function searchMemories(
-  sessionId: string,
+
+export function scoreMemories(
+  allMemories: MemoryEntry[],
   query: string,
   topK: number = 5
-): Promise<MemoryEntry[]> {
-  const allMemories = await getMemoriesForSession(sessionId);
+): MemoryEntry[] {
   if (!allMemories || allMemories.length === 0) return [];
 
   const queryTokens = tokenizeQuery(query);
@@ -191,6 +187,19 @@ export async function searchMemories(
     .sort((a, b) => b.score - a.score)
     .slice(0, topK)
     .map((item) => item.entry);
+}
+
+/**
+ * Searches stored memories using local keyword relevance scoring (TF-IDF inspired).
+ * Returns the top-K most relevant memory entries.
+ */
+export async function searchMemories(
+  sessionId: string,
+  query: string,
+  topK: number = 5
+): Promise<MemoryEntry[]> {
+  const allMemories = await getMemoriesForSession(sessionId);
+  return scoreMemories(allMemories, query, topK);
 }
 
 /**

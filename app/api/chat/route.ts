@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assembleGeminiPayload, buildSystemInstruction, DEFAULT_GEMINI_MODEL } from '@/lib/gemini/client';
 import { routeChatStream, AIProvider, DEFAULT_MODELS } from '@/lib/ai/provider-router';
-import { searchMemories, extractKeywords } from '@/lib/memory/store';
+import { scoreMemories, extractKeywords, MemoryEntry } from '@/lib/memory/store';
 import { shouldSummarize, summarizeTurnChunk } from '@/lib/memory/summarizer';
 import { getDatabase } from '@/lib/db';
 import { splitMultiSpeakerText } from '@/lib/parser/dreamgen';
@@ -65,13 +65,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let retrievedMemories = body.retrievedMemories || [];
+    let retrievedMemories: MemoryEntry[] = body.retrievedMemories || [];
 
     // ELTM Context Retrieval: search past memories to enrich system prompt
     if ((!retrievedMemories || retrievedMemories.length === 0) && sessionId) {
       const lastUserMsg = messages.filter((m: any) => m.role === 'user').pop()?.content || '';
       if (lastUserMsg) {
-        retrievedMemories = await searchMemories(sessionId, lastUserMsg, 5);
+        try {
+          const db = getDatabase();
+          const dbMems = await db.getMemories(sessionId);
+          const serverMemories: MemoryEntry[] = dbMems.map((m) => ({
+            id: m.id,
+            sessionId: m.session_id,
+            turnNumber: m.turn_number,
+            speaker: m.speaker || 'Narrator',
+            content: m.content,
+            keywords: m.keywords ? m.keywords.split(',') : extractKeywords(m.content),
+            isSummary: Boolean(m.is_summary),
+            timestamp: m.timestamp,
+          }));
+          retrievedMemories = scoreMemories(serverMemories, lastUserMsg, 5);
+        } catch (err) {
+          console.error('[chat/route] Failed to retrieve server-side memories:', err);
+        }
       }
     }
 

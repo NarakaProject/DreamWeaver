@@ -2,7 +2,21 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { getDatabase, closeDatabase, reconnectDatabase, getDbPath } from '@/lib/db';
-import { pauseSimulation, getInFlightCount, invalidateSimulationToken } from './simulation';
+import { pauseSimulation, resumeSimulation, getInFlightCount, invalidateSimulationToken } from './simulation';
+
+/**
+ * ARCHITECTURAL CONSTRAINT:
+ * The DreamX Snapshot & Rollback system is strictly designed for local-development 
+ * environments running a single Node.js process.
+ * 
+ * The snapshot mutex (`snapshotMutex`), simulation generation token (`globalRunToken`), 
+ * and the `isSimulationPaused` state are implemented as process-local coordination primitives. 
+ * Therefore, this architecture CANNOT guarantee consistency across multiple Node.js processes. 
+ * 
+ * Horizontal scaling (e.g., via PM2 clustering or Vercel serverless deployments) is a 
+ * hard non-goal. Introducing horizontal scaling will invalidate the rollback guarantees 
+ * and cause uncoordinated SQLite file lock collisions.
+ */
 
 export interface SnapshotMetadata {
   snapshot_id: string;
@@ -180,18 +194,22 @@ async function _restoreSimulationSnapshot(id: string): Promise<void> {
   // Explicit read-only validation of snapshot
   validateSnapshotDatabase(dbPath);
 
-  // 1. Quiesce
-  pauseSimulation();
-  invalidateSimulationToken();
+  let databaseUntouched = true;
+  let conclusiveDatabaseState = false;
+
+  const prodDbPath = getDbPath();
+  const emergencyDbPath = prodDbPath.replace('.db', '.emergency.db');
+
+  try {
+    // 1. Quiesce
+    pauseSimulation();
+    invalidateSimulationToken();
 
   // 2. Wait for in-flight operations (timeout after 10s to prevent hang)
   let waitStart = Date.now();
   while (getInFlightCount() > 0 && (Date.now() - waitStart) < 10000) {
     await new Promise(resolve => setTimeout(resolve, 50));
   }
-
-  const prodDbPath = getDbPath();
-  const emergencyDbPath = prodDbPath.replace('.db', '.emergency.db');
 
   // Pre-cleanup any stale emergency backups
   if (fs.existsSync(emergencyDbPath)) {
@@ -217,6 +235,7 @@ async function _restoreSimulationSnapshot(id: string): Promise<void> {
 
   // 5. Disconnect Production & Purge Stale Sidecars Immediately
   try {
+    databaseUntouched = false;
     closeDatabase();
     const walPath = `${prodDbPath}-wal`;
     const shmPath = `${prodDbPath}-shm`;
@@ -258,6 +277,7 @@ async function _restoreSimulationSnapshot(id: string): Promise<void> {
 
       // Reconnect with restore mode (bypasses fallback schema init)
       reconnectDatabase('restore');
+      conclusiveDatabaseState = true;
       
       throw new Error(`Rollback failed, but emergency recovery succeeded. Original error: ${(err as Error).message}`);
     } catch (recoveryErr) {
@@ -280,6 +300,8 @@ async function _restoreSimulationSnapshot(id: string): Promise<void> {
     
     // Verify expected tables exist on the live connection
     newRawDb.prepare('SELECT 1 FROM dreamx_posts LIMIT 1').get();
+    
+    conclusiveDatabaseState = true;
   } catch (err) {
     // Native SQLite failed to open the fully restored DB. Run emergency recovery.
     closeDatabase();
@@ -295,11 +317,14 @@ async function _restoreSimulationSnapshot(id: string): Promise<void> {
       fs.renameSync(tempEmergPath, prodDbPath);
 
       reconnectDatabase('restore');
+      conclusiveDatabaseState = true;
       
       throw new Error(`Restored database connection failed, but emergency recovery succeeded. Original error: ${(err as Error).message}`);
     } catch (recoveryErr) {
       throw new Error(`FATAL: Restored DB connection failed AND emergency recovery failed. Manual intervention required. Original: ${(err as Error).message} Recovery: ${(recoveryErr as Error).message}`);
     }
+  }
+
   } finally {
     // Deterministic Cleanup of Emergency Backup and Temp Files
     if (fs.existsSync(emergencyDbPath)) fs.unlinkSync(emergencyDbPath);
@@ -307,6 +332,10 @@ async function _restoreSimulationSnapshot(id: string): Promise<void> {
     if (fs.existsSync(tempRestorePath)) fs.unlinkSync(tempRestorePath);
     const tempEmergPath = `${prodDbPath}.emerg.tmp`;
     if (fs.existsSync(tempEmergPath)) fs.unlinkSync(tempEmergPath);
+
+    if (databaseUntouched || conclusiveDatabaseState) {
+      resumeSimulation();
+    }
   }
 }
 
