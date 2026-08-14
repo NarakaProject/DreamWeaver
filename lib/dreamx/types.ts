@@ -87,3 +87,39 @@ export interface DreamXActivityLog {
   reason?: string | null;
   created_at: number;
 }
+
+export interface DreamXCrowdState {
+  actor_id: string;
+  followers_count: number;
+  sentiment_score: number;
+  momentum: number;
+  influence_score: number;
+  updated_at: number;
+}
+
+export interface DreamXCrowdEngagement {
+  post_id: string;
+  crowd_likes: number;
+  crowd_reposts: number;
+  impressions: number;
+  engagement_velocity: number;
+  updated_at: number;
+}
+
+export interface DreamXCrowdHistoryDaily {
+  id: string;
+  target_id: string;
+  target_type: 'actor' | 'global';
+  date_string: string;
+  metrics_json: string;
+  updated_at: number;
+}
+
+export interface DreamXAnalyticsStep {
+  step_id: string;
+  type: 'normal' | 'burst';
+  started_at: number;
+  duration_ms: number;
+  actions_taken: number;
+  created_at: number;
+}

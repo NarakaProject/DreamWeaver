@@ -766,6 +766,43 @@ export function getDatabase(mode: 'normal' | 'restore' = 'normal'): DbAdapter {
       reason TEXT,
       created_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS dreamx_crowd_state (
+      actor_id TEXT PRIMARY KEY,
+      followers_count INTEGER DEFAULT 0,
+      sentiment_score REAL DEFAULT 0,
+      momentum REAL DEFAULT 0,
+      influence_score REAL DEFAULT 0,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS dreamx_crowd_engagement (
+      post_id TEXT PRIMARY KEY,
+      crowd_likes INTEGER DEFAULT 0,
+      crowd_reposts INTEGER DEFAULT 0,
+      impressions INTEGER DEFAULT 0,
+      engagement_velocity REAL DEFAULT 0,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS dreamx_crowd_history_daily (
+      id TEXT PRIMARY KEY,
+      target_id TEXT NOT NULL,
+      target_type TEXT NOT NULL CHECK(target_type IN ('actor', 'global')),
+      date_string TEXT NOT NULL,
+      metrics_json TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(target_id, target_type, date_string)
+    );
+
+    CREATE TABLE IF NOT EXISTS dreamx_analytics_steps (
+      step_id TEXT PRIMARY KEY,
+      type TEXT NOT NULL CHECK(type IN ('normal', 'burst')),
+      started_at INTEGER NOT NULL,
+      duration_ms INTEGER NOT NULL,
+      actions_taken INTEGER DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
   `;
 
   try {
