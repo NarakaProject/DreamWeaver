@@ -1,0 +1,36 @@
+name: DreamWeaver CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify git diff check
+        run: git diff --check
+
+      - name: Run focused Crowd Math tests
+        run: npm test lib/dreamx/crowdMath.test.ts
+
+      - name: Run full test suite
+        run: npm test
+
+      - name: Run Next.js production build
+        run: npm run build
