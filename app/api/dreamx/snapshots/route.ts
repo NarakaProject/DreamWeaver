@@ -11,8 +11,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  if (process.env.NODE_ENV === 'production') {
-    return NextResponse.json({ success: false, error: 'Snapshot mutation is an environment-gated local developer tool. It is not available in production environments.' }, { status: 403 });
+  if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
+    return NextResponse.json({ success: false, error: 'Snapshot mutation is a deployment-gated local developer tool. It is permitted only in development and test environments.' }, { status: 403 });
   }
   try {
     const { label } = await req.json();
@@ -27,8 +27,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  if (process.env.NODE_ENV === 'production') {
-    return NextResponse.json({ success: false, error: 'Snapshot mutation is an environment-gated local developer tool. It is not available in production environments.' }, { status: 403 });
+  if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
+    return NextResponse.json({ success: false, error: 'Snapshot mutation is a deployment-gated local developer tool. It is permitted only in development and test environments.' }, { status: 403 });
   }
   try {
     const { id } = await req.json();

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { restoreSimulationSnapshot } from '@/lib/dreamx/snapshots';
 
 export async function POST(req: NextRequest) {
-  if (process.env.NODE_ENV === 'production') {
-    return NextResponse.json({ success: false, error: 'Snapshot mutation is an environment-gated local developer tool. It is not available in production environments.' }, { status: 403 });
+  if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
+    return NextResponse.json({ success: false, error: 'Snapshot mutation is a deployment-gated local developer tool. It is permitted only in development and test environments.' }, { status: 403 });
   }
   try {
     const { id } = await req.json();
