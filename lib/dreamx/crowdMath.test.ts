@@ -76,7 +76,7 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
         sentimentVelocity: 0.1,
         stochasticNoise: 0
       });
-      expect(result.delta).toBeGreaterThan(500); 
+      expect(result.delta).toBeGreaterThan(500);
     });
 
     it('bounds lower limit at zero followers', () => {
@@ -96,7 +96,7 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
     it('maintains extreme input stability', () => {
       const result = calculateFollowerDelta({
         currentFollowers: 999999999,
-        baselineInfluence: 1000000, // Invalid inputs handled gracefully via math limits
+        baselineInfluence: 1000000,
         carryingCapacity: 1000,
         viralMomentum: 5000,
         sentiment: 50,
@@ -105,6 +105,64 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
       });
       expect(result.newFollowers).toBeGreaterThanOrEqual(0);
       expect(Number.isFinite(result.newFollowers)).toBe(true);
+    });
+
+    describe('RED Defect Fix - Follower Loss at Carrying Capacity', () => {
+      it('Test A — Celebrity at capacity loses followers', () => {
+        const result = calculateFollowerDelta({
+          currentFollowers: 100000000,
+          carryingCapacity: 100000000,
+          baselineInfluence: 10,
+          viralMomentum: 0,
+          sentiment: -1.0,
+          sentimentVelocity: -0.5,
+          stochasticNoise: 0
+        });
+        expect(result.delta).toBeLessThan(0);
+        expect(result.newFollowers).toBeLessThan(100000000);
+      });
+
+      it('Test B — Celebrity above capacity can lose followers', () => {
+        const result = calculateFollowerDelta({
+          currentFollowers: 120000000,
+          carryingCapacity: 100000000,
+          baselineInfluence: 10,
+          viralMomentum: 0,
+          sentiment: -1.0,
+          sentimentVelocity: -0.5,
+          stochasticNoise: 0
+        });
+        expect(result.delta).toBeLessThan(0);
+        expect(result.newFollowers).toBeLessThan(120000000);
+      });
+
+      it('Test C — Healthy celebrity at capacity does not grow indefinitely', () => {
+        const result = calculateFollowerDelta({
+          currentFollowers: 100000000,
+          carryingCapacity: 100000000,
+          baselineInfluence: 10,
+          viralMomentum: 5,
+          sentiment: 1.0,
+          sentimentVelocity: 0.5,
+          stochasticNoise: 0
+        });
+        // Saturated, so positive growth approaches zero
+        expect(result.delta).toBeLessThanOrEqual(5);
+      });
+
+      it('Test D — Followers never become negative under extreme loss', () => {
+        const result = calculateFollowerDelta({
+          currentFollowers: 10, // tiny base
+          carryingCapacity: 100000000,
+          baselineInfluence: 100,
+          viralMomentum: 50,
+          sentiment: -1.0,
+          sentimentVelocity: -1.0,
+          stochasticNoise: 0
+        });
+        expect(result.delta).toBeLessThan(0);
+        expect(result.newFollowers).toBeGreaterThanOrEqual(0);
+      });
     });
   });
 
@@ -157,7 +215,7 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
 
       expect(highQualityResult.addedLikes).toBeGreaterThan(lowQualityResult.addedLikes);
     });
-    
+
     it('never returns negative values', () => {
       const result = calculateCatalystPropagation({
         catalystInfluence: -50,
@@ -177,7 +235,7 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
   describe('Engagement Model', () => {
     it('handles normal post vs high quality vs controversial post', () => {
       const base = { authorInfluence: 50, authorFollowers: 10000, networkMomentum: 0, ageHours: 1 };
-      
+
       const normal = estimatePostEngagement({ ...base, postQuality: 0.5, controversy: 0.1 });
       const highQual = estimatePostEngagement({ ...base, postQuality: 1.0, controversy: 0.1 });
       const controv = estimatePostEngagement({ ...base, postQuality: 0.5, controversy: 1.0 });
@@ -190,7 +248,7 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
       const base = { authorInfluence: 50, authorFollowers: 10000, postQuality: 0.5, controversy: 0.1, networkMomentum: 0 };
       const newPost = estimatePostEngagement({ ...base, ageHours: 0 });
       const oldPost = estimatePostEngagement({ ...base, ageHours: 24 });
-      
+
       expect(newPost.impressions).toBeGreaterThan(oldPost.impressions);
     });
 
@@ -200,6 +258,50 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
       });
       expect(zero.impressions).toBe(0);
       expect(zero.engagementRate).toBe(0);
+    });
+
+    describe('YELLOW Defect Fix - Organic Discovery Ceiling', () => {
+      it('Test E — Small account can go viral', () => {
+        const result = estimatePostEngagement({
+          authorInfluence: 10,
+          authorFollowers: 10, // Tiny account
+          postQuality: 1.0,
+          controversy: 0,
+          networkMomentum: 1000, // Very high
+          ageHours: 0
+        });
+        expect(result.impressions).toBeGreaterThan(10);
+        // It should reach thousands due to discovery multiplier applied to the base follower pool (100)
+        expect(result.impressions).toBeGreaterThan(1000);
+      });
+
+      it('Test F — Discovery is monotonic', () => {
+        const base = { authorInfluence: 10, authorFollowers: 100, postQuality: 0.5, controversy: 0, ageHours: 0 };
+        const low = estimatePostEngagement({ ...base, networkMomentum: 10 });
+        const high = estimatePostEngagement({ ...base, networkMomentum: 100 });
+        const higher = estimatePostEngagement({ ...base, networkMomentum: 1000 });
+
+        expect(high.impressions).toBeGreaterThanOrEqual(low.impressions);
+        expect(higher.impressions).toBeGreaterThanOrEqual(high.impressions);
+      });
+
+      it('Test G — Extreme momentum remains bounded', () => {
+        const result = estimatePostEngagement({
+          authorInfluence: 100,
+          authorFollowers: 1000000,
+          postQuality: 1.0,
+          controversy: 1.0,
+          networkMomentum: 1e12, // Absurd momentum
+          ageHours: 0
+        });
+
+        expect(Number.isFinite(result.impressions)).toBe(true);
+        expect(Number.isFinite(result.crowdLikes)).toBe(true);
+        expect(Number.isFinite(result.crowdReposts)).toBe(true);
+
+        // Expect it capped safely below astronomical numbers
+        expect(result.impressions).toBeLessThanOrEqual(100000000); // 100M cap
+      });
     });
   });
 
@@ -229,7 +331,7 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
       const zeroVariance = detectMagnetism(20, 0, 0);
       expect(zeroVariance.isMagnet).toBe(true); // > 10 is considered magnetic if expected is 0
     });
-    
+
     it('handles zero variance safely', () => {
       const safe = detectMagnetism(110, 100, 0); // safeStdDev will be 10 (10% of 100)
       expect(safe.anomalyScore).toBe(1); // (110 - 100) / 10 = 1
@@ -287,7 +389,7 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
     it('detects consistent behavior despite higher volume', () => {
       const normal = { posts: 10, replies: 10, likes: 10, reposts: 10, follows: 10 };
       const burst = { posts: 100, replies: 100, likes: 100, reposts: 100, follows: 100 }; // Same normalized distribution
-      
+
       const res = compareBehavioralConsistency(normal, burst);
       expect(res.isConsistent).toBe(true);
       expect(res.divergenceScore).toBeCloseTo(0, 5);
@@ -296,7 +398,7 @@ describe('DreamX Core/Crowd Mathematical Kernel', () => {
     it('detects divergent behavior', () => {
       const normal = { posts: 10, replies: 90, likes: 50, reposts: 5, follows: 5 };
       const burst = { posts: 100, replies: 0, likes: 0, reposts: 0, follows: 0 }; // Agent suddenly only posts
-      
+
       const res = compareBehavioralConsistency(normal, burst);
       expect(res.isConsistent).toBe(false);
       expect(res.divergenceScore).toBeGreaterThan(0.5);
