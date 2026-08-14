@@ -815,6 +815,29 @@ export function getDatabase(mode: 'normal' | 'restore' = 'normal'): DbAdapter {
       created_at INTEGER NOT NULL,
       UNIQUE(source_log_id)
     );
+
+    CREATE TABLE IF NOT EXISTS dreamx_conversations (
+      id TEXT PRIMARY KEY,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      last_message_id TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS dreamx_conversation_participants (
+      conversation_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      joined_at INTEGER NOT NULL,
+      last_read_message_rowid INTEGER DEFAULT 0,
+      PRIMARY KEY (conversation_id, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS dreamx_messages (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      sender_id TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
   `;
 
   try {

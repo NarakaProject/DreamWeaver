@@ -15,11 +15,11 @@ function validateSimulationRun(runToken?: number) {
   }
 }
 
-function generateId(prefix: string) {
+export function generateId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 }
 
-function getDreamXDb() {
+export function getDreamXDb() {
   assertDreamXAvailable();
   return getDatabase();
 }
@@ -743,6 +743,9 @@ export async function resetSimulationState(): Promise<void> {
     { sql: 'DELETE FROM dreamx_notifications' },
     { sql: 'DELETE FROM dreamx_crowd_state' },
     { sql: 'DELETE FROM dreamx_crowd_engagement' },
-    { sql: 'DELETE FROM dreamx_analytics_steps' }
+    { sql: 'DELETE FROM dreamx_analytics_steps' },
+    { sql: 'DELETE FROM dreamx_messages' },
+    { sql: 'DELETE FROM dreamx_conversation_participants' },
+    { sql: 'DELETE FROM dreamx_conversations' }
   ]);
 }
