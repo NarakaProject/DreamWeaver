@@ -609,7 +609,8 @@ export async function ensureLike(postId: string, actorId: string, actorType: Act
   return { liked: true, newlyAdded: true, count: res?.count || 0 };
 }
 
-export async function toggleRepost(postId: string, actorId: string, actorType: ActorType): Promise<{ reposted: boolean; count: number }> {
+export async function toggleRepost(postId: string, actorId: string, actorType: ActorType, runToken?: number): Promise<{ reposted: boolean; count: number }> {
+  validateSimulationRun(runToken);
   const db = getDreamXDb();
   const existing = await db.queryFirst<{ id: string }>(
     'SELECT id FROM dreamx_reposts WHERE post_id = ? AND actor_id = ? AND actor_type = ?',
@@ -630,7 +631,8 @@ export async function toggleRepost(postId: string, actorId: string, actorType: A
   return { reposted: !existing, count: res?.count || 0 };
 }
 
-export async function toggleFollow(followerId: string, followerType: ActorType, followedProfileId: string): Promise<{ following: boolean }> {
+export async function toggleFollow(followerId: string, followerType: ActorType, followedProfileId: string, runToken?: number): Promise<{ following: boolean }> {
+  validateSimulationRun(runToken);
   const db = getDreamXDb();
   const existing = await db.queryFirst<{ id: string }>(
     'SELECT id FROM dreamx_follows WHERE follower_id = ? AND follower_type = ? AND followed_profile_id = ?',

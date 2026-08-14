@@ -528,8 +528,9 @@ export function getDatabase(mode: 'normal' | 'restore' = 'normal'): DbAdapter {
     // ---------------------------------------------------------
     // ATOMIC SYNCHRONOUS DREAMX MIGRATION (v0.1 -> v0.2)
     // ---------------------------------------------------------
-    try {
-      const rawDb = (dbInstance as any).db;
+    if (mode === 'normal') {
+      try {
+        const rawDb = (dbInstance as any).db;
       if (rawDb) {
         // Inspect current schema of dreamx_posts safely
         const tableInfo = rawDb.pragma('table_info(dreamx_posts)');
@@ -598,9 +599,10 @@ export function getDatabase(mode: 'normal' | 'restore' = 'normal'): DbAdapter {
           console.log('DreamX schema migration completed successfully.');
         }
       }
-    } catch (migErr: any) {
-      console.error('DreamX synchronous migration failed (rolling back automatically):', migErr);
-      dreamxInitError = migErr instanceof Error ? migErr : new Error(String(migErr));
+      } catch (migErr: any) {
+        console.error('DreamX synchronous migration failed (rolling back automatically):', migErr);
+        dreamxInitError = migErr instanceof Error ? migErr : new Error(String(migErr));
+      }
     }
     // ---------------------------------------------------------
 

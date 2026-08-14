@@ -17,6 +17,19 @@ export interface SnapshotMetadata {
 
 const isTestMode = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
 
+// ----------------------------------------------------
+// Mutex Serialization
+// ----------------------------------------------------
+let snapshotMutex: Promise<any> = Promise.resolve();
+
+function withMutex<T>(task: () => Promise<T>): Promise<T> {
+  // Chain the new task onto the existing mutex promise.
+  // We use .catch(() => {}) on the current promise to ensure the queue doesn't poison if an earlier task fails.
+  const nextLock = snapshotMutex.catch(() => {}).then(() => task());
+  snapshotMutex = nextLock.catch(() => {}); // prevent unhandled rejections from blowing up the queue itself
+  return nextLock;
+}
+
 export function getSnapshotsDir(): string {
   const baseDbDir = path.resolve(process.cwd(), 'data');
   const targetDbDir = isTestMode ? path.resolve(baseDbDir, 'test') : baseDbDir;
@@ -77,7 +90,7 @@ function validateSnapshotDatabase(dbPath: string): { postCount: number, profileC
   }
 }
 
-export async function createSimulationSnapshot(label: string): Promise<SnapshotMetadata> {
+async function _createSimulationSnapshot(label: string): Promise<SnapshotMetadata> {
   const id = `snap_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const dbPath = getSnapshotDbPath(id);
   const metaPath = getSnapshotMetaPath(id);
@@ -139,7 +152,7 @@ export async function getSnapshots(): Promise<SnapshotMetadata[]> {
   return snapshots.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
-export async function deleteSnapshot(id: string): Promise<void> {
+async function _deleteSnapshot(id: string): Promise<void> {
   const dbPath = getSnapshotDbPath(id);
   const metaPath = getSnapshotMetaPath(id);
 
@@ -147,7 +160,7 @@ export async function deleteSnapshot(id: string): Promise<void> {
   if (fs.existsSync(metaPath)) fs.unlinkSync(metaPath);
 }
 
-export async function restoreSimulationSnapshot(id: string): Promise<void> {
+async function _restoreSimulationSnapshot(id: string): Promise<void> {
   const dbPath = getSnapshotDbPath(id);
   const metaPath = getSnapshotMetaPath(id);
 
@@ -179,6 +192,11 @@ export async function restoreSimulationSnapshot(id: string): Promise<void> {
 
   const prodDbPath = getDbPath();
   const emergencyDbPath = prodDbPath.replace('.db', '.emergency.db');
+
+  // Pre-cleanup any stale emergency backups
+  if (fs.existsSync(emergencyDbPath)) {
+    fs.unlinkSync(emergencyDbPath);
+  }
 
   // 3. Emergency Backup
   const dbAdapter = getDatabase();
@@ -282,5 +300,27 @@ export async function restoreSimulationSnapshot(id: string): Promise<void> {
     } catch (recoveryErr) {
       throw new Error(`FATAL: Restored DB connection failed AND emergency recovery failed. Manual intervention required. Original: ${(err as Error).message} Recovery: ${(recoveryErr as Error).message}`);
     }
+  } finally {
+    // Deterministic Cleanup of Emergency Backup and Temp Files
+    if (fs.existsSync(emergencyDbPath)) fs.unlinkSync(emergencyDbPath);
+    const tempRestorePath = `${prodDbPath}.restore.tmp`;
+    if (fs.existsSync(tempRestorePath)) fs.unlinkSync(tempRestorePath);
+    const tempEmergPath = `${prodDbPath}.emerg.tmp`;
+    if (fs.existsSync(tempEmergPath)) fs.unlinkSync(tempEmergPath);
   }
+}
+
+// ----------------------------------------------------
+// Public API Wrappers (Serialized)
+// ----------------------------------------------------
+export function createSimulationSnapshot(label: string): Promise<SnapshotMetadata> {
+  return withMutex(() => _createSimulationSnapshot(label));
+}
+
+export function restoreSimulationSnapshot(id: string): Promise<void> {
+  return withMutex(() => _restoreSimulationSnapshot(id));
+}
+
+export function deleteSnapshot(id: string): Promise<void> {
+  return withMutex(() => _deleteSnapshot(id));
 }
