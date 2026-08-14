@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runAutonomousActivityStep } from '@/lib/dreamx/simulation';
+import { computeCrowdBurst } from '@/lib/dreamx/crowd';
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,6 +31,12 @@ export async function POST(req: NextRequest) {
           details: 'Provider unavailable'
         });
       }
+    }
+
+    try {
+      await computeCrowdBurst();
+    } catch (err: any) {
+      console.error('Crowd burst computation failed:', err);
     }
 
     return NextResponse.json({ 

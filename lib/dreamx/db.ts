@@ -222,7 +222,7 @@ export async function deleteProfile(id: string): Promise<void> {
       args: [id, id]
     },
     {
-      sql: `DELETE FROM dreamx_activity_log WHERE actor_id = ?`,
+      sql: `UPDATE dreamx_activity_log SET actor_id = '[DELETED]' WHERE actor_id = ?`,
       args: [id]
     },
     {
@@ -295,6 +295,15 @@ export async function savePost(post: {
     fullPost.reposts_count,
     fullPost.created_at
   ]);
+
+  if (post.author_type === 'human') {
+    await logActivity({
+      action_type: post.reply_to_post_id ? 'reply' : 'post',
+      actor_id: post.author_id,
+      target_post_id: post.reply_to_post_id ? post.reply_to_post_id : id,
+      reason: 'Human action'
+    }, runToken);
+  }
 
   return (await getPost(id)) || fullPost;
 }
@@ -580,6 +589,9 @@ export async function toggleLike(postId: string, actorId: string, actorType: Act
       'INSERT INTO dreamx_likes (id, post_id, actor_id, actor_type, created_at) VALUES (?, ?, ?, ?, ?)',
       [id, postId, actorId, actorType, Date.now()]
     );
+    if (actorType === 'human') {
+      await logActivity({ action_type: 'like', actor_id: actorId, target_post_id: postId, reason: 'Human action' }, runToken);
+    }
   }
 
   const res = await db.queryFirst<{ count: number }>('SELECT COUNT(*) as count FROM dreamx_likes WHERE post_id = ?', [postId]);
@@ -604,6 +616,9 @@ export async function ensureLike(postId: string, actorId: string, actorType: Act
     'INSERT INTO dreamx_likes (id, post_id, actor_id, actor_type, created_at) VALUES (?, ?, ?, ?, ?)',
     [id, postId, actorId, actorType, Date.now()]
   );
+  if (actorType === 'human') {
+    await logActivity({ action_type: 'like', actor_id: actorId, target_post_id: postId, reason: 'Human action' }, runToken);
+  }
   
   const res = await db.queryFirst<{ count: number }>('SELECT COUNT(*) as count FROM dreamx_likes WHERE post_id = ?', [postId]);
   return { liked: true, newlyAdded: true, count: res?.count || 0 };
@@ -625,6 +640,9 @@ export async function toggleRepost(postId: string, actorId: string, actorType: A
       'INSERT INTO dreamx_reposts (id, post_id, actor_id, actor_type, created_at) VALUES (?, ?, ?, ?, ?)',
       [id, postId, actorId, actorType, Date.now()]
     );
+    if (actorType === 'human') {
+      await logActivity({ action_type: 'repost', actor_id: actorId, target_post_id: postId, reason: 'Human action' }, runToken);
+    }
   }
 
   const res = await db.queryFirst<{ count: number }>('SELECT COUNT(*) as count FROM dreamx_reposts WHERE post_id = ?', [postId]);
@@ -648,6 +666,9 @@ export async function toggleFollow(followerId: string, followerType: ActorType, 
       'INSERT INTO dreamx_follows (id, follower_id, follower_type, followed_profile_id, created_at) VALUES (?, ?, ?, ?, ?)',
       [id, followerId, followerType, followedProfileId, Date.now()]
     );
+    if (followerType === 'human') {
+      await logActivity({ action_type: 'follow', actor_id: followerId, target_post_id: followedProfileId, reason: 'Human action' }, runToken);
+    }
     return { following: true };
   }
 }
@@ -695,7 +716,7 @@ export async function claimSimulationSlot(cooldownMs: number = 60000, runToken?:
   return current?.value === now.toString();
 }
 
-export async function logActivity(log: { action_type: 'post' | 'reply' | 'like' | 'no_action'; actor_id?: string; target_post_id?: string; reason?: string }, runToken?: number) {
+export async function logActivity(log: { action_type: 'post' | 'reply' | 'like' | 'repost' | 'follow' | 'no_action'; actor_id?: string; target_post_id?: string; reason?: string }, runToken?: number) {
   validateSimulationRun(runToken);
   const db = getDreamXDb();
   const id = generateId('dx-log');

@@ -253,7 +253,7 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
       await logActivity({
         action_type: 'reply',
         actor_id: candidate.id,
-        target_post_id: targetPost.id,
+        target_post_id: saved.id,
         reason: `Autonomous in-character reply by ${candidate.handle}`
       }, runToken);
 
@@ -290,6 +290,7 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
     await logActivity({
       action_type: 'post',
       actor_id: candidate.id,
+      target_post_id: saved.id,
       reason: `Autonomous standalone post by ${candidate.handle}`
     }, runToken);
 
