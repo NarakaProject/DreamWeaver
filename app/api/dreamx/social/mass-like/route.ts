@@ -23,11 +23,11 @@ export async function POST(req: NextRequest) {
     
     const humanUser = await getUserProfile();
     for (const actor of resolvedActors) {
-      if (actor.actor_type !== targetType) {
+      if (actor.identity.actor_type !== targetType) {
         return NextResponse.json({ success: false, error: 'Mismatched actorType in payload' }, { status: 400 });
       }
-      if (actor.actor_type === 'human') {
-        if (!humanUser || actor.id !== humanUser.id) {
+      if (actor.identity.actor_type === 'human') {
+        if (!humanUser || actor.identity.id !== humanUser.id) {
           return NextResponse.json({ success: false, error: 'Cannot impersonate other human actors' }, { status: 400 });
         }
       }

@@ -1,22 +1,111 @@
 import { getDatabase } from '../db';
+import type { 
+  Actor, 
+  ActorIdentity, 
+  ActorPersonality, 
+  ActorContentProfile, 
+  DreamXProfile, 
+  DreamXUserProfile, 
+  ActorType,
+  DreamXActor 
+} from './types';
+import { parseBehaviorPolicy } from './behaviorPolicy';
 
-export type ActorType = 'human' | 'ai';
+export type { ActorType, DreamXActor };
 
-export interface DreamXActor {
-  id: string;
-  handle: string;
-  display_name: string;
-  actor_type: ActorType;
-  verification_type: string;
-  behavior_policy?: string | null;
+/**
+ * Pure mapping function: Maps a persistent DreamXProfile (AI) to the canonical Actor domain model.
+ * Deterministic and side-effect free; does not mutate the input entity.
+ */
+export function toActorFromProfile(profile: DreamXProfile): Actor {
+  const identity: ActorIdentity = {
+    id: profile.id,
+    handle: profile.handle,
+    display_name: profile.display_name,
+    actor_type: 'ai',
+    verification_type: profile.verification_type || 'none',
+    avatar_url: profile.avatar_url || undefined,
+    bio: profile.bio || undefined,
+    created_at: profile.created_at,
+    updated_at: profile.updated_at,
+  };
+
+  const personality: ActorPersonality | undefined = (
+    profile.personality ||
+    profile.traits ||
+    profile.interests ||
+    profile.beliefs ||
+    profile.background
+  ) ? {
+    personality: profile.personality || undefined,
+    traits: profile.traits || undefined,
+    interests: profile.interests || undefined,
+    beliefs: profile.beliefs || undefined,
+    background: profile.background || undefined,
+  } : undefined;
+
+  const contentProfile: ActorContentProfile | undefined = (
+    profile.speaking_style ||
+    profile.posting_guidelines
+  ) ? {
+    speaking_style: profile.speaking_style || undefined,
+    posting_guidelines: profile.posting_guidelines || undefined,
+  } : undefined;
+
+  const behaviorPolicy = profile.behavior_policy
+    ? parseBehaviorPolicy(profile.behavior_policy)
+    : undefined;
+
+  return {
+    identity,
+    ...(personality ? { personality } : {}),
+    ...(contentProfile ? { contentProfile } : {}),
+    ...(behaviorPolicy ? { behaviorPolicy } : {}),
+  };
 }
 
-export async function getActorById(id: string): Promise<DreamXActor | null> {
+/**
+ * Pure mapping function: Maps a persistent DreamXUserProfile (Human) to the canonical Actor domain model.
+ * Deterministic and side-effect free; does not mutate the input entity.
+ */
+export function toActorFromUserProfile(userProfile: DreamXUserProfile): Actor {
+  const identity: ActorIdentity = {
+    id: userProfile.id,
+    handle: userProfile.handle,
+    display_name: userProfile.display_name,
+    actor_type: 'human',
+    verification_type: userProfile.verification_type || 'none',
+    avatar_url: userProfile.avatar_url || undefined,
+    bio: userProfile.bio || undefined,
+    created_at: userProfile.created_at,
+    updated_at: userProfile.updated_at,
+  };
+
+  const personality: ActorPersonality | undefined = (
+    userProfile.personality ||
+    userProfile.interests
+  ) ? {
+    personality: userProfile.personality || undefined,
+    interests: userProfile.interests || undefined,
+  } : undefined;
+
+  const contentProfile: ActorContentProfile | undefined = userProfile.writing_style ? {
+    writing_style: userProfile.writing_style || undefined,
+  } : undefined;
+
+  return {
+    identity,
+    ...(personality ? { personality } : {}),
+    ...(contentProfile ? { contentProfile } : {}),
+  };
+}
+
+export async function getActorById(id: string): Promise<Actor | undefined> {
   const actors = await getActorsByIds([id]);
-  return actors[0] || null;
+  return actors[0];
 }
 
-export async function getActorsByIds(ids: string[]): Promise<DreamXActor[]> {
+export async function getActorsByIds(ids: string[]): Promise<Actor[]> {
   if (!ids || ids.length === 0) return [];
   const db = getDatabase();
   
@@ -27,81 +116,75 @@ export async function getActorsByIds(ids: string[]): Promise<DreamXActor[]> {
   const aiIds = uniqueIds.filter(id => id.startsWith('dx-prof-'));
   const unclassifiedIds = uniqueIds.filter(id => !id.startsWith('dx-user-') && !id.startsWith('dx-prof-'));
   
-  const results: DreamXActor[] = [];
+  const results: Actor[] = [];
+  const resolvedIds = new Set<string>();
 
   if (humanIds.length > 0) {
     const placeholders = humanIds.map(() => '?').join(',');
-    const humans = await db.queryAll<any>(`
-      SELECT id, display_name, handle, verification_type 
+    const humans = await db.queryAll<DreamXUserProfile>(`
+      SELECT * 
       FROM dreamx_user_profile 
       WHERE id IN (${placeholders})
     `, humanIds);
     for (const h of humans) {
-      results.push({
-        id: h.id,
-        handle: h.handle,
-        display_name: h.display_name,
-        actor_type: 'human',
-        verification_type: h.verification_type
-      });
+      results.push(toActorFromUserProfile(h));
+      resolvedIds.add(h.id);
     }
   }
 
-  const checkIds = [...aiIds, ...unclassifiedIds];
-  if (checkIds.length > 0) {
-    const placeholders = checkIds.map(() => '?').join(',');
-    const ais = await db.queryAll<any>(`
-      SELECT id, display_name, handle, verification_type, behavior_policy 
+  const checkAiIds = [...aiIds, ...unclassifiedIds.filter(id => !resolvedIds.has(id))];
+  if (checkAiIds.length > 0) {
+    const placeholders = checkAiIds.map(() => '?').join(',');
+    const ais = await db.queryAll<DreamXProfile>(`
+      SELECT * 
       FROM dreamx_profiles 
       WHERE id IN (${placeholders})
-    `, checkIds);
+    `, checkAiIds);
     for (const a of ais) {
-      results.push({
-        id: a.id,
-        handle: a.handle,
-        display_name: a.display_name,
-        actor_type: 'ai',
-        verification_type: a.verification_type,
-        behavior_policy: a.behavior_policy
-      });
+      results.push(toActorFromProfile(a));
+      resolvedIds.add(a.id);
+    }
+  }
+
+  // Fallback check for any remaining unclassified IDs in human table
+  const remainingUnclassified = unclassifiedIds.filter(id => !resolvedIds.has(id));
+  if (remainingUnclassified.length > 0) {
+    const placeholders = remainingUnclassified.map(() => '?').join(',');
+    const humans = await db.queryAll<DreamXUserProfile>(`
+      SELECT * 
+      FROM dreamx_user_profile 
+      WHERE id IN (${placeholders})
+    `, remainingUnclassified);
+    for (const h of humans) {
+      results.push(toActorFromUserProfile(h));
+      resolvedIds.add(h.id);
     }
   }
 
   return results;
 }
 
-export async function getActorByHandle(handle: string): Promise<DreamXActor | null> {
+export async function getActorByHandle(handle: string): Promise<Actor | undefined> {
   const db = getDatabase();
-  const ai = await db.queryFirst<any>(`
-    SELECT id, display_name, handle, verification_type, behavior_policy 
-    FROM dreamx_profiles WHERE handle = ?
-  `, [handle]);
+  const normalizedHandle = handle.startsWith('@') ? handle : `@${handle}`;
+  
+  const ai = await db.queryFirst<DreamXProfile>(`
+    SELECT * 
+    FROM dreamx_profiles WHERE LOWER(handle) = LOWER(?)
+  `, [normalizedHandle]);
   
   if (ai) {
-    return {
-      id: ai.id,
-      handle: ai.handle,
-      display_name: ai.display_name,
-      actor_type: 'ai',
-      verification_type: ai.verification_type,
-      behavior_policy: ai.behavior_policy
-    };
+    return toActorFromProfile(ai);
   }
   
-  const human = await db.queryFirst<any>(`
-    SELECT id, display_name, handle, verification_type 
-    FROM dreamx_user_profile WHERE handle = ?
-  `, [handle]);
+  const human = await db.queryFirst<DreamXUserProfile>(`
+    SELECT * 
+    FROM dreamx_user_profile WHERE LOWER(handle) = LOWER(?)
+  `, [normalizedHandle]);
   
   if (human) {
-    return {
-      id: human.id,
-      handle: human.handle,
-      display_name: human.display_name,
-      actor_type: 'human',
-      verification_type: human.verification_type
-    };
+    return toActorFromUserProfile(human);
   }
   
-  return null;
+  return undefined;
 }

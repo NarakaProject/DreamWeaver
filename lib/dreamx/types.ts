@@ -1,5 +1,50 @@
+import type { BehaviorPolicy } from './behaviorPolicy';
+
 export type ActorType = 'human' | 'ai';
 export type VerificationType = 'none' | 'blue' | 'gray' | 'gold';
+
+// ----------------------------------------------------
+// Canonical Actor Domain Model (Phase D1)
+// ----------------------------------------------------
+
+export interface ActorIdentity {
+  id: string;
+  handle: string;
+  display_name: string;
+  actor_type: ActorType;
+  verification_type?: VerificationType;
+  avatar_url?: string;
+  bio?: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ActorPersonality {
+  personality?: string;
+  traits?: string;
+  interests?: string;
+  beliefs?: string;
+  background?: string;
+}
+
+export interface ActorContentProfile {
+  speaking_style?: string;
+  writing_style?: string;
+  posting_guidelines?: string;
+}
+
+export interface Actor {
+  identity: ActorIdentity;
+  personality?: ActorPersonality;
+  contentProfile?: ActorContentProfile;
+  behaviorPolicy?: BehaviorPolicy;
+}
+
+export type DreamXActor = Actor;
+
+// ----------------------------------------------------
+// Persistence / Legacy Entities
+// ----------------------------------------------------
 
 export interface DreamXUserProfile {
   id: string;
