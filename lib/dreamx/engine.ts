@@ -1,10 +1,22 @@
 import { routeChatStream, AIProvider, ProviderKeys, DEFAULT_MODELS } from '@/lib/ai/provider-router';
-import type { DreamXProfile, DreamXPost } from './types';
+import type { Actor, DreamXProfile, DreamXPost } from './types';
+import { toActorFromProfile } from './actors';
+import { renderPersonalityDescription } from './personality';
+import { renderContentProfileDescription } from './contentProfile';
+import { renderTaxonomyDescription } from './taxonomy';
 
 interface GenerationOptions {
   provider?: AIProvider;
   model?: string;
   keys: ProviderKeys;
+}
+
+function isActor(obj: any): obj is Actor {
+  return obj && typeof obj === 'object' && 'identity' in obj && typeof obj.identity === 'object';
+}
+
+function ensureActor(actorOrProfile: Actor | DreamXProfile): Actor {
+  return isActor(actorOrProfile) ? actorOrProfile : toActorFromProfile(actorOrProfile);
 }
 
 /**
@@ -83,35 +95,47 @@ export function validateSocialOutput(rawText: string, finishReason?: string): So
   return { isValid: true, normalizedText: normalized };
 }
 
+export function buildDreamXSystemInstruction(actorOrProfile: Actor | DreamXProfile): string {
+  const actor = ensureActor(actorOrProfile);
 
-function buildDreamXSystemInstruction(profile: DreamXProfile): string {
-  return `You are ${profile.handle}, an independent fictional social-media personality on DreamX.
-  
-Name: ${profile.display_name}
-Bio: ${profile.bio || 'None'}
-Personality: ${profile.personality || 'Neutral'}
-Traits: ${profile.traits || 'None'}
-Interests: ${profile.interests || 'None'}
-Speaking Style: ${profile.speaking_style || 'Casual'}
-Beliefs: ${profile.beliefs || 'None'}
-Background: ${profile.background || 'None'}
-Guidelines: ${profile.posting_guidelines || 'Posts observations, jokes, opinions, arguments, or reactions.'}
+  const sections: string[] = [
+    `You are ${actor.identity.handle}, an independent fictional social-media personality on DreamX.`,
+    `Name: ${actor.identity.display_name}`,
+    `Bio: ${actor.identity.bio || 'None'}`
+  ];
 
-CRITICAL RULES:
+  if (actor.taxonomy) {
+    const taxDesc = renderTaxonomyDescription(actor.taxonomy);
+    if (taxDesc) sections.push(taxDesc);
+  }
+
+  if (actor.personality) {
+    const persDesc = renderPersonalityDescription(actor.personality);
+    if (persDesc) sections.push(persDesc);
+  }
+
+  if (actor.contentProfile) {
+    const contentDesc = renderContentProfileDescription(actor.contentProfile);
+    if (contentDesc) sections.push(contentDesc);
+  }
+
+  sections.push(`CRITICAL RULES:
 - Generate ONLY the exact text of your social media post or reply.
 - DO NOT wrap the output in quotes.
 - DO NOT prefix the post with your name, handle, or "Here is my post:".
 - Do NOT act as an AI assistant or provide meta commentary.
 - Stay in character with your defined personality (disagreeing, joking, or being supportive as fits your persona).
-- Target a realistic social media length (~280 characters).`;
+- Target a realistic social media length (~280 characters).`);
+
+  return sections.join('\n\n');
 }
 
 export async function generateDreamXPost(
-  profile: DreamXProfile,
+  actorOrProfile: Actor | DreamXProfile,
   context: string = '',
   options: GenerationOptions
 ): Promise<{ text: string; validation: SocialOutputValidation }> {
-  const systemInstruction = buildDreamXSystemInstruction(profile);
+  const systemInstruction = buildDreamXSystemInstruction(actorOrProfile);
   
   let userPrompt = 'Generate a standalone social media post.';
   if (context) {
@@ -124,14 +148,15 @@ export async function generateDreamXPost(
 }
 
 export async function generateDreamXReply(
-  profile: DreamXProfile,
+  actorOrProfile: Actor | DreamXProfile,
   targetPost: DreamXPost,
   targetAuthorName: string,
   targetAuthorHandle: string,
   options: GenerationOptions,
   isMentioned: boolean = false
 ): Promise<{ text: string; validation: SocialOutputValidation }> {
-  const systemInstruction = buildDreamXSystemInstruction(profile);
+  const actor = ensureActor(actorOrProfile);
+  const systemInstruction = buildDreamXSystemInstruction(actor);
   
   let userPrompt = `You are replying to a post by ${targetAuthorName} (${targetAuthorHandle}).
   
@@ -139,7 +164,7 @@ Original Post:
 "${targetPost.content}"`;
 
   if (isMentioned) {
-    userPrompt += `\n\nNOTE: This post explicitly mentions your handle (${profile.handle}). Treat this as a direct social interaction and respond naturally in character. Do not mechanically acknowledge the mention unless it fits your personality.`;
+    userPrompt += `\n\nNOTE: This post explicitly mentions your handle (${actor.identity.handle}). Treat this as a direct social interaction and respond naturally in character. Do not mechanically acknowledge the mention unless it fits your personality.`;
   }
 
   userPrompt += `\n\nGenerate your reply to this post in character. You may agree, disagree, ask a question, make a joke, or add a sarcastic observation as fits your persona.`;
@@ -148,7 +173,6 @@ Original Post:
   const validation = validateSocialOutput(rawText, finishReason);
   return { text: validation.normalizedText, validation };
 }
-
 
 async function executeDreamXStream(
   systemInstruction: string,
@@ -212,4 +236,3 @@ async function executeDreamXStream(
 
   return { rawText: fullText.trim(), finishReason };
 }
-
