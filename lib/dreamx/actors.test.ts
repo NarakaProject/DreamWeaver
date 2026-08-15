@@ -74,8 +74,8 @@ describe('Phase D1 — Actor Domain Model & Resolver', () => {
 
       // Verify Content Profile
       expect(actor.contentProfile).toEqual({
-        speaking_style: 'Direct and concise',
-        posting_guidelines: 'Post once per day about tech'
+        style: 'Direct and concise',
+        guidelines: ['Post once per day about tech']
       });
 
       // Verify Behavior Policy
@@ -146,7 +146,7 @@ describe('Phase D1 — Actor Domain Model & Resolver', () => {
 
       // Verify Content Profile
       expect(actor.contentProfile).toEqual({
-        writing_style: 'Narrative and descriptive'
+        style: 'Narrative and descriptive'
       });
 
       // Crucial: Human actors must NOT have a synthetic autonomous BehaviorPolicy
@@ -208,7 +208,7 @@ describe('Phase D1 — Actor Domain Model & Resolver', () => {
       expect(actor?.identity.verification_type).toBe('blue');
       expect(actor?.personality?.summary).toBe('Humorous');
       expect(actor?.personality?.interests).toEqual(['Tech']);
-      expect(actor?.contentProfile?.writing_style).toBe('Casual');
+      expect(actor?.contentProfile?.style).toBe('Casual');
       expect(actor?.behaviorPolicy).toBeUndefined();
     });
 
@@ -223,7 +223,8 @@ describe('Phase D1 — Actor Domain Model & Resolver', () => {
       expect(actor?.personality?.summary).toBe('Mysterious');
       expect(actor?.personality?.traits).toEqual(['cryptic']);
       expect(actor?.personality?.interests).toEqual(['Futures']);
-      expect(actor?.contentProfile?.speaking_style).toBe('Enigmatic');
+      expect(actor?.contentProfile?.style).toBe('Enigmatic');
+      expect(actor?.contentProfile?.guidelines).toEqual(['Speak in riddles']);
       expect(actor?.behaviorPolicy?.actionProbabilities.like).toBe(0.5);
     });
 

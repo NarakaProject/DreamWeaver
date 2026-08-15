@@ -13,6 +13,7 @@ import type {
 import { parseBehaviorPolicy } from './behaviorPolicy';
 
 import { normalizePersonality } from './personality';
+import { normalizeContentProfile } from './contentProfile';
 
 export type { ActorType, DreamXActor };
 
@@ -73,13 +74,10 @@ export function toActorFromProfile(profile: DreamXProfile): Actor {
     background: profile.background,
   });
 
-  const contentProfile: ActorContentProfile | undefined = (
-    profile.speaking_style ||
-    profile.posting_guidelines
-  ) ? {
-    speaking_style: profile.speaking_style || undefined,
-    posting_guidelines: profile.posting_guidelines || undefined,
-  } : undefined;
+  const contentProfile: ActorContentProfile | undefined = normalizeContentProfile({
+    speaking_style: profile.speaking_style,
+    posting_guidelines: profile.posting_guidelines,
+  });
 
   const behaviorPolicy = profile.behavior_policy
     ? parseBehaviorPolicy(profile.behavior_policy)
@@ -118,9 +116,9 @@ export function toActorFromUserProfile(userProfile: DreamXUserProfile): Actor {
     interests: userProfile.interests,
   });
 
-  const contentProfile: ActorContentProfile | undefined = userProfile.writing_style ? {
-    writing_style: userProfile.writing_style || undefined,
-  } : undefined;
+  const contentProfile: ActorContentProfile | undefined = normalizeContentProfile({
+    writing_style: userProfile.writing_style,
+  });
 
   return {
     identity,

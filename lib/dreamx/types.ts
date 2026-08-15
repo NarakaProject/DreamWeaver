@@ -30,9 +30,11 @@ export interface ActorPersonality {
 }
 
 export interface ActorContentProfile {
-  speaking_style?: string;
-  writing_style?: string;
-  posting_guidelines?: string;
+  style?: string;
+  topics?: string[];
+  patterns?: string[];
+  guidelines?: string[];
+  bias?: string;
 }
 
 export interface ActorTaxonomy {

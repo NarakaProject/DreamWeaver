@@ -161,8 +161,8 @@ describe('Phase D3 — Personality Layer', () => {
       // Assert ContentProfile fields remain outside Personality
       expect(actor.personality).not.toHaveProperty('speaking_style');
       expect(actor.personality).not.toHaveProperty('posting_guidelines');
-      expect(actor.contentProfile?.speaking_style).toBe('Direct and concise');
-      expect(actor.contentProfile?.posting_guidelines).toBe('Post once per day about tech');
+      expect(actor.contentProfile?.style).toBe('Direct and concise');
+      expect(actor.contentProfile?.guidelines).toEqual(['Post once per day about tech']);
     });
 
     it('maps Human user profile: legacy personality -> summary, interests to array, does not invent AI fields', () => {
@@ -191,7 +191,7 @@ describe('Phase D3 — Personality Layer', () => {
 
       // writing_style must remain in contentProfile, not personality
       expect(actor.personality).not.toHaveProperty('writing_style');
-      expect(actor.contentProfile?.writing_style).toBe('Narrative and descriptive');
+      expect(actor.contentProfile?.style).toBe('Narrative and descriptive');
 
       // Human must NOT have synthetic behaviorPolicy
       expect(actor.behaviorPolicy).toBeUndefined();
