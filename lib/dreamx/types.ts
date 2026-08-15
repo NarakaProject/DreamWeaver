@@ -1,4 +1,6 @@
-import type { BehaviorPolicy } from './behaviorPolicy';
+import type { BehaviorPolicy, ActionProbabilities, RuntimeBehaviorContext } from './behaviorPolicy';
+
+export type { BehaviorPolicy, ActionProbabilities, RuntimeBehaviorContext };
 
 export type ActorType = 'human' | 'ai';
 export type VerificationType = 'none' | 'blue' | 'gray' | 'gold';
