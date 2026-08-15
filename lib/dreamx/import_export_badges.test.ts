@@ -3,6 +3,7 @@ import { getDatabase } from '@/lib/db';
 import { savePost, getPost, saveProfile, getProfile, saveUserProfile, getProfiles, toggleLike, deleteProfile } from './db';
 import { validateProfileImportPayload, executeProfileImport, exportAIProfilesJSON, normalizeHandle } from './import_export';
 import { runAutonomousActivityStep } from './simulation';
+import { toActorFromProfile } from './actors';
 
 import type { DreamXProfile, DreamXPost, DreamXUserProfile } from './types';
 
@@ -199,5 +200,100 @@ describe('DREAMX v0.2 — Bulk Import/Export, Verification Badges & Social Histo
     await deleteProfile(prof.id);
     expect(await getProfile(prof.id)).toBeUndefined();
     expect(await getPost(post.id)).toBeUndefined();
+  });
+
+  it('25. (HIGH-01) saveProfile persists behavior_policy and toActorFromProfile maps it to Actor.behaviorPolicy', async () => {
+    const customPolicy = JSON.stringify({
+      actionProbabilities: {
+        like: 0.1,
+        reply: 0.7,
+        post: 0.1,
+        no_action: 0.1
+      },
+      engagementSelectivity: 0.95
+    });
+
+    const saved = await saveProfile({
+      display_name: 'PolicyBot',
+      handle: '@policybot',
+      personality: 'Hyper responsive',
+      behavior_policy: customPolicy
+    });
+
+    expect(saved.behavior_policy).toBe(customPolicy);
+
+    // Read back from SQLite
+    const retrieved = await getProfile(saved.id);
+    expect(retrieved).toBeDefined();
+    expect(retrieved?.behavior_policy).toBe(customPolicy);
+
+    // Map through Actor domain
+    const actor = toActorFromProfile(retrieved!);
+    expect(actor.behaviorPolicy).toBeDefined();
+    expect(actor.behaviorPolicy?.actionProbabilities.reply).toBe(0.7);
+    expect(actor.behaviorPolicy?.actionProbabilities.like).toBe(0.1);
+    expect(actor.behaviorPolicy?.engagementSelectivity).toBe(0.95);
+  });
+
+  it('26. (HIGH-02) exportAIProfilesJSON and validateProfileImportPayload preserve taxonomy, behavior_policy, and legacy fields', async () => {
+    const customPolicyStr = JSON.stringify({
+      actionProbabilities: {
+        like: 0.2,
+        reply: 0.5,
+        post: 0.2,
+        no_action: 0.1
+      },
+      engagementSelectivity: 0.8
+    });
+
+    const initialProfile: DreamXProfile = {
+      id: 'dx-prof-tax-1',
+      display_name: 'News Analyst',
+      handle: '@news_analyst',
+      bio: 'Investigative tech journalism',
+      personality: 'Sharp and analytical',
+      traits: 'objective, thorough',
+      interests: 'technology, policy',
+      speaking_style: 'Formal and measured',
+      beliefs: 'Truth in journalism',
+      background: 'Former correspondent',
+      posting_guidelines: 'Cite sources; maintain neutrality',
+      verification_type: 'gold',
+      category: 'media',
+      archetypes: ['journalist', 'commentator'],
+      tags: ['tech', 'investigative'],
+      behavior_policy: customPolicyStr,
+      created_at: 1000,
+      updated_at: 2000
+    };
+
+    // 1. Export to JSON
+    const exportedJSON = exportAIProfilesJSON([initialProfile]);
+    const parsedJSON = JSON.parse(exportedJSON);
+    expect(parsedJSON.profiles[0].category).toBe('media');
+    expect(parsedJSON.profiles[0].archetypes).toEqual(['journalist', 'commentator']);
+    expect(parsedJSON.profiles[0].tags).toEqual(['tech', 'investigative']);
+    expect(parsedJSON.profiles[0].behavior_policy).toBe(customPolicyStr);
+
+    // 2. Validate import payload
+    const report = validateProfileImportPayload(parsedJSON, []);
+    expect(report.canImport).toBe(true);
+    expect(report.validCount).toBe(1);
+
+    const parsedItem = report.items[0].parsedProfile;
+    expect(parsedItem).toBeDefined();
+    expect(parsedItem?.category).toBe('media');
+    expect(parsedItem?.archetypes).toEqual(['journalist', 'commentator']);
+    expect(parsedItem?.tags).toEqual(['tech', 'investigative']);
+    expect(parsedItem?.behavior_policy).toBe(customPolicyStr);
+
+    // Legacy fields preserved
+    expect(parsedItem?.display_name).toBe('News Analyst');
+    expect(parsedItem?.handle).toBe('@news_analyst');
+    expect(parsedItem?.bio).toBe('Investigative tech journalism');
+    expect(parsedItem?.personality).toBe('Sharp and analytical');
+    expect(parsedItem?.traits).toBe('objective, thorough');
+    expect(parsedItem?.speaking_style).toBe('Formal and measured');
+    expect(parsedItem?.verification_type).toBe('gold');
   });
 });

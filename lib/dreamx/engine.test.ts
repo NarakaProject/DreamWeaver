@@ -143,4 +143,19 @@ describe('DreamX System Instruction Composition (D7)', () => {
     expect(instruction).toContain('Style: Casual lowercase');
     expect(instruction).toContain('Guidelines: Post once daily');
   });
+
+  it('(LOW-01) normalizes objects with malformed or empty identity objects gracefully', () => {
+    const malformed = {
+      identity: {},
+      id: 'dx-prof-malformed',
+      handle: '@malformed_bot',
+      display_name: 'Malformed Bot',
+      created_at: 1000,
+      updated_at: 2000
+    } as any;
+
+    const instruction = buildDreamXSystemInstruction(malformed);
+    expect(instruction).toContain('You are @malformed_bot');
+    expect(instruction).toContain('Name: Malformed Bot');
+  });
 });

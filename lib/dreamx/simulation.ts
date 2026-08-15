@@ -26,7 +26,15 @@ interface SimulationOptions {
 }
 
 function isActor(obj: any): obj is Actor {
-  return obj && typeof obj === 'object' && 'identity' in obj && typeof obj.identity === 'object';
+  return Boolean(
+    obj && 
+    typeof obj === 'object' && 
+    'identity' in obj && 
+    obj.identity && 
+    typeof obj.identity === 'object' && 
+    typeof obj.identity.id === 'string' && 
+    typeof obj.identity.handle === 'string'
+  );
 }
 
 function ensureActor(actorOrProfile: Actor | DreamXProfile): Actor {

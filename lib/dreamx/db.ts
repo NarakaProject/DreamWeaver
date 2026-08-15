@@ -130,6 +130,7 @@ export async function saveProfile(profile: Partial<DreamXProfile> & { display_na
     background: profile.background || undefined,
     posting_guidelines: profile.posting_guidelines || undefined,
     verification_type: profile.verification_type || 'none',
+    behavior_policy: profile.behavior_policy || undefined,
     created_at: profile.created_at || now,
     updated_at: now,
   };
@@ -137,8 +138,8 @@ export async function saveProfile(profile: Partial<DreamXProfile> & { display_na
   await db.execute(`
     INSERT INTO dreamx_profiles (
       id, display_name, handle, avatar_url, bio, personality, traits, interests, 
-      speaking_style, beliefs, background, posting_guidelines, verification_type, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      speaking_style, beliefs, background, posting_guidelines, verification_type, behavior_policy, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       display_name = excluded.display_name,
       handle = excluded.handle,
@@ -152,6 +153,7 @@ export async function saveProfile(profile: Partial<DreamXProfile> & { display_na
       background = excluded.background,
       posting_guidelines = excluded.posting_guidelines,
       verification_type = excluded.verification_type,
+      behavior_policy = excluded.behavior_policy,
       updated_at = excluded.updated_at
   `, [
     fullProfile.id,
@@ -167,6 +169,7 @@ export async function saveProfile(profile: Partial<DreamXProfile> & { display_na
     fullProfile.background,
     fullProfile.posting_guidelines,
     fullProfile.verification_type,
+    fullProfile.behavior_policy,
     fullProfile.created_at,
     fullProfile.updated_at
   ]);

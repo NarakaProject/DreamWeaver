@@ -21,6 +21,10 @@ export interface ProfileImportItem {
     background?: string;
     posting_guidelines?: string;
     verification_type: VerificationType;
+    category?: string;
+    archetypes?: string[];
+    tags?: string[];
+    behavior_policy?: string | null;
   };
 }
 
@@ -110,6 +114,47 @@ export function validateProfileImportPayload(payload: any, existingProfiles: Dre
       }
     }
 
+    // Normalize category, archetypes, tags, behavior_policy
+    let category: string | undefined = undefined;
+    if (typeof raw.category === 'string' && raw.category.trim()) {
+      category = raw.category.trim();
+    }
+
+    let archetypes: string[] | undefined = undefined;
+    if (Array.isArray(raw.archetypes)) {
+      archetypes = raw.archetypes.filter((a: any) => typeof a === 'string' && a.trim()).map((a: string) => a.trim());
+    } else if (typeof raw.archetypes === 'string' && raw.archetypes.trim()) {
+      try {
+        const parsed = JSON.parse(raw.archetypes);
+        if (Array.isArray(parsed)) {
+          archetypes = parsed.filter((a: any) => typeof a === 'string' && a.trim()).map((a: string) => a.trim());
+        }
+      } catch {
+        archetypes = raw.archetypes.split(',').map((a: string) => a.trim()).filter(Boolean);
+      }
+    }
+
+    let tags: string[] | undefined = undefined;
+    if (Array.isArray(raw.tags)) {
+      tags = raw.tags.filter((t: any) => typeof t === 'string' && t.trim()).map((t: string) => t.trim());
+    } else if (typeof raw.tags === 'string' && raw.tags.trim()) {
+      try {
+        const parsed = JSON.parse(raw.tags);
+        if (Array.isArray(parsed)) {
+          tags = parsed.filter((t: any) => typeof t === 'string' && t.trim()).map((t: string) => t.trim());
+        }
+      } catch {
+        tags = raw.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
+      }
+    }
+
+    let behaviorPolicyStr: string | null | undefined = undefined;
+    if (typeof raw.behavior_policy === 'string') {
+      behaviorPolicyStr = raw.behavior_policy.trim() || null;
+    } else if (raw.behavior_policy && typeof raw.behavior_policy === 'object') {
+      behaviorPolicyStr = JSON.stringify(raw.behavior_policy);
+    }
+
     const isValid = errors.length === 0;
     if (isValid) {
       validCount++;
@@ -137,7 +182,11 @@ export function validateProfileImportPayload(payload: any, existingProfiles: Dre
         beliefs: raw.beliefs || undefined,
         background: raw.background || undefined,
         posting_guidelines: raw.posting_guidelines || undefined,
-        verification_type: verType
+        verification_type: verType,
+        category: category || undefined,
+        archetypes: archetypes && archetypes.length > 0 ? archetypes : undefined,
+        tags: tags && tags.length > 0 ? tags : undefined,
+        behavior_policy: behaviorPolicyStr !== undefined ? behaviorPolicyStr : undefined
       } : undefined
     };
 
@@ -233,7 +282,11 @@ export function exportAIProfilesJSON(profiles: DreamXProfile[]): string {
     verification: {
       type: p.verification_type || 'none',
       label: p.verification_type !== 'none' ? `${p.verification_type} badge` : null
-    }
+    },
+    category: p.category || 'individual',
+    archetypes: Array.isArray(p.archetypes) ? p.archetypes : [],
+    tags: Array.isArray(p.tags) ? p.tags : [],
+    behavior_policy: p.behavior_policy || null
   }));
 
   const data = {
