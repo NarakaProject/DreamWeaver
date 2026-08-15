@@ -1,4 +1,9 @@
-import type { CategoryDefinition, ArchetypeDefinition } from './types';
+import type {
+  CategoryDefinition,
+  ArchetypeDefinition,
+  ActorTaxonomy,
+  CompositeTaxonomyResolution
+} from './types';
 
 export const DEFAULT_CATEGORY_ID = 'individual';
 
@@ -81,13 +86,26 @@ function resetRegistry(): void {
 resetRegistry();
 
 /**
- * Creates a safe fallback definition for unknown categories.
+ * Creates a safe fallback definition for unknown or custom categories.
  */
 export function createDefaultCategoryDefinition(categoryId: string): CategoryDefinition {
   return {
     id: categoryId,
     label: categoryId.replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
     description: `Custom or user-defined category: ${categoryId}`,
+    metadata: { isCustom: true }
+  };
+}
+
+/**
+ * Creates a safe fallback definition for unknown or custom archetypes.
+ */
+export function createDefaultArchetypeDefinition(archetypeId: string, categoryId?: string): ArchetypeDefinition {
+  return {
+    id: archetypeId,
+    label: archetypeId.replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+    description: `Custom or user-defined archetype: ${archetypeId}`,
+    ...(categoryId ? { category_id: categoryId } : {}),
     metadata: { isCustom: true }
   };
 }
@@ -146,4 +164,151 @@ export function listArchetypes(): ArchetypeDefinition[] {
  */
 export function resetTaxonomyRegistry(): void {
   resetRegistry();
+}
+
+export interface RawTaxonomyInput {
+  category?: string;
+  archetypes?: string[] | string;
+  tags?: string[] | string;
+}
+
+export type TaxonomyInput =
+  | RawTaxonomyInput
+  | string
+  | undefined
+  | null;
+
+/**
+ * Normalizes a list of strings (archetypes, tags) by:
+ * - Parsing JSON array strings if applicable
+ * - Splitting comma-separated strings
+ * - Trimming whitespace
+ * - Removing empty strings
+ * - Deduplicating while preserving first-seen order
+ */
+function normalizeStringList(input: string[] | string | undefined | null): string[] {
+  if (!input) return [];
+
+  let rawList: string[] = [];
+
+  if (Array.isArray(input)) {
+    rawList = input;
+  } else if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (!trimmed) return [];
+
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          rawList = parsed;
+        } else {
+          rawList = [trimmed];
+        }
+      } catch {
+        rawList = trimmed.split(',');
+      }
+    } else {
+      rawList = trimmed.split(',');
+    }
+  }
+
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const item of rawList) {
+    const clean = typeof item === 'string' ? item.trim() : String(item).trim();
+    if (clean.length > 0 && !seen.has(clean)) {
+      seen.add(clean);
+      result.push(clean);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Pure normalization and composition helper for ActorTaxonomy.
+ * Deduplicates archetype IDs while preserving first-seen order, trims whitespace,
+ * and defaults category to 'individual' when omitted or empty.
+ */
+export function composeTaxonomy(input?: TaxonomyInput): ActorTaxonomy {
+  if (!input) {
+    return {
+      category: DEFAULT_CATEGORY_ID,
+      archetypes: []
+    };
+  }
+
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    return {
+      category: trimmed || DEFAULT_CATEGORY_ID,
+      archetypes: []
+    };
+  }
+
+  const rawCat = typeof input.category === 'string' ? input.category.trim() : '';
+  const category = rawCat || DEFAULT_CATEGORY_ID;
+  const archetypes = normalizeStringList(input.archetypes);
+  const tags = normalizeStringList(input.tags);
+
+  return {
+    category,
+    archetypes,
+    ...(tags.length > 0 ? { tags } : {})
+  };
+}
+
+/**
+ * Resolves an ActorTaxonomy into its full constituent category and archetype definitions.
+ * Custom/unknown categories and archetypes receive safe fallback definitions.
+ */
+export function resolveTaxonomyComposition(
+  taxonomy?: ActorTaxonomy | null
+): CompositeTaxonomyResolution {
+  const normalized = taxonomy ? composeTaxonomy(taxonomy) : composeTaxonomy();
+
+  const categoryDef = getCategoryDefinition(normalized.category);
+
+  const archetypeDefs: ArchetypeDefinition[] = normalized.archetypes.map(archId => {
+    const found = getArchetypeDefinition(archId);
+    if (found) {
+      return { ...found };
+    }
+    return createDefaultArchetypeDefinition(archId, normalized.category);
+  });
+
+  const tags = normalized.tags ? [...normalized.tags] : [];
+
+  return {
+    category: categoryDef,
+    archetypes: archetypeDefs,
+    tags
+  };
+}
+
+/**
+ * Pure semantic description formatter for composite taxonomy.
+ * Generates clean descriptive text without LLM system prompt directives.
+ */
+export function renderTaxonomyDescription(taxonomy?: ActorTaxonomy | null): string {
+  if (!taxonomy) return '';
+
+  const normalized = composeTaxonomy(taxonomy);
+  const lines: string[] = [];
+
+  if (normalized.category) {
+    lines.push(`Category: ${normalized.category}`);
+  }
+
+  if (normalized.archetypes && normalized.archetypes.length > 0) {
+    lines.push(`Archetypes: ${normalized.archetypes.join(', ')}`);
+  }
+
+  if (normalized.tags && normalized.tags.length > 0) {
+    lines.push(`Tags: ${normalized.tags.join(', ')}`);
+  }
+
+  return lines.join('\n');
 }

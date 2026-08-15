@@ -7,12 +7,17 @@ import {
   listCategories,
   listArchetypes,
   resetTaxonomyRegistry,
+  createDefaultCategoryDefinition,
+  createDefaultArchetypeDefinition,
+  composeTaxonomy,
+  resolveTaxonomyComposition,
+  renderTaxonomyDescription,
   BUILT_IN_CATEGORIES,
   BUILT_IN_ARCHETYPES,
   DEFAULT_CATEGORY_ID
 } from './taxonomy';
 import { toActorFromProfile, toActorFromUserProfile } from './actors';
-import type { DreamXProfile, DreamXUserProfile, CategoryDefinition, ArchetypeDefinition } from './types';
+import type { DreamXProfile, DreamXUserProfile, CategoryDefinition, ArchetypeDefinition, ActorTaxonomy } from './types';
 
 describe('Phase D2 — Open Actor Taxonomy', () => {
   beforeEach(() => {
@@ -275,6 +280,261 @@ describe('Phase D2 — Open Actor Taxonomy', () => {
         no_action: 0.1
       });
       expect(actor.behaviorPolicy?.engagementSelectivity).toBe(0.8);
+    });
+  });
+});
+
+describe('Phase D6 — Archetype Composition', () => {
+  beforeEach(() => {
+    resetTaxonomyRegistry();
+  });
+
+  afterEach(() => {
+    resetTaxonomyRegistry();
+  });
+
+  describe('composeTaxonomy()', () => {
+    it('A. defaults category to "individual" and archetypes to [] when empty or missing', () => {
+      expect(composeTaxonomy()).toEqual({
+        category: 'individual',
+        archetypes: []
+      });
+      expect(composeTaxonomy(null)).toEqual({
+        category: 'individual',
+        archetypes: []
+      });
+      expect(composeTaxonomy({})).toEqual({
+        category: 'individual',
+        archetypes: []
+      });
+      expect(composeTaxonomy({ category: '  ' })).toEqual({
+        category: 'individual',
+        archetypes: []
+      });
+    });
+
+    it('B. normalizes whitespace across category, archetypes, and tags', () => {
+      const result = composeTaxonomy({
+        category: ' celebrity ',
+        archetypes: ['  attention_seeking  ', ' commentator '],
+        tags: [' famous ', ' public ']
+      });
+
+      expect(result).toEqual({
+        category: 'celebrity',
+        archetypes: ['attention_seeking', 'commentator'],
+        tags: ['famous', 'public']
+      });
+    });
+
+    it('C. deduplicates archetype IDs while preserving first-seen order', () => {
+      const result = composeTaxonomy({
+        category: 'media',
+        archetypes: ['journalist', 'journalist', 'satirist', 'journalist']
+      });
+
+      expect(result).toEqual({
+        category: 'media',
+        archetypes: ['journalist', 'satirist']
+      });
+    });
+
+    it('D. preserves exact original order when deduplicating', () => {
+      const result = composeTaxonomy({
+        category: 'individual',
+        archetypes: ['z', 'a', 'z', 'b']
+      });
+
+      expect(result.archetypes).toEqual(['z', 'a', 'b']);
+    });
+
+    it('E. parses JSON array strings for archetypes and tags', () => {
+      const result = composeTaxonomy({
+        category: 'media',
+        archetypes: '["journalist", "satirist"]',
+        tags: '["breaking", "politics"]'
+      });
+
+      expect(result).toEqual({
+        category: 'media',
+        archetypes: ['journalist', 'satirist'],
+        tags: ['breaking', 'politics']
+      });
+    });
+
+    it('F. parses comma-separated strings for archetypes and tags', () => {
+      const result = composeTaxonomy({
+        category: 'media',
+        archetypes: 'journalist, satirist, commentator',
+        tags: 'news, live, analysis'
+      });
+
+      expect(result).toEqual({
+        category: 'media',
+        archetypes: ['journalist', 'satirist', 'commentator'],
+        tags: ['news', 'live', 'analysis']
+      });
+    });
+
+    it('G. normalizes tags with trimming, deduplication, and empty removal', () => {
+      const result = composeTaxonomy({
+        category: 'celebrity',
+        archetypes: ['attention_seeking'],
+        tags: 'famous, public, famous,   , trending '
+      });
+
+      expect(result.tags).toEqual(['famous', 'public', 'trending']);
+    });
+
+    it('H. preserves custom categories without rejection', () => {
+      expect(composeTaxonomy('celebrity').category).toBe('celebrity');
+      expect(composeTaxonomy('government').category).toBe('government');
+      expect(composeTaxonomy('alien_entity').category).toBe('alien_entity');
+    });
+
+    it('K. guarantees composition purity (does not mutate input objects/arrays)', () => {
+      const input = {
+        category: 'media',
+        archetypes: ['journalist', 'satirist'],
+        tags: ['news', 'live']
+      };
+      const clone = JSON.parse(JSON.stringify(input));
+
+      const composed = composeTaxonomy(input);
+      expect(input).toEqual(clone);
+      expect(composed.archetypes).not.toBe(input.archetypes);
+      expect(composed.tags).not.toBe(input.tags);
+    });
+  });
+
+  describe('resolveTaxonomyComposition()', () => {
+    it('I. resolves custom archetypes with safe fallback definitions marked isCustom: true', () => {
+      const customArchetypeDef = createDefaultArchetypeDefinition('attention_seeking', 'celebrity');
+      expect(customArchetypeDef).toEqual({
+        id: 'attention_seeking',
+        label: 'Attention Seeking',
+        description: 'Custom or user-defined archetype: attention_seeking',
+        category_id: 'celebrity',
+        metadata: { isCustom: true }
+      });
+    });
+
+    it('J. resolves composite taxonomy with multiple archetypes in original order', () => {
+      const taxonomy: ActorTaxonomy = {
+        category: 'media',
+        archetypes: ['journalist', 'satirist', 'custom_whistleblower'],
+        tags: ['investigative']
+      };
+
+      const resolved = resolveTaxonomyComposition(taxonomy);
+
+      // Category resolved from built-in
+      expect(resolved.category.id).toBe('media');
+      expect(resolved.category.label).toBe('Media');
+
+      // 3 archetypes resolved in order
+      expect(resolved.archetypes.length).toBe(3);
+      expect(resolved.archetypes[0].id).toBe('journalist');
+      expect(resolved.archetypes[0].metadata?.isCustom).toBeUndefined();
+
+      expect(resolved.archetypes[1].id).toBe('satirist');
+      expect(resolved.archetypes[1].metadata?.isCustom).toBeUndefined();
+
+      expect(resolved.archetypes[2].id).toBe('custom_whistleblower');
+      expect(resolved.archetypes[2].label).toBe('Custom Whistleblower');
+      expect(resolved.archetypes[2].metadata?.isCustom).toBe(true);
+
+      expect(resolved.tags).toEqual(['investigative']);
+    });
+
+    it('L. guarantees resolution purity (never mutates input taxonomy or aliases arrays)', () => {
+      const taxonomy: ActorTaxonomy = {
+        category: 'celebrity',
+        archetypes: ['attention_seeking', 'commentator'],
+        tags: ['public']
+      };
+      const clone = JSON.parse(JSON.stringify(taxonomy));
+
+      const resolved = resolveTaxonomyComposition(taxonomy);
+      expect(taxonomy).toEqual(clone);
+      expect(resolved.tags).not.toBe(taxonomy.tags);
+      expect(resolved.tags).toEqual(['public']);
+    });
+  });
+
+  describe('renderTaxonomyDescription()', () => {
+    it('M. renders clean semantic description for category, archetypes, and tags', () => {
+      const taxonomy: ActorTaxonomy = {
+        category: 'celebrity',
+        archetypes: ['attention_seeking', 'commentator'],
+        tags: ['famous', 'public']
+      };
+
+      const description = renderTaxonomyDescription(taxonomy);
+      expect(description).toContain('Category: celebrity');
+      expect(description).toContain('Archetypes: attention_seeking, commentator');
+      expect(description).toContain('Tags: famous, public');
+    });
+
+    it('N. guarantees prompt isolation (no LLM system instructions or behavioral directives)', () => {
+      const taxonomy: ActorTaxonomy = {
+        category: 'novelty',
+        archetypes: ['satirist'],
+        tags: ['memes']
+      };
+
+      const description = renderTaxonomyDescription(taxonomy);
+      expect(description).not.toContain('You are');
+      expect(description).not.toContain('CRITICAL RULES');
+      expect(description).not.toContain('actionProbabilities');
+    });
+
+    it('returns empty string when taxonomy is null or undefined', () => {
+      expect(renderTaxonomyDescription(undefined)).toBe('');
+      expect(renderTaxonomyDescription(null)).toBe('');
+    });
+  });
+
+  describe('Actor Mapper Integration & Invariants (O, P, Q)', () => {
+    it('O. maps AI profile using canonical composeTaxonomy', () => {
+      const profile: DreamXProfile = {
+        id: 'dx-prof-d6',
+        display_name: 'Celebrity Bot',
+        handle: '@celeb_bot',
+        category: 'celebrity',
+        archetypes: ['attention_seeking', 'commentator'],
+        tags: ['vip', 'verified'],
+        created_at: 1000,
+        updated_at: 2000
+      };
+
+      const actor = toActorFromProfile(profile);
+      expect(actor.taxonomy).toEqual({
+        category: 'celebrity',
+        archetypes: ['attention_seeking', 'commentator'],
+        tags: ['vip', 'verified']
+      });
+      expect(actor.identity.actor_type).toBe('ai');
+    });
+
+    it('P & Q. maps Human user profile using composeTaxonomy without behavior policy', () => {
+      const userProfile: DreamXUserProfile = {
+        id: 'dx-user-d6',
+        display_name: 'Celebrity Human',
+        handle: '@celeb_human',
+        category: 'celebrity',
+        archetypes: ['attention_seeking'],
+        created_at: 1000,
+        updated_at: 2000
+      };
+
+      const actor = toActorFromUserProfile(userProfile);
+      expect(actor.taxonomy).toEqual({
+        category: 'celebrity',
+        archetypes: ['attention_seeking']
+      });
+      expect(actor.identity.actor_type).toBe('human');
+      expect(actor.behaviorPolicy).toBeUndefined();
     });
   });
 });

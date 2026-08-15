@@ -58,6 +58,12 @@ export interface ArchetypeDefinition {
   metadata?: Record<string, any>;
 }
 
+export interface CompositeTaxonomyResolution {
+  category: CategoryDefinition;
+  archetypes: ArchetypeDefinition[];
+  tags: string[];
+}
+
 export interface Actor {
   identity: ActorIdentity;
   taxonomy?: ActorTaxonomy;

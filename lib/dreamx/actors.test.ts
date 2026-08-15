@@ -176,6 +176,8 @@ describe('Phase D1 — Actor Domain Model & Resolver', () => {
   describe('Unified Actor Resolution', () => {
     beforeEach(async () => {
       const db = getDatabase();
+      await db.execute(`DELETE FROM dreamx_user_profile`);
+      await db.execute(`DELETE FROM dreamx_profiles`);
       // Insert human user
       await db.execute(`
         INSERT OR REPLACE INTO dreamx_user_profile (

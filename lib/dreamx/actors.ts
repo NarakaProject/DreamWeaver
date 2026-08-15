@@ -14,38 +14,9 @@ import { parseBehaviorPolicy } from './behaviorPolicy';
 
 import { normalizePersonality } from './personality';
 import { normalizeContentProfile } from './contentProfile';
+import { composeTaxonomy } from './taxonomy';
 
 export type { ActorType, DreamXActor };
-
-/**
- * Helper to safely extract taxonomy from a profile object or fallback to D2 defaults.
- */
-function extractTaxonomy(profile: { category?: string; archetypes?: string[] | string; tags?: string[] }): ActorTaxonomy {
-  const category = (profile.category && typeof profile.category === 'string') ? profile.category : 'individual';
-  let archetypes: string[] = [];
-
-  if (profile.archetypes) {
-    if (Array.isArray(profile.archetypes)) {
-      archetypes = [...profile.archetypes];
-    } else if (typeof profile.archetypes === 'string') {
-      try {
-        const parsed = JSON.parse(profile.archetypes);
-        if (Array.isArray(parsed)) archetypes = parsed;
-        else archetypes = [profile.archetypes];
-      } catch {
-        archetypes = [profile.archetypes];
-      }
-    }
-  }
-
-  const tags = Array.isArray(profile.tags) ? [...profile.tags] : undefined;
-
-  return {
-    category,
-    archetypes,
-    ...(tags ? { tags } : {})
-  };
-}
 
 /**
  * Pure mapping function: Maps a persistent DreamXProfile (AI) to the canonical Actor domain model.
@@ -64,7 +35,11 @@ export function toActorFromProfile(profile: DreamXProfile): Actor {
     updated_at: profile.updated_at,
   };
 
-  const taxonomy: ActorTaxonomy = extractTaxonomy(profile);
+  const taxonomy: ActorTaxonomy = composeTaxonomy({
+    category: profile.category,
+    archetypes: profile.archetypes,
+    tags: profile.tags,
+  });
 
   const personality: ActorPersonality | undefined = normalizePersonality({
     summary: profile.personality,
@@ -109,7 +84,11 @@ export function toActorFromUserProfile(userProfile: DreamXUserProfile): Actor {
     updated_at: userProfile.updated_at,
   };
 
-  const taxonomy: ActorTaxonomy = extractTaxonomy(userProfile);
+  const taxonomy: ActorTaxonomy = composeTaxonomy({
+    category: userProfile.category,
+    archetypes: userProfile.archetypes,
+    tags: userProfile.tags,
+  });
 
   const personality: ActorPersonality | undefined = normalizePersonality({
     summary: userProfile.personality,
