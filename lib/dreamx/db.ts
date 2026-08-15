@@ -649,6 +649,32 @@ export async function toggleRepost(postId: string, actorId: string, actorType: A
   return { reposted: !existing, count: res?.count || 0 };
 }
 
+export async function ensureRepost(postId: string, actorId: string, actorType: ActorType, runToken?: number): Promise<{ reposted: boolean; newlyAdded: boolean; count: number }> {
+  validateSimulationRun(runToken);
+  const db = getDreamXDb();
+  const existing = await db.queryFirst<{ id: string }>(
+    'SELECT id FROM dreamx_reposts WHERE post_id = ? AND actor_id = ? AND actor_type = ?',
+    [postId, actorId, actorType]
+  );
+
+  if (existing) {
+    const res = await db.queryFirst<{ count: number }>('SELECT COUNT(*) as count FROM dreamx_reposts WHERE post_id = ?', [postId]);
+    return { reposted: true, newlyAdded: false, count: res?.count || 0 };
+  }
+
+  const id = generateId('dx-repost');
+  await db.execute(
+    'INSERT INTO dreamx_reposts (id, post_id, actor_id, actor_type, created_at) VALUES (?, ?, ?, ?, ?)',
+    [id, postId, actorId, actorType, Date.now()]
+  );
+  if (actorType === 'human') {
+    await logActivity({ action_type: 'repost', actor_id: actorId, target_post_id: postId, reason: 'Human action' }, runToken);
+  }
+  
+  const res = await db.queryFirst<{ count: number }>('SELECT COUNT(*) as count FROM dreamx_reposts WHERE post_id = ?', [postId]);
+  return { reposted: true, newlyAdded: true, count: res?.count || 0 };
+}
+
 export async function toggleFollow(followerId: string, followerType: ActorType, followedProfileId: string, runToken?: number): Promise<{ following: boolean }> {
   validateSimulationRun(runToken);
   const db = getDreamXDb();
@@ -671,6 +697,29 @@ export async function toggleFollow(followerId: string, followerType: ActorType, 
     }
     return { following: true };
   }
+}
+
+export async function ensureFollow(followerId: string, followerType: ActorType, followedProfileId: string, runToken?: number): Promise<{ following: boolean; newlyAdded: boolean }> {
+  validateSimulationRun(runToken);
+  const db = getDreamXDb();
+  const existing = await db.queryFirst<{ id: string }>(
+    'SELECT id FROM dreamx_follows WHERE follower_id = ? AND follower_type = ? AND followed_profile_id = ?',
+    [followerId, followerType, followedProfileId]
+  );
+
+  if (existing) {
+    return { following: true, newlyAdded: false };
+  }
+
+  const id = generateId('dx-follow');
+  await db.execute(
+    'INSERT INTO dreamx_follows (id, follower_id, follower_type, followed_profile_id, created_at) VALUES (?, ?, ?, ?, ?)',
+    [id, followerId, followerType, followedProfileId, Date.now()]
+  );
+  if (followerType === 'human') {
+    await logActivity({ action_type: 'follow', actor_id: followerId, target_post_id: followedProfileId, reason: 'Human action' }, runToken);
+  }
+  return { following: true, newlyAdded: true };
 }
 
 export async function isFollowing(followerId: string, followerType: ActorType, followedProfileId: string): Promise<boolean> {

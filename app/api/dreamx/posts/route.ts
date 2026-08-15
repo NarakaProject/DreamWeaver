@@ -79,6 +79,20 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Missing id parameter' }, { status: 400 });
     }
 
+    const humanUser = await getUserProfile();
+    if (!humanUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const post = await getPost(id);
+    if (!post) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    if (post.author_type !== 'human' || post.author_id !== humanUser.id) {
+      return NextResponse.json({ error: 'Forbidden: Cannot delete AI posts or other human posts' }, { status: 403 });
+    }
+
     await deletePost(id);
     return NextResponse.json({ success: true });
   } catch (err: any) {

@@ -218,3 +218,83 @@ describe('DreamX Database Schema Migration Comprehensive Audit', () => {
     await expect(getFeedTree()).rejects.toThrow(/DreamX Subsystem Unavailable/);
   });
 });
+
+describe('Phase 0 - Adapter-Aware Schema Introspection', () => {
+  let testDir: string;
+  let testDbPath: string;
+
+  beforeEach(() => {
+    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dreamx-schema-test-'));
+    vi.spyOn(process, 'cwd').mockReturnValue(testDir);
+    const dataDir = path.join(testDir, 'data', 'test');
+    fs.mkdirSync(dataDir, { recursive: true });
+    testDbPath = path.join(dataDir, 'app.db');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.resetModules();
+    if (fs.existsSync(testDir)) {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    }
+  });
+
+  it('fresh DB -> initialization succeeds', async () => {
+    const { getDatabase, assertDreamXAvailable } = await import('../db/index');
+    const db = getDatabase();
+    expect(() => assertDreamXAvailable()).not.toThrow();
+
+    // Verify columns exist
+    const profilesInfo = await db.queryAll<any>("PRAGMA table_info(dreamx_profiles)");
+    expect(profilesInfo.map(c => c.name)).toContain('verification_type');
+    expect(profilesInfo.map(c => c.name)).toContain('behavior_policy');
+  });
+
+  it('existing DB with column -> initialization succeeds (idempotent)', async () => {
+    const Database = require('better-sqlite3');
+    const testDb = new Database(testDbPath);
+    testDb.exec(`
+      CREATE TABLE dreamx_profiles (id TEXT PRIMARY KEY, verification_type TEXT, behavior_policy TEXT);
+      CREATE TABLE dreamx_user_profile (id TEXT PRIMARY KEY, verification_type TEXT);
+    `);
+    testDb.close();
+
+    const { getDatabase, assertDreamXAvailable } = await import('../db/index');
+    getDatabase();
+    expect(() => assertDreamXAvailable()).not.toThrow();
+  });
+
+  it('existing DB without column -> migration succeeds', async () => {
+    const Database = require('better-sqlite3');
+    const testDb = new Database(testDbPath);
+    testDb.exec(`
+      CREATE TABLE dreamx_profiles (id TEXT PRIMARY KEY);
+      CREATE TABLE dreamx_user_profile (id TEXT PRIMARY KEY);
+    `);
+    testDb.close();
+
+    const { getDatabase, assertDreamXAvailable } = await import('../db/index');
+    const db = getDatabase();
+    expect(() => assertDreamXAvailable()).not.toThrow();
+
+    const profilesInfo = await db.queryAll<any>("PRAGMA table_info(dreamx_profiles)");
+    expect(profilesInfo.map(c => c.name)).toContain('verification_type');
+    expect(profilesInfo.map(c => c.name)).toContain('behavior_policy');
+  });
+
+  it('invalid migration SQL -> throws (caught and sets init error)', async () => {
+    const Database = require('better-sqlite3');
+    const testDb = new Database(testDbPath);
+    // Create view instead of table so ALTER TABLE fails genuinely
+    testDb.exec(`
+      CREATE VIEW dreamx_profiles AS SELECT 1 AS id;
+      CREATE TABLE dreamx_user_profile (id TEXT PRIMARY KEY);
+    `);
+    testDb.close();
+
+    const { getDatabase, assertDreamXAvailable } = await import('../db/index');
+    getDatabase();
+    // The migration attempts to ALTER TABLE on a view, which throws a genuine error
+    expect(() => assertDreamXAvailable()).toThrow(/DreamX Subsystem Unavailable/);
+  });
+});

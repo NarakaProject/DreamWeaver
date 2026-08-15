@@ -43,6 +43,7 @@ interface DbAdapter {
   clearMemories(sessionId: string): Promise<void>;
   
   // Generic methods for isolated subsystems (e.g. DreamX)
+  introspectColumn(table: string, column: string): Promise<boolean> | boolean;
   queryAll<T>(sql: string, args?: any[]): Promise<T[]>;
   queryFirst<T>(sql: string, args?: any[]): Promise<T | undefined>;
   execute(sql: string, args?: any[]): Promise<void>;
@@ -94,6 +95,11 @@ class BetterSqliteAdapter implements DbAdapter {
       }
     });
     txn();
+  }
+
+  introspectColumn(table: string, column: string): boolean {
+    const tableInfo = this.db.prepare(`PRAGMA table_info(${table})`).all();
+    return tableInfo.some((col: any) => col.name === column);
   }
 
   async getSessions(): Promise<DbSession[]> {
@@ -281,6 +287,11 @@ class LibSqlAdapter implements DbAdapter {
 
   async exec(sql: string): Promise<void> {
     await this.client.executeMultiple(sql);
+  }
+
+  async introspectColumn(table: string, column: string): Promise<boolean> {
+    const res = await this.client.execute(`PRAGMA table_info(${table})`);
+    return res.rows.some((col: any) => col.name === column);
   }
 
   async getSessions(): Promise<DbSession[]> {
@@ -846,17 +857,29 @@ export function getDatabase(mode: 'normal' | 'restore' = 'normal'): DbAdapter {
     console.error('Failed to initialize DreamX SQLite schema. DreamWeaver will continue unaffected:', err);
   }
 
-  // Graceful column migrations for DreamX verification_type
-  try {
-    dbInstance.exec("ALTER TABLE dreamx_profiles ADD COLUMN verification_type TEXT DEFAULT 'none';");
-  } catch {
-    // verification_type already exists
-  }
-  try {
-    dbInstance.exec("ALTER TABLE dreamx_user_profile ADD COLUMN verification_type TEXT DEFAULT 'none';");
-  } catch {
-    // verification_type already exists
-  }
+  // Adapter-aware schema introspection and column migrations for DreamX Actor abstractions
+  const migrateCol = (table: string, column: string, sql: string) => {
+    try {
+      const res = dbInstance!.introspectColumn(table, column);
+      if (res instanceof Promise) {
+        // LibSql async path
+        res.then(hasCol => {
+          if (!hasCol) return dbInstance!.exec(sql);
+        }).catch(err => {
+          dreamxInitError = dreamxInitError || (err instanceof Error ? err : new Error(String(err)));
+        });
+      } else {
+        // BetterSqlite3 sync path
+        if (!res) dbInstance!.exec(sql);
+      }
+    } catch (err) {
+      dreamxInitError = dreamxInitError || (err instanceof Error ? err : new Error(String(err)));
+    }
+  };
+
+  migrateCol('dreamx_profiles', 'verification_type', "ALTER TABLE dreamx_profiles ADD COLUMN verification_type TEXT DEFAULT 'none';");
+  migrateCol('dreamx_profiles', 'behavior_policy', "ALTER TABLE dreamx_profiles ADD COLUMN behavior_policy TEXT;");
+  migrateCol('dreamx_user_profile', 'verification_type', "ALTER TABLE dreamx_user_profile ADD COLUMN verification_type TEXT DEFAULT 'none';");
   }
 
   return dbInstance;

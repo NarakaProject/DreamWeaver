@@ -11,6 +11,13 @@ import {
 } from './db';
 import { generateDreamXPost, generateDreamXReply } from './engine';
 import { extractMentions } from './mentions';
+import { 
+  parseBehaviorPolicy, 
+  DEFAULT_BEHAVIOR_POLICY, 
+  MENTION_BEHAVIOR_POLICY, 
+  HIGH_URGENCY_POLICY, 
+  selectActionFromPolicy 
+} from './behaviorPolicy';
 import type { DreamXProfile, DreamXPost } from './types';
 import type { ProviderKeys, AIProvider } from '@/lib/ai/provider-router';
 
@@ -108,53 +115,86 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
 
   // 4. Decide on an action type (LIKE, REPLY, POST, NO_ACTION)
   const actionChoice = Math.random();
+  const hasKeys = !!(options.keys.geminiKey || options.keys.groqKey || options.keys.openrouterKey);
 
-  // --- HIGH-VALUE EVENT OVERRIDE PATH ---
-  if (isUrgencyEvent && targetPost) {
-    if (actionChoice < 0.70 && (options.keys.geminiKey || options.keys.groqKey || options.keys.openrouterKey)) {
-      const { text, validation } = await generateDreamXReply(
-        candidate,
-        targetPost,
-        targetPost.author_name || 'User',
-        targetPost.author_handle || '@user',
-        options,
-        topUrgencyEvent?.isMention || isCandidateMentioned
-      );
+  // Derive Policy
+  const basePolicy = candidate.behavior_policy ? parseBehaviorPolicy(candidate.behavior_policy) : DEFAULT_BEHAVIOR_POLICY;
+  let effectivePolicy = basePolicy;
+  
+  if (isUrgencyEvent) {
+    effectivePolicy = HIGH_URGENCY_POLICY;
+  } else if (isCandidateMentioned) {
+    effectivePolicy = MENTION_BEHAVIOR_POLICY;
+  }
 
-      if (!validation.isValid) {
-        await logActivity({
-          action_type: 'no_action',
-          actor_id: candidate.id,
-          reason: `Rejected high-urgency reply output: ${validation.reason}`
-        }, runToken);
-        return { outcome: 'NO_ACTION', details: `Rejected reply generation: ${validation.reason}` };
+  let selectedAction = selectActionFromPolicy(effectivePolicy, actionChoice, isUrgencyEvent);
+
+  // Exact Legacy Contextual Fallbacks:
+  // 1. Empty feed causes normal actionChoice < 0.85 to fall through to POST.
+  if (allPosts.length === 0 && (selectedAction === 'like' || selectedAction === 'reply')) {
+    selectedAction = 'post';
+  }
+
+  // 2. Missing LLM keys causes generative actions to fall back.
+  if (!hasKeys) {
+    if (isUrgencyEvent && selectedAction === 'reply') {
+      selectedAction = 'like';
+    } else if (selectedAction === 'reply' || selectedAction === 'post') {
+      selectedAction = 'no_action';
+    }
+  }
+
+  // --- OPTION A: AI LIKE (Deterministic, NO LLM CALL) ---
+  if (selectedAction === 'like') {
+    let currentTarget = targetPost;
+    if (!isUrgencyEvent) {
+      currentTarget = isCandidateMentioned 
+        ? mentioningPosts[Math.floor(Math.random() * mentioningPosts.length)]
+        : allPosts[Math.floor(Math.random() * allPosts.length)];
+    }
+
+    if (!isUrgencyEvent && currentTarget) {
+      const contentLower = currentTarget.content.toLowerCase();
+      const interests = (candidate.interests || '').toLowerCase();
+      const traits = (candidate.traits || '').toLowerCase();
+      const personality = (candidate.personality || '').toLowerCase();
+      
+      const candidateKeywords = [interests, traits, personality]
+        .join(' ')
+        .split(/[\s,]+/)
+        .filter(w => w.length > 4);
+        
+      const isRelevant = candidateKeywords.some(kw => contentLower.includes(kw));
+      
+      if (!isRelevant && Math.random() > 0.1) {
+         await logActivity({
+            action_type: 'no_action',
+            actor_id: candidate.id,
+            reason: `Evaluated post ${currentTarget.id} but found no relevance to interests.`
+         }, runToken);
+         return { outcome: 'NO_ACTION', details: 'Post not relevant for liking.' };
+      }
+    }
+
+    if (currentTarget) {
+      const result = await ensureLike(currentTarget.id, candidate.id, 'ai', runToken);
+      if (!result.newlyAdded) {
+         await logActivity({
+            action_type: 'no_action',
+            actor_id: candidate.id,
+            reason: isUrgencyEvent ? `High urgency event present but candidate ${candidate.handle} chose silence.` : `Already liked post ${currentTarget.id}, skipping.`
+         }, runToken);
+         return { outcome: 'NO_ACTION', details: isUrgencyEvent ? 'Candidate chose silence on social event.' : 'Already liked.' };
       }
 
-      const saved = await savePost({
-        author_id: candidate.id,
-        author_type: 'ai',
-        content: text,
-        reply_to_post_id: targetPost.id
-      }, runToken);
-
       await logActivity({
-        action_type: 'reply',
+        action_type: 'like',
         actor_id: candidate.id,
-        target_post_id: targetPost.id,
-        reason: `Event-driven response to ${targetPost.author_handle} (Urgency: ${topUrgencyEvent?.score.toFixed(1)}, runToken)`
-      });
-
-      return { outcome: 'REPLY_CREATED', details: { post: saved } };
-    } else if (actionChoice < 0.85) {
-      const result = await ensureLike(targetPost.id, candidate.id, 'ai', runToken);
-      await logActivity({
-        action_type: result.newlyAdded ? 'like' : 'no_action',
-        actor_id: candidate.id,
-        target_post_id: targetPost.id,
-        reason: `Event-driven like for ${targetPost.author_handle}'s post`
+        target_post_id: currentTarget.id,
+        reason: isUrgencyEvent ? `Event-driven like for ${currentTarget.author_handle}'s post` : `Deterministic interest evaluation by ${candidate.handle}`
       }, runToken);
-      return { outcome: result.newlyAdded ? 'LIKE_CREATED' : 'NO_ACTION', details: { actor: candidate.handle, postId: targetPost.id } };
-    } else {
+      return { outcome: 'LIKE_CREATED', details: { actor: candidate.handle, postId: currentTarget.id } };
+    } else if (isUrgencyEvent) {
       await logActivity({
         action_type: 'no_action',
         actor_id: candidate.id,
@@ -164,81 +204,36 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
     }
   }
 
-  // If candidate is explicitly mentioned in ordinary browsing, boost REPLY action threshold to 0.85
-  const replyThreshold = isCandidateMentioned ? 0.85 : 0.70;
-  const likeThreshold = isCandidateMentioned ? 0.20 : 0.35;
-
-  // --- OPTION A: AI LIKE (Deterministic, NO LLM CALL) ---
-  if (actionChoice < likeThreshold && allPosts.length > 0) {
-    const targetPost = isCandidateMentioned 
-      ? mentioningPosts[Math.floor(Math.random() * mentioningPosts.length)]
-      : allPosts[Math.floor(Math.random() * allPosts.length)];
-
-    const contentLower = targetPost.content.toLowerCase();
-    const interests = (candidate.interests || '').toLowerCase();
-    const traits = (candidate.traits || '').toLowerCase();
-    const personality = (candidate.personality || '').toLowerCase();
-    
-    const candidateKeywords = [interests, traits, personality]
-      .join(' ')
-      .split(/[\s,]+/)
-      .filter(w => w.length > 4);
-      
-    const isRelevant = candidateKeywords.some(kw => contentLower.includes(kw));
-    
-    if (!isRelevant && Math.random() > 0.1) {
-       await logActivity({
-          action_type: 'no_action',
-          actor_id: candidate.id,
-          reason: `Evaluated post ${targetPost.id} but found no relevance to interests.`
-       }, runToken);
-       return { outcome: 'NO_ACTION', details: 'Post not relevant for liking.' };
-    }
-
-    const result = await ensureLike(targetPost.id, candidate.id, 'ai', runToken);
-    if (!result.newlyAdded) {
-       await logActivity({
-          action_type: 'no_action',
-          actor_id: candidate.id,
-          reason: `Already liked post ${targetPost.id}, skipping.`
-       }, runToken);
-       return { outcome: 'NO_ACTION', details: 'Already liked.' };
-    }
-
-    await logActivity({
-      action_type: 'like',
-      actor_id: candidate.id,
-      target_post_id: targetPost.id,
-      reason: `Deterministic interest evaluation by ${candidate.handle}`
-    }, runToken);
-    return { outcome: 'LIKE_CREATED', details: { actor: candidate.handle, postId: targetPost.id } };
-  }
-
   // --- OPTION B: AI REPLY ---
-  if (actionChoice < replyThreshold && allPosts.length > 0 && (options.keys.geminiKey || options.keys.groqKey || options.keys.openrouterKey)) {
-    // Filter out posts this candidate has already replied to, or authored
-    const validTargets = allPosts.filter(p => p.author_id !== candidate.id && !aiReplyEdges.has(`${candidate.id}:${p.id}`));
-    const validMentionTargets = mentioningPosts.filter(p => p.author_id !== candidate.id && !aiReplyEdges.has(`${candidate.id}:${p.id}`));
+  if (selectedAction === 'reply') {
+    let currentTarget = targetPost;
+    let isUrgencyReply = isUrgencyEvent;
 
-    let possibleTargets = isCandidateMentioned && validMentionTargets.length > 0 ? validMentionTargets : validTargets;
+    if (!isUrgencyEvent) {
+      const validTargets = allPosts.filter(p => p.author_id !== candidate.id && !aiReplyEdges.has(`${candidate.id}:${p.id}`));
+      const validMentionTargets = mentioningPosts.filter(p => p.author_id !== candidate.id && !aiReplyEdges.has(`${candidate.id}:${p.id}`));
+      let possibleTargets = isCandidateMentioned && validMentionTargets.length > 0 ? validMentionTargets : validTargets;
 
-    if (possibleTargets.length > 0) {
-      const targetPost = possibleTargets[Math.floor(Math.random() * possibleTargets.length)];
+      if (possibleTargets.length > 0) {
+        currentTarget = possibleTargets[Math.floor(Math.random() * possibleTargets.length)];
+      }
+    }
 
+    if (currentTarget) {
       const { text, validation } = await generateDreamXReply(
         candidate,
-        targetPost,
-        targetPost.author_name || 'User',
-        targetPost.author_handle || '@user',
+        currentTarget,
+        currentTarget.author_name || 'User',
+        currentTarget.author_handle || '@user',
         options,
-        isCandidateMentioned
+        isUrgencyReply ? (topUrgencyEvent?.isMention || isCandidateMentioned) : isCandidateMentioned
       );
 
       if (!validation.isValid) {
         await logActivity({
           action_type: 'no_action',
           actor_id: candidate.id,
-          reason: `Rejected AI reply output: ${validation.reason}`
+          reason: isUrgencyReply ? `Rejected high-urgency reply output: ${validation.reason}` : `Rejected AI reply output: ${validation.reason}`
         }, runToken);
         return { outcome: 'NO_ACTION', details: `Rejected reply generation: ${validation.reason}` };
       }
@@ -247,14 +242,14 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
         author_id: candidate.id,
         author_type: 'ai',
         content: text,
-        reply_to_post_id: targetPost.id
+        reply_to_post_id: currentTarget.id
       }, runToken);
 
       await logActivity({
         action_type: 'reply',
         actor_id: candidate.id,
-        target_post_id: saved.id,
-        reason: `Autonomous in-character reply by ${candidate.handle}`
+        target_post_id: currentTarget.id,
+        reason: isUrgencyReply ? `Event-driven response to ${currentTarget.author_handle} (Urgency: ${topUrgencyEvent?.score.toFixed(1)}, runToken)` : `Autonomous in-character reply by ${candidate.handle}`
       }, runToken);
 
       return { outcome: 'REPLY_CREATED', details: { post: saved } };
@@ -269,7 +264,7 @@ export async function runAutonomousActivityStep(options: SimulationOptions): Pro
   }
 
   // --- OPTION C: AI POST ---
-  if (actionChoice < 0.85 && (options.keys.geminiKey || options.keys.groqKey || options.keys.openrouterKey)) {
+  if (selectedAction === 'post') {
     const { text, validation } = await generateDreamXPost(candidate, '', options);
     if (!validation.isValid) {
       await logActivity({

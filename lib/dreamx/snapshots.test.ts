@@ -297,4 +297,54 @@ describe('DreamX Snapshot & Rollback Architecture', () => {
     expect(step.outcome).toBe('PAUSED');
   });
 
+  it('M. Snapshots revert timeline state (DMs, feeds) while preserving configuration', async () => {
+    // 1. Establish initial configuration (profiles) and initial timeline state
+    const { saveProfile } = await import('./db');
+    const { getOrCreateConversation, createDirectMessage } = await import('./dm');
+    
+    await saveProfile({ id: 'config_1', display_name: 'Config User 1', handle: '@c1', personality: 'friendly' });
+    await saveProfile({ id: 'config_2', display_name: 'Config User 2', handle: '@c2', personality: 'grumpy' });
+    
+    await savePost({ author_id: 'config_1', author_type: 'ai', content: 'Base feed post' });
+    
+    const conv = await getOrCreateConversation('config_1', 'config_2');
+    await createDirectMessage({ conversationId: conv.id, senderId: 'config_1', body: 'Base DM message' });
+
+    // 2. Create snapshot
+    const snapMeta = await createSimulationSnapshot('Config and Timeline Base Snap');
+    
+    // 3. Mutate timeline (feeds, DMs) AND configuration
+    await savePost({ author_id: 'config_2', author_type: 'ai', content: 'Mutated feed post' });
+    await createDirectMessage({ conversationId: conv.id, senderId: 'config_2', body: 'Mutated DM message' });
+    await saveProfile({ id: 'config_1', display_name: 'Mutated Name', handle: '@mutated', personality: 'mutated personality' });
+    
+    const db = (getDatabase() as any).client || (getDatabase() as any).db;
+    let posts = db.prepare('SELECT content FROM dreamx_posts ORDER BY content ASC').all();
+    expect(posts.length).toBe(2);
+    
+    let messages = db.prepare('SELECT body FROM dreamx_messages ORDER BY body ASC').all();
+    expect(messages.length).toBe(2);
+    
+    let p1 = db.prepare('SELECT display_name FROM dreamx_profiles WHERE id = ?').get('config_1');
+    expect(p1.display_name).toBe('Mutated Name');
+
+    // 4. Restore snapshot
+    await restoreSimulationSnapshot(snapMeta.snapshot_id);
+    
+    // 5. Verify timeline and config are exactly as they were at the time of the snapshot
+    const dbRestore = (getDatabase() as any).client || (getDatabase() as any).db;
+    
+    posts = dbRestore.prepare('SELECT content FROM dreamx_posts').all();
+    expect(posts.length).toBe(1);
+    expect(posts[0].content).toBe('Base feed post');
+    
+    messages = dbRestore.prepare('SELECT body FROM dreamx_messages').all();
+    expect(messages.length).toBe(1);
+    expect(messages[0].body).toBe('Base DM message');
+    
+    p1 = dbRestore.prepare('SELECT display_name, personality FROM dreamx_profiles WHERE id = ?').get('config_1');
+    expect(p1.display_name).toBe('Config User 1');
+    expect(p1.personality).toBe('friendly');
+  });
+
 });

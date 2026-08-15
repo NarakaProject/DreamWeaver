@@ -29,6 +29,7 @@ export interface DreamXProfile {
   background?: string;
   posting_guidelines?: string;
   verification_type?: VerificationType;
+  behavior_policy?: string | null;
   created_at: number;
   updated_at: number;
 }
