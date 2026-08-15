@@ -2,6 +2,7 @@ import { getDatabase } from '../db';
 import type { 
   Actor, 
   ActorIdentity, 
+  ActorTaxonomy,
   ActorPersonality, 
   ActorContentProfile, 
   DreamXProfile, 
@@ -12,6 +13,36 @@ import type {
 import { parseBehaviorPolicy } from './behaviorPolicy';
 
 export type { ActorType, DreamXActor };
+
+/**
+ * Helper to safely extract taxonomy from a profile object or fallback to D2 defaults.
+ */
+function extractTaxonomy(profile: { category?: string; archetypes?: string[] | string; tags?: string[] }): ActorTaxonomy {
+  const category = (profile.category && typeof profile.category === 'string') ? profile.category : 'individual';
+  let archetypes: string[] = [];
+
+  if (profile.archetypes) {
+    if (Array.isArray(profile.archetypes)) {
+      archetypes = [...profile.archetypes];
+    } else if (typeof profile.archetypes === 'string') {
+      try {
+        const parsed = JSON.parse(profile.archetypes);
+        if (Array.isArray(parsed)) archetypes = parsed;
+        else archetypes = [profile.archetypes];
+      } catch {
+        archetypes = [profile.archetypes];
+      }
+    }
+  }
+
+  const tags = Array.isArray(profile.tags) ? [...profile.tags] : undefined;
+
+  return {
+    category,
+    archetypes,
+    ...(tags ? { tags } : {})
+  };
+}
 
 /**
  * Pure mapping function: Maps a persistent DreamXProfile (AI) to the canonical Actor domain model.
@@ -29,6 +60,8 @@ export function toActorFromProfile(profile: DreamXProfile): Actor {
     created_at: profile.created_at,
     updated_at: profile.updated_at,
   };
+
+  const taxonomy: ActorTaxonomy = extractTaxonomy(profile);
 
   const personality: ActorPersonality | undefined = (
     profile.personality ||
@@ -58,6 +91,7 @@ export function toActorFromProfile(profile: DreamXProfile): Actor {
 
   return {
     identity,
+    taxonomy,
     ...(personality ? { personality } : {}),
     ...(contentProfile ? { contentProfile } : {}),
     ...(behaviorPolicy ? { behaviorPolicy } : {}),
@@ -81,6 +115,8 @@ export function toActorFromUserProfile(userProfile: DreamXUserProfile): Actor {
     updated_at: userProfile.updated_at,
   };
 
+  const taxonomy: ActorTaxonomy = extractTaxonomy(userProfile);
+
   const personality: ActorPersonality | undefined = (
     userProfile.personality ||
     userProfile.interests
@@ -95,6 +131,7 @@ export function toActorFromUserProfile(userProfile: DreamXUserProfile): Actor {
 
   return {
     identity,
+    taxonomy,
     ...(personality ? { personality } : {}),
     ...(contentProfile ? { contentProfile } : {}),
   };

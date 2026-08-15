@@ -33,8 +33,30 @@ export interface ActorContentProfile {
   posting_guidelines?: string;
 }
 
+export interface ActorTaxonomy {
+  category: string;
+  archetypes: string[];
+  tags?: string[];
+}
+
+export interface CategoryDefinition {
+  id: string;
+  label: string;
+  description: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ArchetypeDefinition {
+  id: string;
+  label: string;
+  description: string;
+  category_id?: string;
+  metadata?: Record<string, any>;
+}
+
 export interface Actor {
   identity: ActorIdentity;
+  taxonomy?: ActorTaxonomy;
   personality?: ActorPersonality;
   contentProfile?: ActorContentProfile;
   behaviorPolicy?: BehaviorPolicy;
@@ -56,6 +78,9 @@ export interface DreamXUserProfile {
   interests?: string;
   writing_style?: string;
   verification_type?: VerificationType;
+  category?: string;
+  archetypes?: string[];
+  tags?: string[];
   created_at: number;
   updated_at: number;
 }
@@ -75,6 +100,9 @@ export interface DreamXProfile {
   posting_guidelines?: string;
   verification_type?: VerificationType;
   behavior_policy?: string | null;
+  category?: string;
+  archetypes?: string[];
+  tags?: string[];
   created_at: number;
   updated_at: number;
 }
