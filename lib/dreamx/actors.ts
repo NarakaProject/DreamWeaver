@@ -12,6 +12,8 @@ import type {
 } from './types';
 import { parseBehaviorPolicy } from './behaviorPolicy';
 
+import { normalizePersonality } from './personality';
+
 export type { ActorType, DreamXActor };
 
 /**
@@ -63,19 +65,13 @@ export function toActorFromProfile(profile: DreamXProfile): Actor {
 
   const taxonomy: ActorTaxonomy = extractTaxonomy(profile);
 
-  const personality: ActorPersonality | undefined = (
-    profile.personality ||
-    profile.traits ||
-    profile.interests ||
-    profile.beliefs ||
-    profile.background
-  ) ? {
-    personality: profile.personality || undefined,
-    traits: profile.traits || undefined,
-    interests: profile.interests || undefined,
-    beliefs: profile.beliefs || undefined,
-    background: profile.background || undefined,
-  } : undefined;
+  const personality: ActorPersonality | undefined = normalizePersonality({
+    summary: profile.personality,
+    traits: profile.traits,
+    interests: profile.interests,
+    beliefs: profile.beliefs,
+    background: profile.background,
+  });
 
   const contentProfile: ActorContentProfile | undefined = (
     profile.speaking_style ||
@@ -117,13 +113,10 @@ export function toActorFromUserProfile(userProfile: DreamXUserProfile): Actor {
 
   const taxonomy: ActorTaxonomy = extractTaxonomy(userProfile);
 
-  const personality: ActorPersonality | undefined = (
-    userProfile.personality ||
-    userProfile.interests
-  ) ? {
-    personality: userProfile.personality || undefined,
-    interests: userProfile.interests || undefined,
-  } : undefined;
+  const personality: ActorPersonality | undefined = normalizePersonality({
+    summary: userProfile.personality,
+    interests: userProfile.interests,
+  });
 
   const contentProfile: ActorContentProfile | undefined = userProfile.writing_style ? {
     writing_style: userProfile.writing_style || undefined,

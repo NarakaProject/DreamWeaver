@@ -65,9 +65,9 @@ describe('Phase D1 — Actor Domain Model & Resolver', () => {
 
       // Verify Personality
       expect(actor.personality).toEqual({
-        personality: 'Analytical and sharp',
-        traits: 'logical, precise',
-        interests: 'AI, coding, hardware',
+        summary: 'Analytical and sharp',
+        traits: ['logical', 'precise'],
+        interests: ['AI', 'coding', 'hardware'],
         beliefs: 'Technology improves life',
         background: 'Built in 2026'
       });
@@ -140,8 +140,8 @@ describe('Phase D1 — Actor Domain Model & Resolver', () => {
 
       // Verify Personality
       expect(actor.personality).toEqual({
-        personality: 'Friendly and curious',
-        interests: 'Novels, Sci-Fi'
+        summary: 'Friendly and curious',
+        interests: ['Novels', 'Sci-Fi']
       });
 
       // Verify Content Profile
@@ -206,7 +206,8 @@ describe('Phase D1 — Actor Domain Model & Resolver', () => {
       expect(actor?.identity.display_name).toBe('Bob Smith');
       expect(actor?.identity.actor_type).toBe('human');
       expect(actor?.identity.verification_type).toBe('blue');
-      expect(actor?.personality?.personality).toBe('Humorous');
+      expect(actor?.personality?.summary).toBe('Humorous');
+      expect(actor?.personality?.interests).toEqual(['Tech']);
       expect(actor?.contentProfile?.writing_style).toBe('Casual');
       expect(actor?.behaviorPolicy).toBeUndefined();
     });
@@ -219,8 +220,9 @@ describe('Phase D1 — Actor Domain Model & Resolver', () => {
       expect(actor?.identity.display_name).toBe('The Oracle');
       expect(actor?.identity.actor_type).toBe('ai');
       expect(actor?.identity.verification_type).toBe('gold');
-      expect(actor?.personality?.personality).toBe('Mysterious');
-      expect(actor?.personality?.traits).toBe('cryptic');
+      expect(actor?.personality?.summary).toBe('Mysterious');
+      expect(actor?.personality?.traits).toEqual(['cryptic']);
+      expect(actor?.personality?.interests).toEqual(['Futures']);
       expect(actor?.contentProfile?.speaking_style).toBe('Enigmatic');
       expect(actor?.behaviorPolicy?.actionProbabilities.like).toBe(0.5);
     });

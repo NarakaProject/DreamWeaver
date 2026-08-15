@@ -20,9 +20,9 @@ export interface ActorIdentity {
 }
 
 export interface ActorPersonality {
-  personality?: string;
-  traits?: string;
-  interests?: string;
+  summary?: string;
+  traits?: string[];
+  interests?: string[];
   beliefs?: string;
   background?: string;
 }
