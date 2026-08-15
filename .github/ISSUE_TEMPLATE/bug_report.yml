@@ -1,0 +1,97 @@
+name: "🐛 Bug Report"
+description: "Report a reproducible defect or architectural regression in DreamWeaver or DreamX"
+title: "[BUG]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug! Please provide complete, forensic information to help reproduce and fix the issue.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Bug Summary
+      description: A concise explanation of the bug.
+      placeholder: Describe the problem clearly...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected_layer
+    attributes:
+      label: Affected Subsystem / Architectural Layer
+      description: Which architectural layer or component is affected?
+      options:
+        - "DreamX: Actor Model & Mapping (D1)"
+        - "DreamX: Open Actor Taxonomy (D2/D6)"
+        - "DreamX: Personality Layer (D3)"
+        - "DreamX: Behavior Policy & Derivation (D4)"
+        - "DreamX: Content Profile (D5)"
+        - "DreamX: Simulation Orchestration & Engine (D7)"
+        - "DreamX: Social Physics & Crowd Math"
+        - "DreamX: Import / Export & Persistence DAL"
+        - "DreamWeaver: 12-Block Prompt Compiler"
+        - "DreamWeaver: ELTM Memory Vault & TF-IDF Search"
+        - "AI Provider Router & Inference (Gemini / Groq / OpenRouter)"
+        - "Database & SQLite Schema Migrations"
+        - "UI / Client Application & Control Panel"
+        - "Other / Unspecified"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Exact steps or code snippet to reproduce the issue.
+      placeholder: |
+        1. Navigate to ...
+        2. Execute ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expected Behavior
+      description: What should have happened according to the architectural specification?
+      placeholder: The system should ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual_behavior
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: The system instead ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs_or_errors
+    attributes:
+      label: Relevant Logs or Error Output
+      description: Paste any terminal errors, test failure logs, or browser console output.
+      render: shell
+      placeholder: |
+        npm test failure or console error output here...
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment & Runtime
+      description: Node version, OS, browser, etc.
+      placeholder: "Node.js v20.x, macOS / Linux, Next.js 16.3"
+
+  - type: checkboxes
+    id: validation_checks
+    attributes:
+      label: Reproducibility & Regression Confirmation
+      options:
+        - label: "I have confirmed this bug reproduces on the latest `main` branch."
+          required: true
+        - label: "I have checked existing issues to ensure this is not a duplicate."
+          required: true

@@ -1,0 +1,69 @@
+name: "💡 Feature Request"
+description: "Propose an architectural improvement or new feature for DreamWeaver or DreamX"
+title: "[FEATURE]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting a feature! Please provide the architectural rationale and use case for your proposal.
+
+  - type: textarea
+    id: problem_statement
+    attributes:
+      label: Problem / Use Case
+      description: What problem are you trying to solve or what limitation are you addressing?
+      placeholder: Describe the challenge or missing capability...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed Behavior & Solution
+      description: A clear and concise description of what you want to happen.
+      placeholder: Describe how the new feature should work...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: target_layer
+    attributes:
+      label: Target Architectural Layer
+      description: Which subsystem or layer does this proposal primarily touch?
+      options:
+        - "DreamX: Actor Model & Mapping (D1)"
+        - "DreamX: Open Actor Taxonomy (D2/D6)"
+        - "DreamX: Personality Layer (D3)"
+        - "DreamX: Behavior Policy (D4)"
+        - "DreamX: Content Profile (D5)"
+        - "DreamX: Simulation & Engine (D7)"
+        - "DreamX: Social Physics & Crowd Math"
+        - "DreamWeaver: Narrative 12-Block Prompt Engine"
+        - "DreamWeaver: ELTM Memory Vault"
+        - "AI Provider Router & Models"
+        - "Database & Persistence"
+        - "UI / User Experience"
+        - "Documentation / Tooling"
+    validations:
+      required: true
+
+  - type: textarea
+    id: architectural_implications
+    attributes:
+      label: Architectural Implications & Invariants
+      description: How does this maintain domain separation and avoid introducing unwanted coupling or hardcoded logic?
+      placeholder: Discuss how this adheres to the D1–D7 architectural contract or Narrative Engine constraints...
+
+  - type: textarea
+    id: alternatives_considered
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions, designs, or workarounds you considered.
+      placeholder: Alternative approaches evaluated...
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional Context
+      description: Add any other context, diagrams, or references here.
