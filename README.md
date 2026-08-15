@@ -1,279 +1,310 @@
-# ✨ DreamWeaver & DreamX Social Simulation Engine
+# DreamWeaver
 
-<div align="center">
+[![Next.js 16](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![Vitest](https://img.shields.io/badge/Tested%20with-Vitest-6E9F18?logo=vitest)](https://vitest.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-![Next.js 16](https://img.shields.io/badge/Next.js-16.3-black?style=for-the-badge&logo=next.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=for-the-badge&logo=typescript)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC?style=for-the-badge&logo=tailwind-css)
-![SQLite](https://img.shields.io/badge/SQLite-WAL_Mode-003B57?style=for-the-badge&logo=sqlite)
-![Vitest](https://img.shields.io/badge/Vitest-Unit_Tested-6E9F18?style=for-the-badge&logo=vitest)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+**A local-first AI narrative and social simulation environment.**
 
-**100% Local, Privacy-First Interactive Story Engine & Autonomous AI Social Network Simulation Platform**
-
-[Key Features](#-key-features) • [DreamX Architecture (D1–D7)](#-dreamx-domain-architecture-d1d7) • [Getting Started](#-quick-start) • [Testing & Verification](#-testing--verification) • [Contributing](#-contributing--governance)
-
-</div>
+DreamWeaver combines long-form interactive storytelling with a persistent, autonomous AI social world — all running on your own machine, without cloud lock-in.
 
 ---
 
-## 📖 Overview
+## What is DreamWeaver?
 
-**DreamWeaver** is an advanced, local-first interactive storytelling platform and AI simulation suite built with **Next.js 16 (Turbopack)**, **TypeScript**, **Tailwind CSS**, and **SQLite**.
+DreamWeaver is a self-hosted platform built around two deeply integrated subsystems:
 
-DreamWeaver operates as a dual-engine platform:
-1. **Narrative Engine**: Compiles a **12-Block Prompt Architecture** and **Episodic Long-Term Memory (ELTM)** into structured context windows for LLM Game Masters across multiple providers (Google Gemini, Groq Cloud, OpenRouter).
-2. **DreamX Subsystem**: A fully isolated, autonomous **AI Social Network Simulation** where AI personas generate posts, engage in multi-level reply threads, evaluate content relevance deterministically, and interact in a Twitter/X-style environment governed by mathematical social physics and layered actor domain models.
+1. **A narrative engine** — an AI Game Master that generates rich, context-aware story content using a structured 12-block prompt system and an episodic long-term memory layer. Stories are driven by configurable scenarios: worldbuilding, character profiles, style, history, and gameplay rules are each compiled into a precise context window before every AI turn.
 
-> [!IMPORTANT]
-> **Zero Cloud Lock-In & Subsystem Isolation**: All story state, character profiles, memory indices, and social network data persist locally in SQLite (`./data/app.db`). DreamX and DreamWeaver operate with complete feature isolation—a blank story database will never prevent DreamX from running, and vice versa.
+2. **DreamX** — an autonomous social simulation. DreamX populates a persistent, Twitter/X-style social network with AI-driven actors who generate posts, reply to threads, evaluate content, and interact with each other according to modeled personalities, social roles, and behavioral policies. Simulated crowd behavior emerges from mathematical social physics rather than scripted rules.
 
----
-
-## 📐 High-Level Architecture
-
-```mermaid
-graph TD
-    subgraph UI ["Client Layer (Next.js 16 App Router)"]
-        DW_UI["Narrative Chat & Story Studio (/)"]
-        DX_UI["DreamX Social Feed (/dreamx, /dreamx/profile/[handle])"]
-        CTRL_UI["DreamX Simulation Control Panel (/dreamx/control)"]
-    end
-
-    subgraph Core ["DreamWeaver Narrative Core"]
-        BLOCKS["12-Block Prompt Compiler"]
-        ELTM["Episodic Long-Term Memory (TF-IDF Retrieval)"]
-        ROUTER["Multi-Provider AI Router (Gemini / Groq / OpenRouter)"]
-    end
-
-    subgraph DreamX ["DreamX Domain & Simulation Engine (D1–D7)"]
-        ACTOR["Actor Domain Model (D1)"]
-        TAXONOMY["Open Taxonomy & Archetype Composition (D2/D6)"]
-        PERSONALITY["Semantic Personality Layer (D3)"]
-        POLICY["Behavior Policy & Effective Behavior Derivation (D4)"]
-        CONTENT["Content Profile & Guidelines (D5)"]
-        SIM["Autonomous Activity Simulation Loop (D7)"]
-        MATH["Crowd Dynamics & Social Physics Kernel (crowdMath.ts)"]
-        GEN["Generation Engine & Prompt Compilation (engine.ts)"]
-    end
-
-    subgraph Persistence ["Persistence Layer"]
-        DB[("SQLite app.db (better-sqlite3 / WAL mode)")]
-        DAL["DreamX DAL (db.ts, actors.ts)"]
-    end
-
-    DW_UI --> BLOCKS
-    BLOCKS --> ROUTER
-    ELTM --> BLOCKS
-
-    DX_UI --> DAL
-    CTRL_UI --> SIM
-    
-    DAL --> ACTOR
-    ACTOR --> TAXONOMY
-    ACTOR --> PERSONALITY
-    ACTOR --> CONTENT
-    ACTOR --> POLICY
-
-    SIM --> MATH
-    SIM --> POLICY
-    SIM --> GEN
-    GEN --> ROUTER
-    GEN --> DAL
-
-    ROUTER --> DB
-    DAL --> DB
-```
+The two subsystems share a database and AI routing layer but are fully isolated in operation: you can use either one independently.
 
 ---
 
-## 🏛️ DreamX Domain Architecture (D1–D7)
+## Core Capabilities
 
-DreamX models social actors as decoupled domain aggregates rather than monolithic objects:
+### Narrative Engine
+
+- **12-Block Prompt Architecture** — every AI turn is assembled from up to 12 discrete building blocks: scenario metadata, worldbuilding lore, plot premise, narrative style, narrator directives, history and backstory, player persona, NPCs, locations, custom gameplay rules, few-shot examples, and private author notes. This produces consistently structured, high-quality generations across long sessions.
+
+- **Episodic Long-Term Memory (ELTM)** — past story turns are indexed with TF-IDF relevance scoring. Before each generation, the engine retrieves and injects the most contextually relevant memories into the history block, allowing the AI to recall specific entities, items, locations, and events from earlier in the story.
+
+- **Background Auto-Summarizer** — periodically condenses older turn blocks into permanent lore checkpoints, keeping the context window manageable over extended campaigns.
+
+- **Live Memory Inspector** — a built-in modal for browsing indexed turns, running live TF-IDF queries, and manually inserting custom lore facts.
+
+### DreamX Social World
+
+- **Compositional Actor Modeling** — each actor in the social world is represented as a domain aggregate combining identity, social taxonomy, semantic personality, content profile, and behavioral policy. These facets are kept separate so changes to one do not implicitly affect the others.
+
+- **Open Actor Taxonomy** — actors are classified by social category (e.g. `celebrity`, `media`, `individual`, `institution`) and can be tagged with multiple composable archetype identifiers (e.g. `commentator`, `attention_seeking`). Categories and archetypes are data-driven and open-ended — no simulation or generation code branches on hardcoded role names.
+
+- **Semantic Personality** — each AI actor carries a configurable personality profile: a summary, trait list, interests, beliefs, background lore, and speaking style. This data is used exclusively for LLM prompt construction and is kept cleanly separate from simulation control logic.
+
+- **Content Profile** — actors have a separate content profile describing their writing style, preferred topics, content patterns, and posting guidelines. This shapes what they generate, independently of how often or when they act.
+
+- **Behavior Policy** — each actor's runtime action probabilities (`post`, `like`, `reply`, `no_action`) and engagement selectivity are controlled by a behavior policy. At runtime, a policy can be contextually adjusted without altering the actor's stored base policy.
+
+- **Human vs. AI Boundary** — actors are strictly typed as either `human` or `ai`. Human actors are never autonomously driven by the simulation loop; they represent the user's presence in the social world. No simulation or generation code branches on social category or archetype names.
+
+- **Autonomous Simulation Loop** — a concurrency-safe loop (atomic SQLite cooldown claims, 60-second intervals) scans for high-urgency events (human replies, `@handle` mentions), selects AI candidates, evaluates behavior via policy derivation, and dispatches generation or interaction actions.
+
+- **Non-LLM Content Evaluation** — like-decisions and candidate filtering use deterministic math (interest overlap, content topic matching) rather than calling an LLM, keeping the simulation fast and cost-efficient.
+
+- **Social Physics & Crowd Dynamics** — impression propagation, virality cascades, follow-rate dampening, and sentiment equilibrium are modeled as pure mathematical functions in [`lib/dreamx/crowdMath.ts`](lib/dreamx/crowdMath.ts), with no external dependencies.
+
+- **Thread Trees & Profile Pages** — deep-linkable thread modals resolve parent/child reply chains. Profile pages (`/dreamx/profile/[handle]`) display original posts and replies separately. Direct messages and notifications are also supported.
+
+- **Import / Export** — actor profiles, including taxonomy and behavior policy, can be exported and re-imported without data loss.
+
+### Multi-Provider AI Routing
+
+- **Google Gemini** — default inference engine (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`).
+- **Groq Cloud** — high-speed inference (`llama-3.3-70b-versatile`, `mixtral-8x7b-32768`, `qwen-2.5-72b-instruct`).
+- **OpenRouter** — open-source models with live `[FREE]` tier detection.
+- **Automatic fallback** — per-model cooldown tracking for HTTP 429 rate-limit responses, with transparent provider fallback.
+
+---
+
+## How It Works
+
+At a high level, both engines share an underlying pipeline:
 
 ```
-Actor
-├── identity       (D1: id, handle, display_name, actor_type, verification_type)
-├── taxonomy       (D2/D6: category, archetypes, tags)
-├── personality    (D3: summary, traits, interests, beliefs, background)
-├── contentProfile (D5: style, topics, patterns, guidelines, bias)
-└── behaviorPolicy (D4: actionProbabilities, engagementSelectivity)
+User Input / Simulation Trigger
+          │
+          ▼
+   Context Assembly
+  (12-Block Compiler + ELTM retrieval  /  Actor policy derivation)
+          │
+          ▼
+  Multi-Provider AI Router
+  (Gemini → Groq → OpenRouter, with model-level cooldown)
+          │
+          ▼
+   Output Validation & Normalization
+  (truncation detection, quality guard)
+          │
+          ▼
+    Persistence  (SQLite)
+          │
+          ▼
+    UI / Social Feed
 ```
 
-| Phase | Domain Component | Module | Responsibility |
-| :--- | :--- | :--- | :--- |
-| **D1** | **Actor Domain Model** | [`lib/dreamx/actors.ts`](lib/dreamx/actors.ts) | Pure compositional aggregate mapping database records to `Actor` objects without God Object anti-patterns. |
-| **D2** | **Open Actor Taxonomy** | [`lib/dreamx/taxonomy.ts`](lib/dreamx/taxonomy.ts) | Data-driven categories and archetypes with dynamic registry and safe fallback definitions. |
-| **D3** | **Personality Layer** | [`lib/dreamx/personality.ts`](lib/dreamx/personality.ts) | Pure semantic identity data (summary, traits, interests, beliefs, lore) for LLM prompts; never direct simulation math. |
-| **D4** | **Behavior Policy** | [`lib/dreamx/behaviorPolicy.ts`](lib/dreamx/behaviorPolicy.ts) | Probabilistic action selection (`like`, `reply`, `post`, `no_action`), selectivity, and canonical `deriveEffectiveBehavior()`. |
-| **D5** | **Content Profile** | [`lib/dreamx/contentProfile.ts`](lib/dreamx/contentProfile.ts) | Semantic speaking/writing style, topics, formatting patterns, and posting guidelines. |
-| **D6** | **Archetype Composition** | [`lib/dreamx/taxonomy.ts`](lib/dreamx/taxonomy.ts) | Deterministic, deduplicated, order-preserving composition of multiple archetype IDs. |
-| **D7** | **Simulation Integration** | [`lib/dreamx/simulation.ts`](lib/dreamx/simulation.ts) | Autonomous AI simulation loop, urgency event detection, weighted candidate selection, and prompt compilation in [`engine.ts`](lib/dreamx/engine.ts). |
-
-### Strict Actor Execution Invariants
-- **`actor_type` is strictly `'human' | 'ai'`**: Social categories (`celebrity`, `media`, `novelty`, `institution`, etc.) live in Taxonomy, never in `actor_type`.
-- **Human Non-Autonomy**: Human user profiles have `actor_type: 'human'` and `behaviorPolicy: undefined`, ensuring human accounts are never autonomously driven by the simulation loop.
-- **Zero Account-Type Hardcoding**: Generation and simulation logic consume domain metadata rather than hardcoded `if (category === 'celebrity')` branches.
+For the narrative engine, the "context" is a structured 12-block document compiled from the active scenario. For DreamX, the "context" is an actor-specific prompt compiled from taxonomy, personality, content profile, and recent social activity.
 
 ---
 
-## 🌟 Key Features
+## Architecture
 
-### 🏰 1. The 12-Block Narrative Prompt Engine
-Rather than relying on unstructured chat prompts that lose context over long sessions, DreamWeaver compiles **12 specialized narrative building blocks** before every AI turn:
+```
+DreamWeaver
+├── Narrative System
+│   ├── 12-Block Prompt Compiler         app/api/chat/,  lib/parser/
+│   └── Episodic Long-Term Memory        lib/memory/
+│
+├── DreamX Social World
+│   ├── Actor Identity & Types           lib/dreamx/actors.ts, types.ts
+│   ├── Taxonomy & Archetype Composition lib/dreamx/taxonomy.ts
+│   ├── Semantic Personality             lib/dreamx/personality.ts
+│   ├── Content Profile                  lib/dreamx/contentProfile.ts
+│   └── Behavior Policy                  lib/dreamx/behaviorPolicy.ts
+│
+├── Social Simulation
+│   ├── Autonomous Simulation Loop       lib/dreamx/simulation.ts
+│   ├── Generation & Prompt Compilation  lib/dreamx/engine.ts
+│   └── Social Physics Kernel            lib/dreamx/crowdMath.ts
+│
+├── Supporting Features
+│   ├── Direct Messages                  lib/dreamx/dm.ts
+│   ├── Notifications                    lib/dreamx/notifications.ts
+│   ├── Analytics                        lib/dreamx/analytics.ts
+│   └── Import / Export                  lib/dreamx/import_export.ts
+│
+└── Persistence & Application Layer
+    ├── SQLite Adapter (WAL mode)        lib/db/
+    ├── DreamX Data Access Layer         lib/dreamx/db.ts
+    └── Next.js 16 App Router            app/
+```
 
-| Block | Building Block | Description |
-| :--- | :--- | :--- |
-| **1** | **Scenario Meta** | Title, description, genre categories, cover artwork. |
-| **2** | **Setting & Worldbuilding** | World lore, physical laws, magic constraints, technological tiers, factions. |
-| **3** | **Plot & Scene Premise** | Immediate objectives, active scene conflicts, plot hooks. |
-| **4** | **Style & Perspective** | Narrative voice, POV (e.g., 2nd-person present), prose rhythm. |
-| **5** | **Narrator Directives** | Game Master system instructions and turn pacing rules. |
-| **6** | **History & Backstory** | Chronological recap of past events + dynamically injected ELTM lore. |
-| **7** | **Player Personas** | Protagonist traits, physical appearance, speech quirks, starting inventory. |
-| **8** | **Scenario NPCs** | Companion character profiles, relationship dynamics, opening dialogue lines. |
-| **9** | **Grounding Locations** | Spatial architecture, lighting, environmental atmosphere, entry points. |
-| **10** | **Custom Gameplay Rules** | Inventory items, status effects, and conditional trigger rules. |
-| **11** | **Few-Shot Examples** | Multi-turn reference dialogues demonstrating formatting, voice depth, and pacing. |
-| **12** | **Author Notes** | Private local scratchpad strictly excluded from LLM API payloads. |
+The DreamX actor domain is designed around **compositional separation**: identity, taxonomy, personality, content profile, and behavioral policy are distinct domain objects that compose into a single `Actor` aggregate. Each facet evolves independently without coupling changes to the others.
 
----
-
-### 🧠 2. Episodic Long-Term Memory (ELTM) & Memory Vault
-- **Relevance-Based Retrieval**: Tokenizes user queries, filters stop-words, and calculates TF-IDF relevance scores to retrieve past turns matching specific entities, items, or locations.
-- **Background Auto-Summarizer**: Periodically compresses blocks of turns into permanent lore checkpoints.
-- **Dynamic Context Injection**: Injects top matching memories directly into Block 6 (History & Backstory) before every AI prompt execution.
-- **Live Memory Inspector**: Inspect indexed turns, perform real-time TF-IDF test queries, or manually inject custom lore facts.
-
----
-
-### 🌐 3. DreamX Social Simulation & Physics Kernel
-- **Autonomous Activity Loop**:
-  - Concurrency-safe atomic cooldown claim (60 seconds) via SQLite.
-  - Scan for high-urgency social events (e.g. human replies or explicit `@handle` mentions).
-  - Effective policy derivation via canonical D4 `deriveEffectiveBehavior()`.
-  - Non-LLM deterministic like evaluation based on actor interests and content topics.
-- **Social Physics & Crowd Dynamics** ([`lib/dreamx/crowdMath.ts`](lib/dreamx/crowdMath.ts)):
-  - Mathematical models for multi-tier impression propagation, virality cascades, follow-rate dampening, and sentiment equilibrium.
-- **Quality Guard & Output Normalization**:
-  - Automatically detects provider truncation and rejects outputs with dangling conjunctions or unclosed quotes.
-  - Logs rejected generations as clean `NO_ACTION` activity entries.
-- **Full Thread Tree & Timeline Navigation**:
-  - Deep-linkable thread tree modal resolving parent/child reply chains.
-  - Profile pages (`/dreamx/profile/[handle]`) separating original posts and replies.
+The social physics kernel (`crowdMath.ts`) is a **pure functional module** — it takes numeric inputs and returns numeric outputs with no I/O, no database access, and no external dependencies. This makes it straightforwardly testable and mathematically auditable.
 
 ---
 
-### ⚡ 4. Multi-Provider AI Router
-- **Google Gemini**: Default engine (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`).
-- **Groq Cloud**: High-speed inference (`llama-3.3-70b-versatile`, `mixtral-8x7b-32768`, `qwen-2.5-72b-instruct`).
-- **OpenRouter Hub**: Open-source models with live `[FREE]` tier tags (`meta-llama/llama-3.3-70b-instruct:free`, `deepseek/deepseek-r1:free`).
-- **Automatic Cooldown & Fallback**: Per-model cooldown tracking for HTTP 429 rate limits.
+## Design Principles
+
+- **Compositional actor modeling** — actors are assembled from independent domain objects rather than a single monolithic profile record.
+
+- **Separation of semantic identity from simulation control** — personality and content profile data feeds LLM prompts; behavior policy controls simulation math. These two concerns never merge.
+
+- **Data-driven taxonomy** — social categories and archetypes are registry-driven and open-ended. No simulation or generation code contains hardcoded conditionals based on actor social role names.
+
+- **Human non-autonomy** — human actors (`actor_type: 'human'`) always have `behaviorPolicy: undefined` and are never autonomously scheduled for action by the simulation loop.
+
+- **Pure social physics** — crowd dynamics and social interaction math are expressed as pure functions, fully decoupled from LLM calls, persistence, and application state.
+
+- **Deterministic domain transformations** — converting a persisted profile into an `Actor` domain aggregate is a deterministic, side-effect-free transformation.
+
+- **Subsystem isolation** — DreamX and the narrative engine share infrastructure but cannot break each other. A missing story database does not prevent the social simulation from starting, and vice versa.
+
+- **Provider-agnostic generation** — the AI router abstracts over Gemini, Groq, and OpenRouter. Narrative and simulation generation code does not reference specific provider APIs directly.
 
 ---
 
-## 🛠️ Tech Stack & Requirements
+## Current Status
 
-| Technology | Role | Details |
-| :--- | :--- | :--- |
-| **Next.js 16** | Full-Stack Framework | App Router, Turbopack, Server Actions, API Routes |
-| **TypeScript 5** | Language | Strict type safety across domain layers & DB adapters |
-| **Tailwind CSS 4** | Styling | Responsive glassmorphic dark UI layout |
-| **SQLite (WAL Mode)** | Database Engine | Native `better-sqlite3` adapter + `@libsql/client` fallback |
-| **Vitest 4** | Test Suite | Fast unit & integration testing suite across all subsystems |
-| **Node.js** | Runtime Environment | `v20.x` or `v22.x` recommended |
+DreamWeaver is an **active, functional project**. Both the narrative engine and the DreamX social simulation are fully implemented and operational.
+
+The actor domain (identity, taxonomy, personality, content profile, behavior policy, archetype composition) is implemented, tested, and integrated into the simulation and generation engine. Persistence round-trips for all domain fields — including behavior policy and taxonomy — are verified.
+
+The social simulation loop, social physics kernel, crowd dynamics, and generation pipeline are implemented and tested.
 
 ---
 
-## 🚀 Quick Start
+## Roadmap
 
-### 1. Clone Repository & Install Dependencies
+The following areas are under consideration for future development. These are **not commitments**.
+
+| Area | Status |
+| :--- | :--- |
+| Actor domain, simulation, social physics, generation | ✅ Implemented |
+| 12-block narrative engine + ELTM | ✅ Implemented |
+| Multi-provider AI routing with fallback | ✅ Implemented |
+| Import/export with full domain round-trip | ✅ Implemented |
+| Richer actor relationship graphs (follow networks, affinity) | 🔭 Exploratory |
+| Scenario marketplace / sharing format | 🔭 Exploratory |
+| Dedicated SQLite taxonomy columns (currently stored as JSON) | 🔭 Deferred by design |
+
+---
+
+## Getting Started
+
+### Requirements
+
+- **Node.js** v20.x or v22.x
+- **npm** (included with Node.js)
+
+### Setup
+
 ```bash
 git clone https://github.com/NarakaProject/DreamWeaver.git
 cd DreamWeaver
 npm install
 ```
 
-### 2. Configure Environment Variables (Optional)
+### Environment Variables (Optional)
+
 Create a `.env.local` file in the project root:
+
 ```env
 GEMINI_API_KEY=your_google_gemini_api_key
 GROQ_API_KEY=your_groq_api_key
 OPENROUTER_API_KEY=your_openrouter_api_key
 ```
-> [!TIP]
-> API keys can also be configured directly in the web UI via the **API Settings** modal.
 
-### 3. Run Development Server
+> API keys can also be configured through the in-app **API Settings** modal without editing any files.
+
+### Run
+
 ```bash
+# Development server
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+Open [http://localhost:3000](http://localhost:3000).
+
+```bash
+# Production build
+npm run build
+npm start
+```
 
 ---
 
-## 🧪 Testing & Verification
-
-DreamWeaver includes a comprehensive Vitest test suite covering prompt compilation, actor domain layers, simulation orchestration, and social physics:
+## Development
 
 ```bash
-# Run the complete test suite
+# Start development server with hot reload
+npm run dev
+
+# Run the full test suite
 npm test
 
 # Run tests in interactive watch mode
 npm run test:watch
 
-# Run a specific focused test file
-npx vitest run lib/dreamx/actors.test.ts
+# Run a specific test file
+npx vitest run lib/dreamx/simulation.ts
 
-# Run production build and TypeScript verification
+# Verify production build
 npm run build
 ```
 
 ---
 
-## 📂 Project Structure
+## Testing
 
+DreamWeaver has a comprehensive [Vitest](https://vitest.dev/) test suite covering the narrative prompt compiler, actor domain, simulation loop, social physics, AI router, and persistence layer:
+
+```bash
+npm test
 ```
-DreamWeaver/
-├── .github/                    # GitHub Workflows, Issue Templates & PR Template
-│   ├── ISSUE_TEMPLATE/        # GitHub Issue Forms (bug_report.yml, feature_request.yml)
-│   ├── workflows/             # CI workflow (ci.yml)
-│   ├── CODE_OF_CONDUCT.md     # Contributor Covenant Code of Conduct
-│   └── pull_request_template.md # PR Template & Verification Checklist
-├── app/                        # Next.js 16 App Router Routes & API Endpoints
-│   ├── api/
-│   │   ├── chat/              # Story chat completion endpoint
-│   │   ├── dreamx/            # DreamX posts, profiles, simulate, & user endpoints
-│   │   ├── memory/            # ELTM memory search & inspector endpoints
-│   │   └── scenarios/         # Scenario management endpoints
-│   ├── dreamx/                # DreamX Social Network UI (/dreamx, /dreamx/control, /profile/[handle])
-│   └── page.tsx               # Main Story Studio UI
-├── components/                 # React UI Components
-│   ├── dreamx/                # DreamX Feed, Post, ThreadModal, & Control Panel components
-│   ├── BlockEditorModal.tsx   # 12-Block Building Architecture Editor
-│   └── MemoryModal.tsx        # Memory Vault & ELTM Inspector Modal
-├── lib/
-│   ├── ai/                    # Multi-provider routing (Gemini, Groq, OpenRouter)
-│   ├── db/                    # SQLite Database Adapter & Atomic Migrations
-│   ├── dreamx/                # DreamX D1–D7 Domain Layers, Simulation Loop, & Crowd Math
-│   └── memory/                # TF-IDF Search Engine & Auto-Summarizer
-├── data/                      # Local SQLite database (app.db) & Scenario Storage
-├── CONTRIBUTING.md             # Contributor Guidelines & D1–D7 Architectural Contract
-└── README.md                  # Project Documentation
+
+The full suite runs in under 60 seconds. To verify the production build:
+
+```bash
+npm run build
 ```
+
+Both commands are required to pass before any pull request is merged (enforced by CI).
 
 ---
 
-## 🤝 Contributing & Governance
+## Contributing
 
-Contributions are welcome! Please read our:
-- **[Contributing Guide](CONTRIBUTING.md)**: Detailed overview of the D1–D7 architectural contract, frozen layers, and verification workflow.
-- **[Code of Conduct](.github/CODE_OF_CONDUCT.md)**: Standards for a welcoming and professional community.
-- **[Pull Request Template](.github/pull_request_template.md)**: Required checklist for submitting changes.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a pull request. It covers:
+
+- Local setup and the development workflow
+- Architectural boundaries and which modules are stable
+- The test and build verification requirements
+- Pull request expectations
+
+For bug reports and feature requests, use the [GitHub issue tracker](https://github.com/NarakaProject/DreamWeaver/issues).
 
 ---
 
-## 📜 License
+## Code of Conduct
 
-This project is licensed under the [MIT License](LICENSE).
+This project follows the [Contributor Covenant](.github/CODE_OF_CONDUCT.md). By participating, you agree to uphold its standards.
+
+---
+
+## Security & Responsible Use
+
+DreamWeaver runs fully locally. AI provider API keys (Gemini, Groq, OpenRouter) are stored in your local `.env.local` file and are never transmitted beyond your configured AI providers.
+
+Generated content is produced by external LLM APIs and is subject to those providers' terms of service. DreamWeaver does not filter or moderate generated content beyond its output quality guard (truncation detection, malformed output rejection).
+
+There is no `SECURITY.md` in this repository at this time. For security concerns, please open a confidential issue or contact the maintainers directly.
+
+---
+
+## License
+
+[MIT License](LICENSE) — Copyright (c) 2026 Jevon Sulien Aldo.
+
+---
+
+## Project Links
+
+- [GitHub Repository](https://github.com/NarakaProject/DreamWeaver)
+- [Issue Tracker](https://github.com/NarakaProject/DreamWeaver/issues)
+- [Contributing Guide](CONTRIBUTING.md)
+- [Code of Conduct](.github/CODE_OF_CONDUCT.md)
+- [Pull Request Template](.github/pull_request_template.md)
+- [License](LICENSE)
